@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@go-fish/ui";
 
@@ -13,27 +12,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { data, isPending } = authClient.useSession();
-  const userLabel = data?.user.name?.trim() ? data.user.name : data?.user.email.split("@")[0];
-
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    }
-
-    if (menuOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [menuOpen]);
 
   async function handleSignOut() {
-    setMenuOpen(false);
     await authClient.signOut();
     router.push("/");
     router.refresh();
@@ -53,33 +33,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="gf-topbar__actions">
           {data?.user ? (
-            <div className="gf-user-menu" ref={menuRef}>
+            <>
+              <Link className="gf-user-menu__trigger" href="/profile/preferences">
+                Preferences
+              </Link>
               <button
                 className="gf-user-menu__trigger"
-                onClick={() => setMenuOpen((open) => !open)}
+                onClick={() => void handleSignOut()}
                 type="button"
               >
-                Preferences
+                Sign out
               </button>
-              {menuOpen ? (
-                <div className="gf-user-menu__dropdown">
-                  <Link
-                    className="gf-user-menu__item"
-                    href="/profile/preferences"
-                    onClick={() => setMenuOpen(false)}
-                  >
-                    Preferences
-                  </Link>
-                  <button
-                    className="gf-user-menu__item"
-                    onClick={() => void handleSignOut()}
-                    type="button"
-                  >
-                    Sign out
-                  </button>
-                </div>
-              ) : null}
-            </div>
+            </>
           ) : (
             <Link href="/events/new">
               <Button variant="secondary">{isPending ? "Loading..." : "Open app"}</Button>
