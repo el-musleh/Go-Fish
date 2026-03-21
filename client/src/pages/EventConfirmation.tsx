@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 
-interface ActivityOption { id: string; title: string; description: string; suggested_date: string; rank: number; is_selected: boolean; }
+interface ActivityOption { id: string; title: string; description: string; suggested_date: string; suggested_time: string | null; rank: number; is_selected: boolean; }
 
 function prettyDate(d: string) {
   const dateStr = d.includes('T') ? d.split('T')[0] : d;
@@ -43,7 +43,7 @@ export default function EventConfirmation() {
         <h3 className="gf-card-title">{selected.title}</h3>
         <p className="gf-muted">{selected.description}</p>
         <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
-          📅 {prettyDate(selected.suggested_date)}
+          📅 {prettyDate(selected.suggested_date)}{selected.suggested_time ? ` at ${selected.suggested_time}` : ''}
         </p>
       </div>
 

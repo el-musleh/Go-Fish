@@ -9,7 +9,7 @@ interface EventItem {
   status: string;
   response_window_end: string;
   respondent_count?: number;
-  selected_activity?: { title: string; suggested_date: string } | null;
+  selected_activity?: { title: string; suggested_date: string; suggested_time: string | null } | null;
 }
 
 function prettyDate(d: string) {
@@ -50,7 +50,7 @@ function EventCard({ event, role, onDelete }: { event: EventItem; role: 'creator
         </div>
         {event.status === 'finalized' && event.selected_activity && (
           <p className="gf-muted">
-            🎯 {event.selected_activity.title} · 📅 {prettyDate(event.selected_activity.suggested_date)}
+            🎯 {event.selected_activity.title} · 📅 {prettyDate(event.selected_activity.suggested_date)}{event.selected_activity.suggested_time ? ` at ${event.selected_activity.suggested_time}` : ''}
           </p>
         )}
         {role === 'creator' && event.respondent_count !== undefined && (
