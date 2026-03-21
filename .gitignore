@@ -1,0 +1,17 @@
+node_modules
+.pnpm-store
+.next
+coverage
+dist
+.turbo
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+apps/web/.env.local
+apps/web/.env*
+!apps/web/.env.example
+packages/database/generated
+packages/database/src/generated
+

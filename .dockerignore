@@ -1,0 +1,11 @@
+.git
+.next
+.turbo
+node_modules
+dist
+coverage
+.env
+apps/web/.env.local
+apps/web/tsconfig.tsbuildinfo
+resources
+
