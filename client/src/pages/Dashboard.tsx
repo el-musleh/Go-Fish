@@ -24,7 +24,7 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   finalized: { label: 'Confirmed', cls: 'gf-status-chip--finalized' },
 };
 
-function EventCard({ event, role }: { event: EventItem; role: 'creator' | 'participant' }) {
+function EventCard({ event, role, onDelete }: { event: EventItem; role: 'creator' | 'participant'; onDelete?: (id: string) => void }) {
   const s = STATUS_LABELS[event.status] || { label: event.status, cls: '' };
   const linkTo = event.status === 'options_ready' && role === 'creator'
     ? `/events/${event.id}/options`
@@ -35,6 +35,15 @@ function EventCard({ event, role }: { event: EventItem; role: 'creator' | 'parti
   return (
     <Link to={linkTo} style={{ textDecoration: 'none', color: 'inherit' }}>
       <div className="gf-card gf-event-card">
+        {onDelete && (
+          <button
+            className="gf-delete-btn"
+            aria-label={`Delete ${event.title}`}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(event.id); }}
+          >
+            &#x2715;
+          </button>
+        )}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 className="gf-card-title">{event.title}</h3>
           <span className={`gf-status-chip ${s.cls}`}>{s.label}</span>
@@ -60,6 +69,15 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState('');
+
+  async function handleDelete(eventId: string) {
+    try {
+      await api.delete<{ deleted: true }>(`/events/${eventId}`);
+      setCreated(prev => prev.filter(e => e.id !== eventId));
+    } catch {
+      setError('Could not delete event.');
+    }
+  }
 
   useEffect(() => {
     if (searchParams.get('prefsUpdated')) {
@@ -97,7 +115,7 @@ export default function Dashboard() {
         <section className="gf-stack">
           <h2 className="gf-section-title">My Events</h2>
           <div className="gf-grid gf-grid--two">
-            {created.map(e => <EventCard key={e.id} event={e} role="creator" />)}
+            {created.map(e => <EventCard key={e.id} event={e} role="creator" onDelete={handleDelete} />)}
           </div>
         </section>
       )}

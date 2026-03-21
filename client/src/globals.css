@@ -315,6 +315,31 @@ button, input, textarea { font: inherit; }
 
 .gf-event-card { display: flex; flex-direction: column; justify-content: space-between; gap: 20px; }
 
+.gf-delete-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 180ms ease, background 180ms ease;
+}
+.gf-delete-btn:hover {
+  color: var(--danger);
+  background: rgba(255, 154, 129, 0.12);
+}
+
 .gf-option-card { display: grid; gap: 14px; padding: 28px; }
 .gf-option-card--rank-1 { border-color: rgba(255, 215, 0, 0.3); }
 .gf-option-card--rank-1::before { background: linear-gradient(160deg, rgba(255, 215, 0, 0.1), transparent 45%, rgba(255, 255, 255, 0.02)); }
