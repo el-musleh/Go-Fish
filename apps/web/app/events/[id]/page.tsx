@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button, Card } from "@go-fish/ui";
 
@@ -11,10 +11,16 @@ import { LoginPanel } from "../../../components/login-panel";
 import { RespondentList } from "../../../components/respondent-list";
 import { authClient } from "../../../lib/auth-client";
 import { api } from "../../../lib/api";
+import { prettyDate } from "../../../lib/date";
 
 type EventPageData = Awaited<ReturnType<typeof api.getEvent>>;
 
 const POLL_INTERVAL = 5000;
+const RANK_CLASS: Record<number, string> = {
+  1: "gf-option-card--rank-1",
+  2: "gf-option-card--rank-2",
+  3: "gf-option-card--rank-3",
+};
 
 export default function EventDetailPage() {
   const params = useParams<{ id: string }>();
@@ -24,6 +30,7 @@ export default function EventDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [copied, setCopied] = useState(false);
+  const isSelectingRef = useRef(false);
 
   useEffect(() => {
     if (!session?.user || !params.id) return;
@@ -33,12 +40,12 @@ export default function EventDetailPage() {
       .catch((e) => setError(e instanceof Error ? e.message : "Could not load the event."));
   }, [params.id, session?.user]);
 
-  // Poll every 5s while collecting/generating
+  // Poll every 5s until finalized
   useEffect(() => {
     if (!session?.user || !params.id || !data) return;
-    const status = data.event.status;
-    if (status === "finalized") return;
+    if (data.event.status === "finalized") return;
     const interval = setInterval(() => {
+      if (isSelectingRef.current) return;
       api.getEvent(params.id).then(setData).catch(() => {});
     }, POLL_INTERVAL);
     return () => clearInterval(interval);
@@ -92,7 +99,21 @@ export default function EventDetailPage() {
     }
   }
 
-  // Finalized → redirect to confirmation
+  async function choose(optionId: string) {
+    isSelectingRef.current = true;
+    setIsWorking(true);
+    try {
+      await api.selectOption(event.id, { optionId });
+      router.push(`/events/${event.id}/confirmed`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not finalize the event.");
+    } finally {
+      setIsWorking(false);
+      isSelectingRef.current = false;
+    }
+  }
+
+  // Finalized → show confirmation link
   if (event.status === "finalized") {
     return (
       <div className="gf-stack gf-stack--xl">
@@ -109,22 +130,40 @@ export default function EventDetailPage() {
     );
   }
 
-  // Options ready → go pick
-  if (event.status === "awaiting_selection" && event.options.length > 0) {
+  // Options ready → show ranked cards inline
+  if (event.options.length > 0) {
     return (
       <div className="gf-stack gf-stack--xl">
-        <h2 className="gf-section-title">{event.title}</h2>
-        <Card>
-          <h3 className="gf-card-title">Options ready</h3>
-          <p className="gf-muted">{event.options.length} options generated. Pick your favorite.</p>
-        </Card>
-        <div className="gf-actions">
-          <Link href={`/events/${event.id}/options`}>
-            <Button>Choose an option</Button>
-          </Link>
+        <div className="gf-actions" style={{ justifyContent: "space-between", alignItems: "center" }}>
+          <h2 className="gf-section-title">{event.title}</h2>
           <Button onClick={() => void copyJoinLink()} variant="ghost">
             {copied ? "Copied" : "Copy link"}
           </Button>
+        </div>
+
+        {event.status === "generation_failed" ? (
+          <Button loading={isWorking} onClick={generateNow}>
+            Retry generation
+          </Button>
+        ) : null}
+
+        <div className="gf-grid gf-grid--three">
+          {event.options.map((option) => (
+            <Card className={`gf-option-card ${RANK_CLASS[option.rank] ?? ""}`} key={option.id}>
+              {option.rank === 1 ? <span className="gf-top-pick">Top Pick</span> : null}
+              <h3 className="gf-card-title">{option.title}</h3>
+              <p className="gf-muted">
+                {prettyDate(option.recommendedDate)} · {option.timeOfDay.replace("_", " ")}
+              </p>
+              <Button
+                loading={isWorking}
+                onClick={() => choose(option.id)}
+                variant="primary"
+              >
+                Choose
+              </Button>
+            </Card>
+          ))}
         </div>
       </div>
     );
@@ -174,7 +213,7 @@ export default function EventDetailPage() {
           onClick={() => void generateNow()}
           variant="primary"
         >
-          Generate Now{total > 0 ? ` (${event.respondedInvitees} responded)` : ""}
+          Generate options{total > 0 ? ` (${event.respondedInvitees} responded)` : ""}
         </Button>
       </div>
     </div>
