@@ -10,6 +10,8 @@ import { LoginPanel } from "../../components/login-panel";
 import { authClient } from "../../lib/auth-client";
 import { api } from "../../lib/api";
 
+const POLL_INTERVAL = 5000;
+
 export default function DashboardPage() {
   const { data: session, isPending } = authClient.useSession();
   const [data, setData] = useState<DashboardResponse | null>(null);
@@ -20,7 +22,16 @@ export default function DashboardPage() {
     void api
       .getDashboard()
       .then(setData)
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Could not load the dashboard."));
+      .catch((e) => setError(e instanceof Error ? e.message : "Could not load the dashboard."));
+  }, [session?.user]);
+
+  // Poll every 5s
+  useEffect(() => {
+    if (!session?.user) return;
+    const interval = setInterval(() => {
+      api.getDashboard().then(setData).catch(() => {});
+    }, POLL_INTERVAL);
+    return () => clearInterval(interval);
   }, [session?.user]);
 
   if (!session?.user && !isPending) {
@@ -31,18 +42,41 @@ export default function DashboardPage() {
     );
   }
 
+  const myEvents = data?.events.filter((e) => e.isOwner) ?? [];
+  const joinedEvents = data?.events.filter((e) => !e.isOwner) ?? [];
+  const hasAny = myEvents.length > 0 || joinedEvents.length > 0;
+
   return (
     <div className="gf-stack gf-stack--xl">
       {error ? <p className="gf-feedback gf-feedback--error">{error}</p> : null}
-      <section className="gf-grid gf-grid--two">
-        {data?.events.length ? (
-          data.events.map((event) => <EventCard event={event} key={event.id} />)
-        ) : (
-          <Card>
-            <h3 className="gf-card-title">No groups yet</h3>
-          </Card>
-        )}
-      </section>
+
+      {myEvents.length > 0 ? (
+        <section className="gf-stack">
+          <h2 className="gf-section-title">My Events</h2>
+          <div className="gf-grid gf-grid--two">
+            {myEvents.map((event) => (
+              <EventCard event={event} key={event.id} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {joinedEvents.length > 0 ? (
+        <section className="gf-stack">
+          <h2 className="gf-section-title">Joined Events</h2>
+          <div className="gf-grid gf-grid--two">
+            {joinedEvents.map((event) => (
+              <EventCard event={event} key={event.id} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {!hasAny && data ? (
+        <Card>
+          <h3 className="gf-card-title">No groups yet</h3>
+        </Card>
+      ) : null}
     </div>
   );
 }

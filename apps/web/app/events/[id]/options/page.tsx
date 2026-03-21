@@ -8,10 +8,16 @@ import { Button, Card } from "@go-fish/ui";
 import { LoginPanel } from "../../../../components/login-panel";
 import { authClient } from "../../../../lib/auth-client";
 import { api } from "../../../../lib/api";
+import { prettyDate } from "../../../../lib/date";
 
 type EventPageData = Awaited<ReturnType<typeof api.getEvent>>;
 
 const POLL_INTERVAL = 5000;
+const RANK_CLASS: Record<number, string> = {
+  1: "gf-option-card--rank-1",
+  2: "gf-option-card--rank-2",
+  3: "gf-option-card--rank-3",
+};
 
 export default function EventOptionsPage() {
   const params = useParams<{ id: string }>();
@@ -21,7 +27,6 @@ export default function EventOptionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [copied, setCopied] = useState(false);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const isSelectingRef = useRef(false);
 
   useEffect(() => {
@@ -29,10 +34,10 @@ export default function EventOptionsPage() {
     void api
       .getEvent(params.id)
       .then(setData)
-      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Could not load the event."));
+      .catch((e) => setError(e instanceof Error ? e.message : "Could not load the event."));
   }, [params.id, session?.user]);
 
-  // Live-sync: poll every 5s until finalized
+  // Poll every 5s until finalized
   useEffect(() => {
     if (!session?.user || !params.id) return;
     if (data?.event.status === "finalized") return;
@@ -58,20 +63,18 @@ export default function EventOptionsPage() {
   }
 
   if (!data) {
-    return <p className="gf-muted">Loading event…</p>;
+    return <p className="gf-muted">Loading event...</p>;
   }
 
   async function choose(optionId: string) {
     if (!data) return;
-
     isSelectingRef.current = true;
     setIsWorking(true);
     try {
-      const refreshed = await api.selectOption(data.event.id, { optionId });
-      const full = await api.getEvent(refreshed.event.id);
-      setData(full);
-    } catch (selectionError) {
-      setError(selectionError instanceof Error ? selectionError.message : "Could not finalize the event.");
+      await api.selectOption(data.event.id, { optionId });
+      router.push(`/events/${data.event.id}/confirmed`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not finalize the event.");
     } finally {
       setIsWorking(false);
       isSelectingRef.current = false;
@@ -80,14 +83,13 @@ export default function EventOptionsPage() {
 
   async function retry() {
     if (!data) return;
-
     setIsWorking(true);
     try {
       await api.retryGeneration(data.event.id);
       const refreshed = await api.getEvent(data.event.id);
       setData(refreshed);
-    } catch (retryError) {
-      setError(retryError instanceof Error ? retryError.message : "Could not requeue generation.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not requeue generation.");
     } finally {
       setIsWorking(false);
     }
@@ -101,41 +103,8 @@ export default function EventOptionsPage() {
     window.setTimeout(() => setCopied(false), 1800);
   }
 
-  function dismiss(optionId: string) {
-    setDismissed((prev) => new Set(prev).add(optionId));
-  }
-
   const options = data.event.options;
-  const visibleOptions = options.filter((o) => !dismissed.has(o.id));
-  const isFinalized = data.event.status === "finalized" || data.event.selectedOptionId;
   const total = data.event.pendingInvitees + data.event.respondedInvitees;
-  const responded = data.event.respondedInvitees;
-
-  // Post-selection confirmation
-  if (isFinalized) {
-    const selected = options.find((o) => o.id === data.event.selectedOptionId);
-    return (
-      <div className="gf-stack gf-stack--xl">
-        <h2 className="gf-section-title">Event finalized</h2>
-        {selected ? (
-          <Card className="gf-option-card">
-            <h3 className="gf-card-title">{selected.title}</h3>
-            <p className="gf-muted">
-              {selected.recommendedDate} · {selected.timeOfDay.replace("_", " ")}
-            </p>
-          </Card>
-        ) : null}
-        <div className="gf-actions">
-          <Button onClick={() => void copyJoinLink()} variant="secondary">
-            {copied ? "Copied" : "Share link"}
-          </Button>
-          <Button onClick={() => router.push("/dashboard")} variant="ghost">
-            Dashboard
-          </Button>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="gf-stack gf-stack--xl">
@@ -145,26 +114,21 @@ export default function EventOptionsPage() {
           {copied ? "Copied" : "Copy link"}
         </Button>
       </div>
+
       {data.event.status === "generation_failed" ? (
         <Button loading={isWorking} onClick={retry}>
           Retry generation
         </Button>
       ) : null}
-      {visibleOptions.length > 0 ? (
+
+      {options.length > 0 ? (
         <div className="gf-grid gf-grid--three">
-          {visibleOptions.map((option) => (
-            <Card className="gf-option-card gf-option-card--dismissible" key={option.id}>
-              <button
-                className="gf-option-card__dismiss"
-                onClick={() => dismiss(option.id)}
-                type="button"
-                aria-label="Dismiss"
-              >
-                ×
-              </button>
+          {options.map((option) => (
+            <Card className={`gf-option-card ${RANK_CLASS[option.rank] ?? ""}`} key={option.id}>
+              {option.rank === 1 ? <span className="gf-top-pick">Top Pick</span> : null}
               <h3 className="gf-card-title">{option.title}</h3>
               <p className="gf-muted">
-                {option.recommendedDate} · {option.timeOfDay.replace("_", " ")}
+                {prettyDate(option.recommendedDate)} · {option.timeOfDay.replace("_", " ")}
               </p>
               <Button
                 loading={isWorking}
@@ -176,18 +140,11 @@ export default function EventOptionsPage() {
             </Card>
           ))}
         </div>
-      ) : options.length > 0 ? (
-        <div className="gf-stack">
-          <p className="gf-muted">All options dismissed.</p>
-          <Button onClick={() => setDismissed(new Set())} variant="ghost">
-            Show again
-          </Button>
-        </div>
       ) : (
         <Card>
           <p className="gf-muted">
             {total > 0
-              ? `${responded} of ${total} responded`
+              ? `${data.event.respondedInvitees} of ${total} responded`
               : "Waiting for responses."}
           </p>
         </Card>
