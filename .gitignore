@@ -1,8 +1,22 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
 .next/
 **/src/generated/
-client/dist/
-client/node_modules/
+
+# Environment
 .env
+.env.*
+
+# Logs
 *.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
