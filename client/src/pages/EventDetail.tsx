@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api, getCurrentUserId } from '../api/client';
 import InvitationLinkPanel from './InvitationLinkPanel';
 
@@ -34,8 +34,8 @@ function prettyDate(d: string) {
 }
 
 export default function EventDetail() {
-  const { eventId } = useParams<{ eventId: string }>();
   const navigate = useNavigate();
+  const { eventId } = useParams<{ eventId: string }>();
   const [event, setEvent] = useState<EventData | null>(null);
   const [respondents, setRespondents] = useState<Respondent[]>([]);
   const [options, setOptions] = useState<ActivityOption[]>([]);
@@ -128,13 +128,13 @@ export default function EventDetail() {
         ) : (
           <div className="gf-card"><p className="gf-muted">This event has been finalized.</p></div>
         )}
-        <div className="gf-actions" style={{ justifyContent: 'center' }}>
-          <Link to={`/events/${event.id}/confirmation`}>
-            <button className="gf-button gf-button--primary">View confirmation</button>
-          </Link>
-          <Link to="/dashboard">
-            <button className="gf-button gf-button--ghost">Dashboard</button>
-          </Link>
+        <div className="gf-actions gf-text-center" style={{ justifyContent: 'center' }}>
+          <button type="button" className="gf-button gf-button--primary" onClick={() => navigate(`/events/${event.id}/confirmation`)}>
+            View confirmation
+          </button>
+          <button type="button" className="gf-button gf-button--ghost" onClick={() => navigate('/dashboard')}>
+            Dashboard
+          </button>
         </div>
       </div>
     );
@@ -163,8 +163,8 @@ export default function EventDetail() {
       </div>
 
       {isCreator && (
-        <div className="gf-actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <button className="gf-button gf-button--secondary" onClick={copyLink}>
+        <div className="gf-row-between">
+          <button type="button" className="gf-button gf-button--secondary" onClick={copyLink}>
             {copied ? 'Copied' : 'Copy invite link'}
           </button>
           <div className="gf-stack gf-stack--sm" style={{ alignItems: 'center' }}>
@@ -186,7 +186,7 @@ export default function EventDetail() {
               <div className="gf-respondent-list">
                 {respondents.map(r => (
                   <div className="gf-respondent" key={r.id}>
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
                       <span className="gf-respondent__name">{r.email}</span>
                       <div className="gf-respondent__dates">
                         {r.available_dates.map(d => (
@@ -206,7 +206,7 @@ export default function EventDetail() {
 
       {isCreator && (
         <div className="gf-actions">
-          <button className="gf-button gf-button--primary" disabled={working} onClick={handleGenerate}>
+          <button type="button" className="gf-button gf-button--primary" disabled={working} onClick={handleGenerate}>
             {working ? 'Working...' : `Generate options${respondents.length > 0 ? ` (${respondents.length} responded)` : ''}`}
           </button>
         </div>

@@ -28,7 +28,7 @@ export default function EventConfirmation() {
   if (error) return <p className="gf-feedback gf-feedback--error">{error}</p>;
 
   if (!selected) return (
-    <div className="gf-card" style={{ textAlign: 'center' }}>
+    <div className="gf-card gf-text-center">
       <p className="gf-muted">No activity selected yet.</p>
     </div>
   );
@@ -42,17 +42,17 @@ export default function EventConfirmation() {
       <div className="gf-card gf-option-card gf-option-card--featured">
         <h3 className="gf-card-title">{selected.title}</h3>
         <p className="gf-muted">{selected.description}</p>
-        <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
-          📅 {prettyDate(selected.suggested_date)}{selected.suggested_time ? ` at ${selected.suggested_time}` : ''}
+        <p className="gf-muted">
+          {prettyDate(selected.suggested_date)}{selected.suggested_time ? ` at ${selected.suggested_time}` : ''}
         </p>
       </div>
 
-      <p className="gf-feedback gf-feedback--success" style={{ textAlign: 'center' }}>
-        ✉️ Emails sent to all participants
+      <p className="gf-feedback gf-feedback--success gf-text-center">
+        Emails sent to all participants
       </p>
 
       <div className="gf-actions" style={{ justifyContent: 'center' }}>
-        <button className="gf-button gf-button--ghost" onClick={() => navigate('/dashboard')}>
+        <button type="button" className="gf-button gf-button--ghost" onClick={() => navigate('/dashboard')}>
           Dashboard
         </button>
       </div>
