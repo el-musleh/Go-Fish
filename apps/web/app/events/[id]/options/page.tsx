@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button, Card } from "@go-fish/ui";
 
@@ -10,6 +10,8 @@ import { authClient } from "../../../../lib/auth-client";
 import { api } from "../../../../lib/api";
 
 type EventPageData = Awaited<ReturnType<typeof api.getEvent>>;
+
+const POLL_INTERVAL = 5000;
 
 export default function EventOptionsPage() {
   const params = useParams<{ id: string }>();
@@ -20,6 +22,7 @@ export default function EventOptionsPage() {
   const [isWorking, setIsWorking] = useState(false);
   const [copied, setCopied] = useState(false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const isSelectingRef = useRef(false);
 
   useEffect(() => {
     if (!session?.user || !params.id) return;
@@ -29,22 +32,18 @@ export default function EventOptionsPage() {
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Could not load the event."));
   }, [params.id, session?.user]);
 
-  // Auto-poll every 30s while waiting for options
+  // Live-sync: poll every 5s until finalized
   useEffect(() => {
     if (!session?.user || !params.id) return;
-    if (
-      data &&
-      data.event.options.length > 0 &&
-      (data.event.status === "awaiting_selection" || data.event.status === "finalized")
-    )
-      return;
+    if (data?.event.status === "finalized") return;
 
     const interval = setInterval(() => {
+      if (isSelectingRef.current) return;
       api.getEvent(params.id).then(setData).catch(() => {});
-    }, 30000);
+    }, POLL_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [params.id, session?.user, data?.event.status, data?.event.options.length]);
+  }, [params.id, session?.user, data?.event.status]);
 
   if (!session?.user && !isPending) {
     return (
@@ -65,6 +64,7 @@ export default function EventOptionsPage() {
   async function choose(optionId: string) {
     if (!data) return;
 
+    isSelectingRef.current = true;
     setIsWorking(true);
     try {
       const refreshed = await api.selectOption(data.event.id, { optionId });
@@ -74,6 +74,7 @@ export default function EventOptionsPage() {
       setError(selectionError instanceof Error ? selectionError.message : "Could not finalize the event.");
     } finally {
       setIsWorking(false);
+      isSelectingRef.current = false;
     }
   }
 
@@ -107,6 +108,8 @@ export default function EventOptionsPage() {
   const options = data.event.options;
   const visibleOptions = options.filter((o) => !dismissed.has(o.id));
   const isFinalized = data.event.status === "finalized" || data.event.selectedOptionId;
+  const total = data.event.pendingInvitees + data.event.respondedInvitees;
+  const responded = data.event.respondedInvitees;
 
   // Post-selection confirmation
   if (isFinalized) {
@@ -182,7 +185,11 @@ export default function EventOptionsPage() {
         </div>
       ) : (
         <Card>
-          <p className="gf-muted">Waiting for responses.</p>
+          <p className="gf-muted">
+            {total > 0
+              ? `${responded} of ${total} responded`
+              : "Waiting for responses."}
+          </p>
         </Card>
       )}
     </div>

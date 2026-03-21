@@ -14,6 +14,8 @@ import { authClient } from "../../../lib/auth-client";
 import { api } from "../../../lib/api";
 import { prettyDate } from "../../../lib/date";
 
+const POLL_INTERVAL = 5000;
+
 export default function JoinEventPage() {
   const params = useParams<{ slug: string }>();
   const { data: session, isPending } = authClient.useSession();
@@ -29,19 +31,24 @@ export default function JoinEventPage() {
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Could not load the invite."));
   }, [params.slug, session?.user]);
 
-  // Auto-poll every 30s while waiting for AI options
+  // Live-sync: poll every 5s after user has responded (waiting for options or finalization)
   useEffect(() => {
     if (!session?.user || !params.slug) return;
-    const done = data?.viewerHasCompletedBenchmark && data?.invitee?.responseStatus === "responded";
-    const waiting = !data?.event.options.length && data?.event.status !== "finalized";
-    if (!done || !waiting) return;
+
+    const hasResponded = data?.invitee?.responseStatus === "responded";
+    const benchmarkDone = data?.viewerHasCompletedBenchmark;
+    const isTerminal = data?.event.status === "finalized";
+
+    // Poll when: user has finished their part and waiting for AI or organizer decision
+    // Also poll when options exist but not yet finalized (waiting for organizer to choose)
+    if (!benchmarkDone || !hasResponded || isTerminal) return;
 
     const interval = setInterval(() => {
       api.getJoinEvent(params.slug).then(setData).catch(() => {});
-    }, 30000);
+    }, POLL_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [params.slug, session?.user, data?.viewerHasCompletedBenchmark, data?.invitee?.responseStatus, data?.event.status, data?.event.options.length]);
+  }, [params.slug, session?.user, data?.viewerHasCompletedBenchmark, data?.invitee?.responseStatus, data?.event.status]);
 
   if (!session?.user && isPending) {
     return <p className="gf-muted">Checking session…</p>;
@@ -118,10 +125,26 @@ export default function JoinEventPage() {
       );
     }
 
+    // Finalized: show the selected option prominently
+    if (selectedOption) {
+      return (
+        <div className="gf-stack gf-stack--xl">
+          <h3 className="gf-card-title">Plan selected</h3>
+          <Card className="gf-option-card">
+            <h3 className="gf-card-title">{selectedOption.title}</h3>
+            <p className="gf-muted">
+              {prettyDate(selectedOption.recommendedDate)} · {selectedOption.timeOfDay.replace("_", " ")}
+            </p>
+          </Card>
+        </div>
+      );
+    }
+
+    // Options exist but organizer hasn't chosen yet
     if (joinData.event.options.length > 0) {
       return (
         <div className="gf-stack gf-stack--xl">
-          <h3 className="gf-card-title">{selectedOption ? "Plan selected" : "Waiting for organizer"}</h3>
+          <h3 className="gf-card-title">Waiting for organizer</h3>
           <div className="gf-grid gf-grid--three">
             {joinData.event.options.map((option) => (
               <Card className="gf-option-card" key={option.id}>
@@ -136,6 +159,7 @@ export default function JoinEventPage() {
       );
     }
 
+    // Waiting for AI to generate options
     return (
       <Card>
         <h3 className="gf-card-title">
