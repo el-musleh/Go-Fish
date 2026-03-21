@@ -359,6 +359,38 @@ button, input, textarea { font: inherit; }
 .gf-option-card--featured { width: 100%; padding: 36px 32px; }
 .gf-option-card--featured .gf-card-title { font-size: 2rem; }
 
+/* Google sign-in button */
+.gf-button--google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: var(--text);
+  border-color: var(--line-strong);
+  background: rgba(255, 255, 255, 0.04);
+  width: 100%;
+}
+
+.gf-button--google:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.gf-auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.gf-auth-divider::before,
+.gf-auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
 /* Auth tabs */
 .gf-auth-tabs {
   display: flex;
