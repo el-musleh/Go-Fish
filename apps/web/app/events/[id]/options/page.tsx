@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Button, Card } from "@go-fish/ui";
@@ -13,11 +13,13 @@ type EventPageData = Awaited<ReturnType<typeof api.getEvent>>;
 
 export default function EventOptionsPage() {
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const { data: session, isPending } = authClient.useSession();
   const [data, setData] = useState<EventPageData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isWorking, setIsWorking] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (!session?.user || !params.id) return;
@@ -26,6 +28,23 @@ export default function EventOptionsPage() {
       .then(setData)
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Could not load the event."));
   }, [params.id, session?.user]);
+
+  // Auto-poll every 30s while waiting for options
+  useEffect(() => {
+    if (!session?.user || !params.id) return;
+    if (
+      data &&
+      data.event.options.length > 0 &&
+      (data.event.status === "awaiting_selection" || data.event.status === "finalized")
+    )
+      return;
+
+    const interval = setInterval(() => {
+      api.getEvent(params.id).then(setData).catch(() => {});
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [params.id, session?.user, data?.event.status, data?.event.options.length]);
 
   if (!session?.user && !isPending) {
     return (
@@ -81,6 +100,40 @@ export default function EventOptionsPage() {
     window.setTimeout(() => setCopied(false), 1800);
   }
 
+  function dismiss(optionId: string) {
+    setDismissed((prev) => new Set(prev).add(optionId));
+  }
+
+  const options = data.event.options;
+  const visibleOptions = options.filter((o) => !dismissed.has(o.id));
+  const isFinalized = data.event.status === "finalized" || data.event.selectedOptionId;
+
+  // Post-selection confirmation
+  if (isFinalized) {
+    const selected = options.find((o) => o.id === data.event.selectedOptionId);
+    return (
+      <div className="gf-stack gf-stack--xl">
+        <h2 className="gf-section-title">Event finalized</h2>
+        {selected ? (
+          <Card className="gf-option-card">
+            <h3 className="gf-card-title">{selected.title}</h3>
+            <p className="gf-muted">
+              {selected.recommendedDate} · {selected.timeOfDay.replace("_", " ")}
+            </p>
+          </Card>
+        ) : null}
+        <div className="gf-actions">
+          <Button onClick={() => void copyJoinLink()} variant="secondary">
+            {copied ? "Copied" : "Share link"}
+          </Button>
+          <Button onClick={() => router.push("/dashboard")} variant="ghost">
+            Dashboard
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="gf-stack gf-stack--xl">
       <div className="gf-actions" style={{ justifyContent: "space-between", alignItems: "center" }}>
@@ -94,10 +147,18 @@ export default function EventOptionsPage() {
           Retry generation
         </Button>
       ) : null}
-      {data.event.options.length ? (
+      {visibleOptions.length > 0 ? (
         <div className="gf-grid gf-grid--three">
-          {data.event.options.map((option) => (
-            <Card className="gf-option-card" key={option.id}>
+          {visibleOptions.map((option) => (
+            <Card className="gf-option-card gf-option-card--dismissible" key={option.id}>
+              <button
+                className="gf-option-card__dismiss"
+                onClick={() => dismiss(option.id)}
+                type="button"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
               <h3 className="gf-card-title">{option.title}</h3>
               <p className="gf-muted">
                 {option.recommendedDate} · {option.timeOfDay.replace("_", " ")}
@@ -105,12 +166,19 @@ export default function EventOptionsPage() {
               <Button
                 loading={isWorking}
                 onClick={() => choose(option.id)}
-                variant={data.event.selectedOptionId === option.id ? "secondary" : "primary"}
+                variant="primary"
               >
-                {data.event.selectedOptionId === option.id ? "Selected" : "Choose"}
+                Choose
               </Button>
             </Card>
           ))}
+        </div>
+      ) : options.length > 0 ? (
+        <div className="gf-stack">
+          <p className="gf-muted">All options dismissed.</p>
+          <Button onClick={() => setDismissed(new Set())} variant="ghost">
+            Show again
+          </Button>
         </div>
       ) : (
         <Card>

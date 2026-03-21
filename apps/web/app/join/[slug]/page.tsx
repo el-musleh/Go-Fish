@@ -29,6 +29,20 @@ export default function JoinEventPage() {
       .catch((loadError) => setError(loadError instanceof Error ? loadError.message : "Could not load the invite."));
   }, [params.slug, session?.user]);
 
+  // Auto-poll every 30s while waiting for AI options
+  useEffect(() => {
+    if (!session?.user || !params.slug) return;
+    const done = data?.viewerHasCompletedBenchmark && data?.invitee?.responseStatus === "responded";
+    const waiting = !data?.event.options.length && data?.event.status !== "finalized";
+    if (!done || !waiting) return;
+
+    const interval = setInterval(() => {
+      api.getJoinEvent(params.slug).then(setData).catch(() => {});
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [params.slug, session?.user, data?.viewerHasCompletedBenchmark, data?.invitee?.responseStatus, data?.event.status, data?.event.options.length]);
+
   if (!session?.user && isPending) {
     return <p className="gf-muted">Checking session…</p>;
   }
