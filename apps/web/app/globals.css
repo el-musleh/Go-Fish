@@ -325,15 +325,57 @@ textarea {
 }
 
 .gf-actions,
-.gf-auth-panel__grid,
-.gf-date-grid {
+.gf-auth-panel__grid {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
 }
 
 .gf-date-grid {
-  padding: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 10px;
+}
+
+.gf-date-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px 8px;
+  border: 2px solid var(--line);
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: border-color 180ms ease, background 180ms ease;
+}
+
+.gf-date-card:hover {
+  border-color: var(--line-strong);
+}
+
+.gf-date-card--active {
+  border-color: var(--accent);
+  background: rgba(255, 157, 73, 0.12);
+}
+
+.gf-date-card__label {
+  font-size: 0.72rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.gf-date-card__day {
+  font-size: 1.4rem;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.gf-date-card__month {
+  font-size: 0.72rem;
+  color: var(--muted);
 }
 
 .gf-ordered {
@@ -617,6 +659,42 @@ textarea {
 .gf-status-chip--finalized {
   background: rgba(255, 212, 151, 0.2);
   color: var(--success);
+}
+
+/* Benchmark progress + question cards */
+.gf-benchmark-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.gf-benchmark-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  transition: width 300ms ease;
+}
+
+.gf-benchmark-question {
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+}
+
+.gf-benchmark-question--error {
+  border-color: var(--danger);
+}
+
+.gf-benchmark-question__header {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
+.gf-benchmark-question__number {
+  color: var(--accent);
 }
 
 .gf-range {

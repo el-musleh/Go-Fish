@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 
-import { Button, Card, Chip } from "@go-fish/ui";
+import { Button } from "@go-fish/ui";
 
-import { eachDateInRange, prettyDate } from "../lib/date";
+import { eachDateInRange, formatDateCard } from "../lib/date";
 
 export function DateSelector({
   dateFrom,
@@ -47,17 +47,28 @@ export function DateSelector({
 
   return (
     <div className="gf-stack gf-stack--xl">
-      <h2 className="gf-section-title">Pick your dates</h2>
-      <Card className="gf-date-grid">
-        {dateOptions.map((date) => (
-          <button className="gf-chip-button" key={date} onClick={() => toggle(date)} type="button">
-            <Chip active={selectedDates.includes(date)}>{prettyDate(date)}</Chip>
-          </button>
-        ))}
-      </Card>
+      <h2 className="gf-section-title">When are you free?</h2>
+      <div className="gf-date-grid">
+        {dateOptions.map((date) => {
+          const card = formatDateCard(date);
+          const active = selectedDates.includes(date);
+          return (
+            <button
+              className={`gf-date-card${active ? " gf-date-card--active" : ""}`}
+              key={date}
+              onClick={() => toggle(date)}
+              type="button"
+            >
+              <span className="gf-date-card__label">{card.label}</span>
+              <span className="gf-date-card__day">{card.day}</span>
+              <span className="gf-date-card__month">{card.month}</span>
+            </button>
+          );
+        })}
+      </div>
       {error ? <p className="gf-feedback gf-feedback--error">{error}</p> : null}
       <Button loading={isSaving} onClick={handleSubmit}>
-        {submitLabel}
+        {selectedDates.length > 0 ? `${submitLabel} (${selectedDates.length})` : submitLabel}
       </Button>
     </div>
   );
