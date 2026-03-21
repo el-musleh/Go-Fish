@@ -13,7 +13,7 @@ function addDays(date: Date, days: number) {
 }
 
 function toISO(date: Date) {
-  return date.toISOString().split("T")[0];
+  return date.toISOString().slice(0, 10);
 }
 
 function formatShort(date: Date) {
@@ -31,8 +31,12 @@ export default function NewEventPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [locationHint, setLocationHint] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [sliderFrom, setSliderFrom] = useState(3);
+  const [sliderTo, setSliderTo] = useState(10);
+
+  const today = useMemo(() => new Date(), []);
+  const dateFrom = toISO(addDays(today, sliderFrom));
+  const dateTo = toISO(addDays(today, sliderTo));
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -178,11 +182,33 @@ export default function NewEventPage() {
             <Input onChange={(event: ChangeEvent<HTMLInputElement>) => setLocationHint(event.target.value)} placeholder="Berlin Mitte" value={locationHint} />
           </Field>
           <div className="gf-form__row">
-            <Field label="Date from">
-              <Input onChange={(event: ChangeEvent<HTMLInputElement>) => setDateFrom(event.target.value)} type="date" value={dateFrom} />
+            <Field label={`From · ${formatShort(addDays(today, sliderFrom))}`}>
+              <input
+                className="gf-range"
+                max={60}
+                min={0}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setSliderFrom(v);
+                  if (v > sliderTo) setSliderTo(v);
+                }}
+                type="range"
+                value={sliderFrom}
+              />
             </Field>
-            <Field label="Date to">
-              <Input onChange={(event: ChangeEvent<HTMLInputElement>) => setDateTo(event.target.value)} type="date" value={dateTo} />
+            <Field label={`To · ${formatShort(addDays(today, sliderTo))}`}>
+              <input
+                className="gf-range"
+                max={60}
+                min={0}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  setSliderTo(v);
+                  if (v < sliderFrom) setSliderFrom(v);
+                }}
+                type="range"
+                value={sliderTo}
+              />
             </Field>
           </div>
           {error ? <p className="gf-feedback gf-feedback--error">{error}</p> : null}
