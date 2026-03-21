@@ -23,7 +23,7 @@ export function buildEmailBody(activity: ActivityOption): string {
   <div style="background:#1a100b;border:1px solid rgba(255,157,73,0.2);border-radius:16px;padding:20px;color:#f7efe7">
     <h3 style="margin:0 0 8px">${activity.title}</h3>
     <p style="margin:0 0 8px;color:rgba(247,239,231,0.7)">${activity.description}</p>
-    <p style="margin:0;font-size:0.9rem;color:rgba(247,239,231,0.5)">📅 ${activity.suggested_date}</p>
+    <p style="margin:0;font-size:0.9rem;color:rgba(247,239,231,0.5)">📅 ${activity.suggested_date}${activity.suggested_time ? ` at ${activity.suggested_time}` : ''}</p>
   </div>
   <p style="margin-top:16px">See you there! 🎉</p>
 </div>`;
@@ -35,7 +35,7 @@ export function buildEmailText(activity: ActivityOption): string {
     ``,
     `Activity: ${activity.title}`,
     `Description: ${activity.description}`,
-    `Date: ${activity.suggested_date}`,
+    `Date: ${activity.suggested_date}${activity.suggested_time ? ` at ${activity.suggested_time}` : ''}`,
     ``,
     `See you there!`,
   ].join('\n');
