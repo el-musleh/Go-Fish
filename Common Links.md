@@ -1,0 +1,6 @@
+Miro board
+https://miro.com/welcomeonboard/eWVKRC9oQmJLQ0RpdGJoM01NMzIrZmtkc0Fqd0hiUXltTVQ2SmtoRlc2SnhPS1o2WlJBQWl0TElnSSsxSFQ5YlBycFRXVVNqTG83QmdzRVBvUzhQWS8vbkYzWHh4YzBUbmllUlZsY3BaV3dRcjFyMENDYlZ2UGVQUkp3OFJ1Q3l3VHhHVHd5UWtSM1BidUtUYmxycDRnPT0hdjE=?share_link_id=942166359771
+
+
+Trello (Kanban board)
+https://trello.com/invite/b/69be76d90d695e5aba910c57/ATTI3f48b5489761c78571f676db79f3b19cC008DF85/go-fish

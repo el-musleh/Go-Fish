@@ -1,10 +1,13 @@
-[boebelchristopher@gmail.com](mailto:boebelchristopher@gmail.com)
-CB
-Event Badge
-Christopher Böbel
-1781858414
 
-KO
-Event Badge
+
+Christopher Böbel
+boebelchristopher@gmail.com
+
 Kutay ozbagci
 kutay.ozbagci@gmail.com
+
+Mohammad El Musleh
+mohammadmusleh3@gmail.com
+
+Muhamad Adib Alhaj Ibrahim
+muhammad.adib995@gmail.com
