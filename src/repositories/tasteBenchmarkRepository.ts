@@ -6,7 +6,10 @@ export async function createTasteBenchmark(
   data: Pick<TasteBenchmark, 'user_id' | 'answers'>
 ): Promise<TasteBenchmark> {
   const { rows } = await pool.query(
-    `INSERT INTO taste_benchmark (user_id, answers) VALUES ($1, $2) RETURNING *`,
+    `INSERT INTO taste_benchmark (user_id, answers)
+     VALUES ($1, $2)
+     ON CONFLICT (user_id) DO UPDATE SET answers = $2, created_at = NOW()
+     RETURNING *`,
     [data.user_id, JSON.stringify(data.answers)]
   );
   return rows[0];

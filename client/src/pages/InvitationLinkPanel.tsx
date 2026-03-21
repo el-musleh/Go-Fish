@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { api } from '../api/client';
-import { colors, shared } from '../theme';
 
 interface Props { eventId: string; }
 
@@ -29,21 +28,18 @@ export default function InvitationLinkPanel({ eventId }: Props) {
   }
 
   return (
-    <div style={{ ...shared.card, marginTop: 16 }}>
-      <h2 style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0 0 12px' }}>📎 Invitation Link</h2>
-      {error && <div style={shared.errorBox} role="alert">{error}</div>}
+    <div className="gf-card" style={{ marginTop: 16 }}>
+      <h2 className="gf-card-title" style={{ fontSize: '1.1rem', marginBottom: 12 }}>📎 Invitation Link</h2>
+      {error && <p className="gf-feedback gf-feedback--error" style={{ marginBottom: 12 }}>{error}</p>}
 
       {!link ? (
-        <button onClick={handleGenerate} disabled={generating}
-          style={{ ...shared.btn, ...(generating ? shared.btnDisabled : {}) }}>
+        <button onClick={handleGenerate} disabled={generating} className="gf-button gf-button--primary">
           {generating ? 'Generating…' : 'Generate Link'}
         </button>
       ) : (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="text" readOnly value={link} aria-label="Invitation link"
-            style={{ ...shared.input, flex: 1, backgroundColor: '#F9FAFB', fontSize: '0.85rem' }} />
-          <button onClick={handleCopy}
-            style={{ ...shared.btnOutline, padding: '10px 16px', whiteSpace: 'nowrap' as const }}>
+          <input type="text" readOnly value={link} aria-label="Invitation link" className="gf-input" style={{ flex: 1, fontSize: '0.85rem' }} />
+          <button onClick={handleCopy} className="gf-button gf-button--secondary" style={{ whiteSpace: 'nowrap' }}>
             {copied ? '✓ Copied' : 'Copy'}
           </button>
         </div>

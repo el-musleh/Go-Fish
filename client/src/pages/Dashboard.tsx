@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { api, getCurrentUserId } from '../api/client';
-import { colors, shared } from '../theme';
 
 interface EventItem {
   id: string;
@@ -13,15 +12,20 @@ interface EventItem {
   selected_activity?: { title: string; suggested_date: string } | null;
 }
 
-const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
-  collecting: { label: 'Collecting', color: '#D97706', bg: '#FFFBEB' },
-  generating: { label: 'Generating…', color: '#2563EB', bg: '#EFF6FF' },
-  options_ready: { label: 'Pick Activity', color: '#059669', bg: '#ECFDF5' },
-  finalized: { label: 'Confirmed', color: '#7C3AED', bg: '#F5F3FF' },
+function prettyDate(d: string) {
+  const dateStr = d.includes('T') ? d.split('T')[0] : d;
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
+  collecting: { label: 'Collecting', cls: 'gf-status-chip--collecting' },
+  generating: { label: 'Generating', cls: 'gf-status-chip--generating' },
+  options_ready: { label: 'Pick activity', cls: 'gf-status-chip--ready' },
+  finalized: { label: 'Confirmed', cls: 'gf-status-chip--finalized' },
 };
 
 function EventCard({ event, role }: { event: EventItem; role: 'creator' | 'participant' }) {
-  const s = statusConfig[event.status] || { label: event.status, color: colors.textSecondary, bg: '#f3f4f6' };
+  const s = STATUS_LABELS[event.status] || { label: event.status, cls: '' };
   const linkTo = event.status === 'options_ready' && role === 'creator'
     ? `/events/${event.id}/options`
     : event.status === 'finalized'
@@ -30,43 +34,19 @@ function EventCard({ event, role }: { event: EventItem; role: 'creator' | 'parti
 
   return (
     <Link to={linkTo} style={{ textDecoration: 'none', color: 'inherit' }}>
-      <div style={{
-        ...shared.card, padding: '20px 24px', cursor: 'pointer',
-        transition: 'box-shadow 0.15s, transform 0.15s',
-      }}
-        onMouseEnter={(e) => { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'none'; }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-          <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 600 }}>{event.title}</h3>
-          <span style={{ fontSize: '0.7rem', fontWeight: 600, padding: '3px 10px', borderRadius: 20, color: s.color, backgroundColor: s.bg, whiteSpace: 'nowrap' as const }}>
-            {s.label}
-          </span>
+      <div className="gf-card gf-event-card">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 className="gf-card-title">{event.title}</h3>
+          <span className={`gf-status-chip ${s.cls}`}>{s.label}</span>
         </div>
-        <p style={{ margin: '0 0 8px', fontSize: '0.85rem', color: colors.textSecondary, lineHeight: 1.4,
-          overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as const,
-        }}>{event.description}</p>
         {event.status === 'finalized' && event.selected_activity && (
-          <div style={{
-            padding: '8px 12px', borderRadius: 8, backgroundColor: colors.orangeLight,
-            border: `1px solid ${colors.orangeBorder}`, marginBottom: 8,
-          }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: colors.orangeHover }}>
-              🎯 {event.selected_activity.title}
-            </span>
-            <span style={{ fontSize: '0.75rem', color: colors.textMuted, marginLeft: 8 }}>
-              📅 {new Date(event.selected_activity.suggested_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </span>
-          </div>
+          <p className="gf-muted">
+            🎯 {event.selected_activity.title} · 📅 {prettyDate(event.selected_activity.suggested_date)}
+          </p>
         )}
-        <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: colors.textMuted }}>
-          {role === 'creator' && event.respondent_count !== undefined && (
-            <span>👥 {event.respondent_count} responded</span>
-          )}
-          {event.status !== 'finalized' && (
-            <span>🕐 {new Date(event.response_window_end).toLocaleString()}</span>
-          )}
-        </div>
+        {role === 'creator' && event.respondent_count !== undefined && (
+          <p className="gf-muted">👥 {event.respondent_count} responded</p>
+        )}
       </div>
     </Link>
   );
@@ -74,71 +54,69 @@ function EventCard({ event, role }: { event: EventItem; role: 'creator' | 'parti
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [created, setCreated] = useState<EventItem[]>([]);
   const [joined, setJoined] = useState<EventItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState('');
+
+  useEffect(() => {
+    if (searchParams.get('prefsUpdated')) {
+      setToast('Preferences updated');
+      setSearchParams({}, { replace: true });
+      const t = setTimeout(() => setToast(''), 4000);
+      return () => clearTimeout(t);
+    }
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     if (!getCurrentUserId()) { navigate('/login?returnTo=/dashboard', { replace: true }); return; }
     api.get<{ created: EventItem[]; joined: EventItem[] }>('/events')
-      .then((data) => { setCreated(data.created); setJoined(data.joined); })
-      .catch(() => {})
+      .then(data => { setCreated(data.created); setJoined(data.joined); })
+      .catch(() => setError('Could not load the dashboard.'))
       .finally(() => setLoading(false));
-    // Poll every 15s for status updates
     const id = setInterval(() => {
       api.get<{ created: EventItem[]; joined: EventItem[] }>('/events')
-        .then((data) => { setCreated(data.created); setJoined(data.joined); })
+        .then(data => { setCreated(data.created); setJoined(data.joined); })
         .catch(() => {});
-    }, 15000);
+    }, 5000);
     return () => clearInterval(id);
   }, [navigate]);
 
-  if (loading) return (
-    <div style={{ ...shared.page, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
-      <p style={{ color: colors.textSecondary }}>Loading…</p>
-    </div>
-  );
+  if (loading) return <p className="gf-muted">Loading…</p>;
+
+  const hasAny = created.length > 0 || joined.length > 0;
 
   return (
-    <div style={shared.page}>
-      <div style={{ ...shared.container, maxWidth: 680 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
-          <div style={shared.logo}>🐟 Go Fish</div>
-          <Link to="/events/new" style={{ ...shared.btn, textDecoration: 'none', fontSize: '0.9rem', padding: '8px 20px' }}>
-            + New Event
-          </Link>
+    <div className="gf-stack gf-stack--xl">
+      {toast && <p className="gf-feedback gf-feedback--success">✓ {toast}</p>}
+      {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
+
+      {created.length > 0 && (
+        <section className="gf-stack">
+          <h2 className="gf-section-title">My Events</h2>
+          <div className="gf-grid gf-grid--two">
+            {created.map(e => <EventCard key={e.id} event={e} role="creator" />)}
+          </div>
+        </section>
+      )}
+
+      {joined.length > 0 && (
+        <section className="gf-stack">
+          <h2 className="gf-section-title">Joined Events</h2>
+          <div className="gf-grid gf-grid--two">
+            {joined.map(e => <EventCard key={e.id} event={e} role="participant" />)}
+          </div>
+        </section>
+      )}
+
+      {!hasAny && (
+        <div className="gf-card">
+          <h3 className="gf-card-title">No groups yet</h3>
+          <p className="gf-muted">Create an event to get started.</p>
         </div>
-
-        <section style={{ marginBottom: 32 }}>
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0 0 12px', color: colors.text }}>
-            My Events
-          </h2>
-          {created.length === 0 ? (
-            <div style={{ ...shared.card, textAlign: 'center', padding: 32, color: colors.textMuted }}>
-              <p style={{ margin: 0 }}>No events yet. Create one to get started.</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {created.map((e) => <EventCard key={e.id} event={e} role="creator" />)}
-            </div>
-          )}
-        </section>
-
-        <section>
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 600, margin: '0 0 12px', color: colors.text }}>
-            Joined Events
-          </h2>
-          {joined.length === 0 ? (
-            <div style={{ ...shared.card, textAlign: 'center', padding: 32, color: colors.textMuted }}>
-              <p style={{ margin: 0 }}>You haven't joined any events yet.</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {joined.map((e) => <EventCard key={e.id} event={e} role="participant" />)}
-            </div>
-          )}
-        </section>
-      </div>
+      )}
     </div>
   );
 }

@@ -7,18 +7,46 @@ import { getUserById } from '../repositories/userRepository';
 import { createEmailLog, updateEmailLogStatus } from '../repositories/emailLogRepository';
 import { ActivityOption } from '../models/ActivityOption';
 
-const RETRY_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 5_000; // 5 seconds between retries
 
 export function createTransporter(): Transporter {
+  const host = process.env.SMTP_HOST;
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+
+  if (!host || !user || !pass) {
+    console.warn('[EmailService] SMTP not configured — emails will be logged to console only.');
+    return createConsoleTransporter();
+  }
+
+  const port = Number(process.env.SMTP_PORT) || 465;
   return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'localhost',
-    port: Number(process.env.SMTP_PORT) || 587,
-    auth: {
-      user: process.env.SMTP_USER || '',
-      pass: process.env.SMTP_PASS || '',
-    },
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
   });
+}
+
+/**
+ * Fallback transporter that logs emails to console instead of sending.
+ * Useful for local development without SMTP credentials.
+ */
+function createConsoleTransporter(): Transporter {
+  return {
+    sendMail: async (opts: any) => {
+      console.log('─────────────────────────────────────');
+      console.log('📧 EMAIL (console-only, SMTP not configured)');
+      console.log(`   From: ${opts.from}`);
+      console.log(`   To:   ${opts.to}`);
+      console.log(`   Subject: ${opts.subject}`);
+      console.log('   Body:');
+      opts.text?.split('\n').forEach((line: string) => console.log(`     ${line}`));
+      console.log('─────────────────────────────────────');
+      return { messageId: `console-${Date.now()}` };
+    },
+  } as unknown as Transporter;
 }
 
 export function buildEmailBody(activity: ActivityOption): string {
@@ -48,11 +76,9 @@ export async function sendNotificationEmails(
   const responses = await getResponsesByEventId(pool, eventId);
   const recipientIds = new Set<string>();
 
-  // Add all respondents
   for (const r of responses) {
     recipientIds.add(r.invitee_id);
   }
-  // Add the inviter
   recipientIds.add(event.inviter_id);
 
   const mailer = transporter ?? createTransporter();
@@ -64,7 +90,6 @@ export async function sendNotificationEmails(
     if (!user) continue;
 
     const log = await createEmailLog(pool, { event_id: eventId, user_id: userId });
-
     await sendWithRetry(pool, mailer, log.id, user.email, subject, body);
   }
 }
@@ -80,16 +105,17 @@ export async function sendWithRetry(
 ): Promise<void> {
   try {
     await transporter.sendMail({
-      from: process.env.SMTP_USER || 'noreply@gofish.app',
+      from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@gofish.app',
       to,
       subject,
       text: body,
     });
     await updateEmailLogStatus(pool, emailLogId, 'sent');
-  } catch {
+  } catch (err) {
+    console.error(`[EmailService] Send failed (attempt ${attempt}/${MAX_RETRIES}) to ${to}:`, err);
     if (attempt < MAX_RETRIES) {
       await updateEmailLogStatus(pool, emailLogId, 'pending');
-      await delay(RETRY_INTERVAL_MS);
+      await delay(RETRY_DELAY_MS);
       await sendWithRetry(pool, transporter, emailLogId, to, subject, body, attempt + 1);
     } else {
       await updateEmailLogStatus(pool, emailLogId, 'failed');

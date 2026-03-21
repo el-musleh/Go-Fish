@@ -1,7 +1,6 @@
-import { useState, type FormEvent } from 'react';
+import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
-import { colors, shared } from '../theme';
 
 interface Question { id: string; text: string; options: string[]; }
 
@@ -25,6 +24,26 @@ export default function TasteBenchmarkForm() {
   const [errors, setErrors] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [submittedOnce, setSubmittedOnce] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isUpdate, setIsUpdate] = useState(false);
+  const questionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Load existing preferences if any
+  useEffect(() => {
+    api.get<{ answers: Record<string, string[]> }>('/taste-benchmark')
+      .then((data) => {
+        if (data.answers && typeof data.answers === 'object') {
+          setAnswers(data.answers);
+          setIsUpdate(true);
+        }
+      })
+      .catch(() => { /* 404 = no benchmark yet, that's fine */ })
+      .finally(() => setLoading(false));
+  }, []);
+
+  const progress = questions.filter((q) => answers[q.id]?.length).length;
+  const pct = questions.length > 0 ? (progress / questions.length) * 100 : 0;
 
   function toggleOption(qId: string, option: string) {
     setAnswers((prev) => {
@@ -36,14 +55,25 @@ export default function TasteBenchmarkForm() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
+    setSubmittedOnce(true);
     setServerError('');
     const missing = questions.filter((q) => !answers[q.id]?.length).map((q) => q.id);
-    if (missing.length) { setErrors(missing); return; }
+    if (missing.length) {
+      setErrors(missing);
+      const first = missing[0];
+      questionRefs.current[first]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
 
     setSubmitting(true);
     try {
       await api.post('/taste-benchmark', { answers });
-      navigate(searchParams.get('returnTo') || '/events/new');
+      const returnTo = searchParams.get('returnTo');
+      if (returnTo) {
+        navigate(returnTo);
+      } else {
+        navigate(isUpdate ? '/dashboard?prefsUpdated=1' : '/dashboard');
+      }
     } catch (err) {
       if (err instanceof ApiError && err.body && typeof err.body === 'object' && 'missingQuestions' in (err.body as Record<string, unknown>)) {
         setErrors((err.body as { missingQuestions: string[] }).missingQuestions);
@@ -51,66 +81,57 @@ export default function TasteBenchmarkForm() {
     } finally { setSubmitting(false); }
   }
 
-  const progress = questions.filter((q) => answers[q.id]?.length).length;
+  if (loading) return <p className="gf-muted">Loading…</p>;
 
   return (
-    <div style={shared.page}>
-      <div style={{ ...shared.container, maxWidth: 640 }}>
-        <div style={shared.logo}>🐟 Go Fish</div>
-        <div style={shared.card}>
-          <h1 style={shared.title}>Taste Benchmark</h1>
-          <p style={shared.subtitle}>Tell us what you're into so we can find the perfect activity for your group.</p>
-
-          <div style={{ height: 4, borderRadius: 2, backgroundColor: colors.border, marginBottom: 24 }}>
-            <div style={{ height: '100%', borderRadius: 2, backgroundColor: colors.orange, width: `${(progress / questions.length) * 100}%`, transition: 'width 0.3s' }} />
-          </div>
-
-          {serverError && <div style={shared.errorBox} role="alert">{serverError}</div>}
-
-          <form onSubmit={handleSubmit}>
-            {questions.map((q, idx) => {
-              const hasErr = errors.includes(q.id);
-              return (
-                <div key={q.id} style={{
-                  padding: 16, marginBottom: 16, borderRadius: 12,
-                  border: `1px solid ${hasErr ? colors.error : colors.border}`,
-                  backgroundColor: hasErr ? colors.errorBg : '#FAFAFA',
-                }}>
-                  <p style={{ fontWeight: 600, fontSize: '0.9rem', margin: '0 0 10px' }}>
-                    <span style={{ color: colors.orange }}>{idx + 1}.</span> {q.text}
-                  </p>
-                  {hasErr && <p role="alert" style={shared.fieldError}>Pick at least one</p>}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                    {q.options.map((opt) => {
-                      const selected = answers[q.id]?.includes(opt);
-                      return (
-                        <button key={opt} type="button" onClick={() => toggleOption(q.id, opt)}
-                          style={{
-                            padding: '6px 14px', fontSize: '0.85rem', borderRadius: 20, cursor: 'pointer',
-                            border: `1.5px solid ${selected ? colors.orange : colors.border}`,
-                            backgroundColor: selected ? colors.orangeLight : '#fff',
-                            color: selected ? colors.orangeHover : colors.text,
-                            fontWeight: selected ? 600 : 400,
-                            transition: 'all 0.15s',
-                          }}
-                          aria-pressed={selected}
-                        >
-                          {opt}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-
-            <button type="submit" disabled={submitting}
-              style={{ ...shared.btn, width: '100%', marginTop: 8, ...(submitting ? shared.btnDisabled : {}) }}>
-              {submitting ? 'Submitting…' : 'Submit Preferences'}
-            </button>
-          </form>
-        </div>
+    <div className="gf-stack gf-stack--xl" style={{ maxWidth: 640, margin: '0 auto' }}>
+      <div>
+        <h1 className="gf-section-title">{isUpdate ? 'Update Preferences' : 'Taste Benchmark'}</h1>
+        <p className="gf-muted" style={{ marginTop: 8 }}>
+          {isUpdate
+            ? 'Update your preferences to help us find better activities for your group.'
+            : 'Tell us what you\'re into so we can find the perfect activity for your group.'}
+        </p>
       </div>
+
+      <div className="gf-benchmark-progress">
+        <div className="gf-benchmark-progress__fill" style={{ width: `${pct}%` }} />
+      </div>
+
+      {serverError && <p className="gf-feedback gf-feedback--error">{serverError}</p>}
+
+      <form onSubmit={handleSubmit} className="gf-stack gf-stack--xl">
+        {questions.map((q, idx) => {
+          const hasErr = submittedOnce && errors.includes(q.id);
+          return (
+            <div
+              key={q.id}
+              ref={(el) => { questionRefs.current[q.id] = el; }}
+              className={`gf-benchmark-question${hasErr ? ' gf-benchmark-question--error' : ''}`}
+            >
+              <div className="gf-benchmark-question__header">
+                <span className="gf-benchmark-question__number">{idx + 1}.</span>
+                <span>{q.text}</span>
+              </div>
+              {hasErr && <p className="gf-feedback gf-feedback--error" style={{ fontSize: '0.8rem', margin: '0 0 8px' }}>Pick at least one</p>}
+              <div className="gf-chip-grid">
+                {q.options.map((opt) => {
+                  const selected = answers[q.id]?.includes(opt);
+                  return (
+                    <button key={opt} type="button" className="gf-chip-button" onClick={() => toggleOption(q.id, opt)} aria-pressed={selected}>
+                      <span className={`gf-chip${selected ? ' gf-chip--active' : ''}`}>{opt}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+
+        <button type="submit" disabled={submitting} className="gf-button gf-button--primary" style={{ width: '100%' }}>
+          {submitting ? 'Saving…' : (isUpdate ? 'Update Preferences' : 'Submit Preferences')}
+        </button>
+      </form>
     </div>
   );
 }

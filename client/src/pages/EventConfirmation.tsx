@@ -1,15 +1,21 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { colors, shared } from '../theme';
 
 interface ActivityOption { id: string; title: string; description: string; suggested_date: string; rank: number; is_selected: boolean; }
 
+function prettyDate(d: string) {
+  const dateStr = d.includes('T') ? d.split('T')[0] : d;
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
 export default function EventConfirmation() {
   const { eventId } = useParams<{ eventId: string }>();
+  const navigate = useNavigate();
   const [selected, setSelected] = useState<ActivityOption | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!eventId) return;
@@ -19,43 +25,47 @@ export default function EventConfirmation() {
       .finally(() => setLoading(false));
   }, [eventId]);
 
-  if (loading) return <div style={{ ...shared.page, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p style={{ color: colors.textSecondary }}>Loading…</p></div>;
-  if (error) return <div style={shared.page}><div style={shared.container}><div style={shared.errorBox} role="alert">{error}</div></div></div>;
+  async function copyLink() {
+    const link = `${window.location.origin}/invite/${eventId}`;
+    await navigator.clipboard.writeText(link);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
+
+  if (loading) return <p className="gf-muted">Loading…</p>;
+  if (error) return <p className="gf-feedback gf-feedback--error">{error}</p>;
 
   if (!selected) return (
-    <div style={shared.page}><div style={shared.container}><div style={shared.logo}>🐟 Go Fish</div>
-      <div style={{ ...shared.card, textAlign: 'center' }}>
-        <p>No activity selected yet.</p>
-      </div>
-    </div></div>
+    <div className="gf-card" style={{ textAlign: 'center' }}>
+      <p className="gf-muted">No activity selected yet.</p>
+    </div>
   );
 
   return (
-    <div style={shared.page}>
-      <div style={shared.container}>
-        <div style={shared.logo}>🐟 Go Fish</div>
-        <div style={{ ...shared.card, textAlign: 'center' }}>
-          <div style={{ fontSize: '3rem', marginBottom: 12 }}>🎉</div>
-          <h1 style={{ ...shared.title, fontSize: '1.5rem' }}>Event Confirmed</h1>
-          <p style={{ ...shared.subtitle, marginBottom: 20 }}>Everyone's been notified. Here's the plan:</p>
+    <div className="gf-stack gf-stack--xl">
+      <div className="gf-celebration">
+        <h2 className="gf-celebration__heading">🎉 Event Confirmed</h2>
+      </div>
 
-          <div style={{
-            padding: 20, borderRadius: 12,
-            backgroundColor: colors.orangeLight,
-            border: `1px solid ${colors.orangeBorder}`,
-            textAlign: 'left' as const,
-          }}>
-            <h2 style={{ margin: '0 0 8px', fontSize: '1.15rem', fontWeight: 600 }}>{selected.title}</h2>
-            <p style={{ color: colors.textSecondary, margin: '0 0 8px', lineHeight: 1.5 }}>{selected.description}</p>
-            <p style={{ fontSize: '0.85rem', color: colors.textMuted, margin: 0 }}>
-              📅 {new Date(selected.suggested_date).toLocaleDateString()}
-            </p>
-          </div>
+      <div className="gf-card gf-option-card gf-option-card--featured">
+        <h3 className="gf-card-title">{selected.title}</h3>
+        <p className="gf-muted">{selected.description}</p>
+        <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
+          📅 {prettyDate(selected.suggested_date)}
+        </p>
+      </div>
 
-          <p style={{ marginTop: 20, color: colors.success, fontWeight: 500, fontSize: '0.9rem' }}>
-            ✉️ Emails sent to all participants
-          </p>
-        </div>
+      <p className="gf-feedback gf-feedback--success" style={{ textAlign: 'center' }}>
+        ✉️ Emails sent to all participants
+      </p>
+
+      <div className="gf-actions" style={{ justifyContent: 'center' }}>
+        <button className="gf-button gf-button--secondary" onClick={copyLink}>
+          {copied ? 'Copied' : 'Share Link'}
+        </button>
+        <button className="gf-button gf-button--ghost" onClick={() => navigate('/dashboard')}>
+          Dashboard
+        </button>
       </div>
     </div>
   );

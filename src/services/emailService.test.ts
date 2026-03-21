@@ -176,9 +176,9 @@ describe('sendWithRetry', () => {
 
     const promise = sendWithRetry(mockPool, mockTransporter as any, 'log-1', 'a@b.com', 'Sub', 'Body');
 
-    // Advance through the retry delays
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    // Advance through the retry delays (5s each)
+    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(5_000);
     await promise;
 
     expect(mockTransporter.sendMail).toHaveBeenCalledTimes(3);
@@ -194,7 +194,7 @@ describe('sendWithRetry', () => {
     vi.mocked(updateEmailLogStatus).mockResolvedValue(null);
 
     const promise = sendWithRetry(mockPool, mockTransporter as any, 'log-1', 'a@b.com', 'Sub', 'Body');
-    await vi.advanceTimersByTimeAsync(5 * 60 * 1000);
+    await vi.advanceTimersByTimeAsync(5_000);
     await promise;
 
     expect(mockTransporter.sendMail).toHaveBeenCalledTimes(2);

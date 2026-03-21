@@ -1,11 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
-import { colors, shared } from '../theme';
 
 interface ActivityOption { id: string; title: string; description: string; suggested_date: string; rank: number; is_selected: boolean; }
 
-const medals = ['🥇', '🥈', '🥉'];
+const RANK_CLASS: Record<number, string> = { 1: 'gf-option-card--rank-1', 2: 'gf-option-card--rank-2', 3: 'gf-option-card--rank-3' };
+
+function prettyDate(d: string) {
+  const dateStr = d.includes('T') ? d.split('T')[0] : d;
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
 
 export default function ActivityOptionsView() {
   const { eventId } = useParams<{ eventId: string }>();
@@ -14,6 +18,7 @@ export default function ActivityOptionsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selecting, setSelecting] = useState<string | null>(null);
+  const isSelectingRef = useRef(false);
 
   useEffect(() => {
     if (!eventId) return;
@@ -26,58 +31,46 @@ export default function ActivityOptionsView() {
   async function handleSelect(optionId: string) {
     setError('');
     setSelecting(optionId);
+    isSelectingRef.current = true;
     try {
       await api.post(`/events/${eventId}/select`, { activityOptionId: optionId });
       navigate(`/events/${eventId}/confirmation`);
     } catch { setError('Failed to select. Try again.'); }
-    finally { setSelecting(null); }
+    finally { setSelecting(null); isSelectingRef.current = false; }
   }
 
-  if (loading) return <div style={{ ...shared.page, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}><p style={{ color: colors.textSecondary }}>Loading…</p></div>;
+  if (loading) return <p className="gf-muted">Loading…</p>;
 
   return (
-    <div style={shared.page}>
-      <div style={{ ...shared.container, maxWidth: 640 }}>
-        <div style={shared.logo}>🐟 Go Fish</div>
-        <h1 style={shared.title}>Pick Your Activity</h1>
-        <p style={shared.subtitle}>Gemini analyzed everyone's preferences. Here are the top picks.</p>
+    <div className="gf-stack gf-stack--xl">
+      <div>
+        <h1 className="gf-section-title">Pick Your Activity</h1>
+        <p className="gf-muted" style={{ marginTop: 8 }}>Gemini analyzed everyone's preferences. Here are the top picks.</p>
+      </div>
 
-        {error && <div style={shared.errorBox} role="alert">{error}</div>}
+      {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {options.length > 0 ? (
+        <div className="gf-grid gf-grid--three">
           {options.map((opt) => (
-            <div key={opt.id} style={{
-              ...shared.card,
-              border: opt.rank === 1 ? `2px solid ${colors.orange}` : `1px solid ${colors.border}`,
-              position: 'relative' as const,
-            }}>
-              {opt.rank === 1 && (
-                <div style={{
-                  position: 'absolute' as const, top: -12, left: 16,
-                  backgroundColor: colors.orange, color: '#fff', fontSize: '0.7rem', fontWeight: 700,
-                  padding: '2px 10px', borderRadius: 10, textTransform: 'uppercase' as const,
-                }}>Top Pick</div>
-              )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                <span style={{ fontSize: '1.5rem' }}>{medals[opt.rank - 1] || `#${opt.rank}`}</span>
-                <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 600 }}>{opt.title}</h2>
-              </div>
-              <p style={{ color: colors.textSecondary, margin: '0 0 8px', lineHeight: 1.5 }}>{opt.description}</p>
-              <p style={{ fontSize: '0.8rem', color: colors.textMuted, margin: '0 0 14px' }}>
-                📅 {new Date(opt.suggested_date).toLocaleDateString()}
+            <div key={opt.id} className={`gf-card gf-option-card ${RANK_CLASS[opt.rank] ?? ''}`}>
+              {opt.rank === 1 && <span className="gf-top-pick">Top Pick</span>}
+              <h3 className="gf-card-title">{opt.title}</h3>
+              <p className="gf-muted">{opt.description}</p>
+              <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
+                📅 {prettyDate(opt.suggested_date)}
               </p>
-              <button onClick={() => handleSelect(opt.id)} disabled={selecting !== null}
-                style={{
-                  ...(opt.rank === 1 ? shared.btn : shared.btnOutline),
-                  width: '100%',
-                  ...(selecting !== null ? shared.btnDisabled : {}),
-                }}>
+              <button onClick={() => handleSelect(opt.id)} disabled={selecting !== null} className="gf-button gf-button--primary">
                 {selecting === opt.id ? 'Selecting…' : 'Choose This'}
               </button>
             </div>
           ))}
         </div>
-      </div>
+      ) : (
+        <div className="gf-card">
+          <p className="gf-muted">Waiting for options to be generated…</p>
+        </div>
+      )}
     </div>
   );
 }
