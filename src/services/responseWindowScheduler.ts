@@ -190,31 +190,44 @@ export async function triggerGeneration(
     );
 
     // Match image URLs from real-world data by title/venue name similarity
-    // (LLMs don't reliably copy URLs, so we match post-generation)
-    for (const option of options) {
-      if (!option.image_url && realWorldContext) {
+    // Images are ALWAYS sourced from API data, never from Gemini (which hallucinates URLs)
+    const imageUrls = new Map<number, string>();
+    if (realWorldContext) {
+      for (const option of options) {
         const titleLower = option.title.toLowerCase();
         const venueLower = (option.venue_name ?? '').toLowerCase();
 
-        // Check events for matching image
-        const matchedEvent = realWorldContext.events.find((e) =>
-          titleLower.includes(e.title.toLowerCase()) ||
-          e.title.toLowerCase().includes(titleLower) ||
-          (venueLower && e.venueName?.toLowerCase().includes(venueLower))
-        );
-        if (matchedEvent?.imageUrl) {
-          option.image_url = matchedEvent.imageUrl;
-          continue;
-        }
-
-        // Check venues for matching photo
+        // Check venues for matching photo (Google Places photos are most reliable)
         const matchedVenue = realWorldContext.venues.find((v) =>
           titleLower.includes(v.name.toLowerCase()) ||
           v.name.toLowerCase().includes(titleLower) ||
           (venueLower && v.name.toLowerCase().includes(venueLower))
         );
         if (matchedVenue?.photoUrl) {
-          option.image_url = matchedVenue.photoUrl;
+          imageUrls.set(option.rank, matchedVenue.photoUrl);
+          continue;
+        }
+
+        // Check events for matching image (Ticketmaster images)
+        const matchedEvent = realWorldContext.events.find((e) =>
+          titleLower.includes(e.title.toLowerCase()) ||
+          e.title.toLowerCase().includes(titleLower) ||
+          (venueLower && e.venueName?.toLowerCase().includes(venueLower))
+        );
+        if (matchedEvent?.imageUrl) {
+          imageUrls.set(option.rank, matchedEvent.imageUrl);
+          continue;
+        }
+
+        // Fallback: use first available venue/event image for unmatched options
+        const fallbackVenue = realWorldContext.venues.find((v) => v.photoUrl);
+        if (fallbackVenue?.photoUrl) {
+          imageUrls.set(option.rank, fallbackVenue.photoUrl);
+        } else {
+          const fallbackEvent = realWorldContext.events.find((e) => e.imageUrl);
+          if (fallbackEvent?.imageUrl) {
+            imageUrls.set(option.rank, fallbackEvent.imageUrl);
+          }
         }
       }
     }
@@ -233,7 +246,7 @@ export async function triggerGeneration(
           venue_name: option.venue_name,
           price_range: option.price_range,
           weather_note: option.weather_note,
-          image_url: option.image_url,
+          image_url: imageUrls.get(option.rank) ?? null,
         })
       )
     );

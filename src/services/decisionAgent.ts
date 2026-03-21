@@ -14,7 +14,6 @@ export interface GeneratedOption {
   venue_name?: string | null;
   price_range?: string | null;
   weather_note?: string | null;
-  image_url?: string | null;
 }
 
 export interface ParticipantAvailability {
@@ -193,9 +192,8 @@ export function buildPrompt(
 - Include the venue_name from the real data when applicable.
 - Include the price_range from the real data when available.
 - Include a weather_note considering the forecast for the suggested date.
-- Include the image_url from the real event/venue data when available.
 - You may suggest one creative option if none of the real data fits well.`
-    : `- source_url, venue_name, price_range, weather_note, and image_url should be null when no real-world data is available.`;
+    : `- source_url, venue_name, price_range, and weather_note should be null when no real-world data is available.`;
 
   return `You are Go Fish, an AI group activity planner. Your job is to suggest 3 activity options that maximize group enjoyment by finding the sweet spot across everyone's preferences.
 
@@ -253,7 +251,6 @@ export function parseGeminiResponse(text: string): GeneratedOption[] {
       venue_name: item.venue_name ? String(item.venue_name) : null,
       price_range: item.price_range ? String(item.price_range) : null,
       weather_note: item.weather_note ? String(item.weather_note) : null,
-      image_url: item.image_url ? String(item.image_url) : null,
     };
   });
 
@@ -284,7 +281,6 @@ const RESPONSE_SCHEMA: Schema = {
       venue_name: { type: SchemaType.STRING, description: 'Name of the venue, or null if not applicable', nullable: true },
       price_range: { type: SchemaType.STRING, description: 'Estimated cost (e.g. "Free", "EUR 15-30"), or null', nullable: true },
       weather_note: { type: SchemaType.STRING, description: 'Brief weather consideration for this activity, or null', nullable: true },
-      image_url: { type: SchemaType.STRING, description: 'Image URL from the real event/venue data, or null', nullable: true },
     },
     required: ['title', 'description', 'suggested_date', 'suggested_time', 'rank'],
   },

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 
@@ -17,6 +17,11 @@ interface ActivityOption {
   image_url: string | null;
 }
 
+interface EventData {
+  id: string;
+  status: string;
+}
+
 const RANK_CLASS: Record<number, string> = { 1: 'gf-option-card--rank-1', 2: 'gf-option-card--rank-2', 3: 'gf-option-card--rank-3' };
 
 function prettyDate(d: string) {
@@ -33,13 +38,69 @@ export default function ActivityOptionsView() {
   const [selecting, setSelecting] = useState<string | null>(null);
   const isSelectingRef = useRef(false);
 
+  const loadOptions = useCallback(async () => {
+    if (!eventId || isSelectingRef.current) return true;
+
+    const [eventResult, optionsResult] = await Promise.allSettled([
+      api.get<EventData>(`/events/${eventId}`),
+      api.get<{ options: ActivityOption[] }>(`/events/${eventId}/options`),
+    ]);
+
+    if (eventResult.status === 'fulfilled' && eventResult.value.status === 'finalized') {
+      navigate(`/events/${eventId}/confirmation`, { replace: true });
+      return true;
+    }
+
+    if (optionsResult.status === 'rejected') {
+      throw optionsResult.reason;
+    }
+
+    const sortedOptions = [...optionsResult.value.options].sort((a, b) => a.rank - b.rank);
+    setOptions(sortedOptions);
+    setError('');
+
+    return sortedOptions.length > 0;
+  }, [eventId, navigate]);
+
   useEffect(() => {
     if (!eventId) return;
-    api.get<{ options: ActivityOption[] }>(`/events/${eventId}/options`)
-      .then((data) => setOptions([...data.options].sort((a, b) => a.rank - b.rank)))
-      .catch(() => setError('Failed to load options.'))
-      .finally(() => setLoading(false));
-  }, [eventId]);
+
+    let active = true;
+    let pollId: number | null = null;
+
+    const sync = async () => {
+      try {
+        const hasOptions = await loadOptions();
+        if (!active) return true;
+        return hasOptions;
+      } catch {
+        if (!active) return true;
+        setError('Failed to load options.');
+        return false;
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    void sync().then((done) => {
+      if (!active || done) return;
+      pollId = window.setInterval(() => {
+        void sync().then((hasOptions) => {
+          if (hasOptions && pollId !== null) {
+            window.clearInterval(pollId);
+            pollId = null;
+          }
+        });
+      }, 3000);
+    });
+
+    return () => {
+      active = false;
+      if (pollId !== null) {
+        window.clearInterval(pollId);
+      }
+    };
+  }, [eventId, loadOptions]);
 
   async function handleSelect(optionId: string) {
     setError('');
