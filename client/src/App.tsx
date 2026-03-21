@@ -24,7 +24,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
     <div className="gf-app">
       <header className="gf-topbar">
         <Link className="gf-brand" to="/dashboard">
-          <span>🐟</span>
+          <img src="/logo.png" alt="Go Fish" className="gf-brand__icon" />
           <span>Go Fish</span>
         </Link>
         <nav className="gf-nav">

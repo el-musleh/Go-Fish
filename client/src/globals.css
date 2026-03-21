@@ -94,6 +94,11 @@ button, input, textarea { font: inherit; }
   cursor: pointer;
 }
 
+.gf-brand__icon {
+  height: 2rem;
+  width: auto;
+}
+
 .gf-nav { display: flex; justify-content: center; }
 
 .gf-nav a {
