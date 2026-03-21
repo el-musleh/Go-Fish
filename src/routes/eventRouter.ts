@@ -78,7 +78,7 @@ export function createEventRouter(pool: Pool): Router {
           if (event.status === 'finalized') {
             const opts = await getActivityOptionsByEventId(pool, event.id);
             const sel = opts.find((o) => o.is_selected);
-            if (sel) selected_activity = { title: sel.title, suggested_date: sel.suggested_date };
+            if (sel) selected_activity = { title: sel.title, suggested_date: sel.suggested_date, suggested_time: sel.suggested_time };
           }
           return { ...event, respondent_count: responses.length, selected_activity };
         })
@@ -90,7 +90,7 @@ export function createEventRouter(pool: Pool): Router {
           if (event.status === 'finalized') {
             const opts = await getActivityOptionsByEventId(pool, event.id);
             const sel = opts.find((o) => o.is_selected);
-            if (sel) selected_activity = { title: sel.title, suggested_date: sel.suggested_date };
+            if (sel) selected_activity = { title: sel.title, suggested_date: sel.suggested_date, suggested_time: sel.suggested_time };
           }
           return { ...event, selected_activity };
         })

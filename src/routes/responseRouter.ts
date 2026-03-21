@@ -27,7 +27,7 @@ export function createResponseRouter(pool: Pool): Router {
         const { eventId } = req.params;
         const { available_dates } = req.body;
 
-        // Validate dates
+        // Validate dates with time windows
         if (
           !available_dates ||
           !Array.isArray(available_dates) ||
@@ -38,6 +38,27 @@ export function createResponseRouter(pool: Pool): Router {
             message: 'At least one available date is required.',
           });
           return;
+        }
+
+        const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
+        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+        for (const entry of available_dates) {
+          if (typeof entry !== 'object' || !entry.date || !entry.start_time || !entry.end_time) {
+            res.status(400).json({ error: 'invalid_dates', message: 'Each date must include date, start_time, and end_time.' });
+            return;
+          }
+          if (!dateRegex.test(entry.date)) {
+            res.status(400).json({ error: 'invalid_dates', message: 'Date must be in YYYY-MM-DD format.' });
+            return;
+          }
+          if (!timeRegex.test(entry.start_time) || !timeRegex.test(entry.end_time)) {
+            res.status(400).json({ error: 'invalid_dates', message: 'Times must be in HH:MM format.' });
+            return;
+          }
+          if (entry.start_time >= entry.end_time) {
+            res.status(400).json({ error: 'invalid_dates', message: 'start_time must be before end_time.' });
+            return;
+          }
         }
 
         // Check event exists
