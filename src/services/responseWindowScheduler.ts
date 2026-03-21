@@ -4,7 +4,7 @@ import { getResponsesByEventId } from '../repositories/responseRepository';
 import { getTasteBenchmarkByUserId } from '../repositories/tasteBenchmarkRepository';
 import { createActivityOption } from '../repositories/activityOptionRepository';
 import { getEventById, updateEventStatus } from '../repositories/eventRepository';
-import { generateActivityOptions, GeneratedOption } from './decisionAgent';
+import { generateActivityOptions, GeneratedOption, ParticipantAvailability } from './decisionAgent';
 import { sendNotificationEmails } from './emailService';
 import { getActivityOptionsByEventId, markActivityOptionSelected } from '../repositories/activityOptionRepository';
 
@@ -108,41 +108,55 @@ export async function triggerGeneration(
 ): Promise<GeneratedOption[]> {
   const { pool, apiKey } = deps;
 
+  // Fetch event for context (title/description)
+  const event = await getEventById(pool, eventId);
+
   // Transition to generating
   await updateEventStatus(pool, eventId, 'generating');
 
   try {
     const responses = await getResponsesByEventId(pool, eventId);
 
-    // Collect taste benchmarks for all respondents
-    const benchmarks = [];
-    const allDates = new Set<string>();
+    // Fetch all benchmarks in parallel instead of sequentially
+    const benchmarkResults = await Promise.all(
+      responses.map((r) => getTasteBenchmarkByUserId(pool, r.invitee_id))
+    );
+    const benchmarks = benchmarkResults.filter(
+      (b): b is NonNullable<typeof b> => b !== null && b !== undefined
+    );
 
-    for (const response of responses) {
-      const benchmark = await getTasteBenchmarkByUserId(pool, response.invitee_id);
-      if (benchmark) {
-        benchmarks.push(benchmark);
-      }
-      for (const date of response.available_dates) {
-        allDates.add(date);
-      }
-    }
+    // Build per-participant availability with time windows
+    const participantAvailability: ParticipantAvailability[] = responses.map((r, i) => ({
+      participant_index: i + 1,
+      windows: r.available_dates,
+    }));
 
-    const availableDates = Array.from(allDates).sort();
+    // Build event context for the prompt
+    const eventContext = event
+      ? { title: event.title, description: event.description }
+      : undefined;
 
     // Generate activity options via Gemini
-    const options = await generateActivityOptions(benchmarks, availableDates, apiKey);
+    const options = await generateActivityOptions(
+      benchmarks,
+      participantAvailability,
+      apiKey,
+      eventContext
+    );
 
-    // Store generated options
-    for (const option of options) {
-      await createActivityOption(pool, {
-        event_id: eventId,
-        title: option.title,
-        description: option.description,
-        suggested_date: option.suggested_date,
-        rank: option.rank,
-      });
-    }
+    // Store generated options in parallel
+    await Promise.all(
+      options.map((option) =>
+        createActivityOption(pool, {
+          event_id: eventId,
+          title: option.title,
+          description: option.description,
+          suggested_date: option.suggested_date,
+          suggested_time: option.suggested_time,
+          rank: option.rank,
+        })
+      )
+    );
 
     // Transition to options_ready
     await updateEventStatus(pool, eventId, 'options_ready');
@@ -152,25 +166,6 @@ export async function triggerGeneration(
     // Revert to collecting on failure so it can be retried
     await updateEventStatus(pool, eventId, 'collecting');
     throw err;
-  }
-}
-
-/**
- * Auto-select the top-ranked option, finalize the event, and send emails.
- */
-async function autoFinalizeAndNotify(eventId: string, deps: SchedulerDeps): Promise<void> {
-  const { pool } = deps;
-  try {
-    const options = await getActivityOptionsByEventId(pool, eventId);
-    const topOption = options.sort((a, b) => a.rank - b.rank)[0];
-    if (topOption) {
-      await markActivityOptionSelected(pool, topOption.id);
-      await updateEventStatus(pool, eventId, 'finalized');
-      await sendNotificationEmails(pool, eventId);
-      console.log(`Event ${eventId}: auto-finalized with "${topOption.title}" and emails sent.`);
-    }
-  } catch (err) {
-    console.error(`Event ${eventId}: auto-finalize failed:`, err);
   }
 }
 

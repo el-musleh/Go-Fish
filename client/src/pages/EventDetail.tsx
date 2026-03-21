@@ -4,8 +4,8 @@ import { api, getCurrentUserId } from '../api/client';
 import InvitationLinkPanel from './InvitationLinkPanel';
 
 interface EventData { id: string; title: string; description: string; status: string; response_window_end: string; inviter_id: string; }
-interface Respondent { id: string; email: string; available_dates: string[]; responded_at: string; }
-interface ActivityOption { id: string; title: string; description: string; suggested_date: string; rank: number; is_selected: boolean; }
+interface Respondent { id: string; email: string; available_dates: { date: string; start_time: string; end_time: string }[]; responded_at: string; }
+interface ActivityOption { id: string; title: string; description: string; suggested_date: string; suggested_time: string | null; rank: number; is_selected: boolean; }
 
 const RANK_CLASS: Record<number, string> = { 1: 'gf-option-card--rank-1', 2: 'gf-option-card--rank-2', 3: 'gf-option-card--rank-3' };
 
@@ -130,7 +130,7 @@ export default function EventDetail() {
         {selected ? (
           <div className="gf-card gf-option-card gf-option-card--featured">
             <h3 className="gf-card-title">{selected.title}</h3>
-            <p className="gf-muted">{prettyDate(selected.suggested_date)}</p>
+            <p className="gf-muted">{prettyDate(selected.suggested_date)}{selected.suggested_time ? ` at ${selected.suggested_time}` : ''}</p>
             <p>{selected.description}</p>
           </div>
         ) : (
@@ -162,7 +162,7 @@ export default function EventDetail() {
             <div className={`gf-card gf-option-card ${RANK_CLASS[opt.rank] || ''}`} key={opt.id}>
               {opt.rank === 1 && <span className="gf-top-pick">Top Pick</span>}
               <h3 className="gf-card-title">{opt.title}</h3>
-              <p className="gf-muted">{prettyDate(opt.suggested_date)}</p>
+              <p className="gf-muted">{prettyDate(opt.suggested_date)}{opt.suggested_time ? ` at ${opt.suggested_time}` : ''}</p>
               <p className="gf-muted" style={{ fontSize: '0.9rem' }}>{opt.description}</p>
               <button className="gf-button gf-button--primary" disabled={working} onClick={() => handleSelect(opt.id)}>
                 {working ? 'Working...' : 'Choose'}
@@ -220,7 +220,7 @@ export default function EventDetail() {
                       <span className="gf-respondent__name">{r.email}</span>
                       <div className="gf-respondent__dates">
                         {r.available_dates.map(d => (
-                          <span className="gf-chip gf-chip--active" key={d}>{prettyDate(d)}</span>
+                          <span className="gf-chip gf-chip--active" key={d.date}>{prettyDate(d.date)} {d.start_time}–{d.end_time}</span>
                         ))}
                       </div>
                     </div>

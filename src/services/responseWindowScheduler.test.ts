@@ -144,14 +144,15 @@ describe('responseWindowScheduler', () => {
   });
 
   describe('handleWindowExpiry', () => {
-    it('should trigger generation when >= 2 responses exist', async () => {
-      (getEventById as any).mockResolvedValue(makeEvent());
+    it('should trigger generation when >= 1 responses exist', async () => {
+      const event = makeEvent();
+      (getEventById as any).mockResolvedValue(event);
       (getResponsesByEventId as any).mockResolvedValue(mockResponses);
       (getTasteBenchmarkByUserId as any)
         .mockResolvedValueOnce(mockBenchmarks[0])
         .mockResolvedValueOnce(mockBenchmarks[1]);
       (generateActivityOptions as any).mockResolvedValue(mockGeneratedOptions);
-      (updateEventStatus as any).mockResolvedValue(makeEvent());
+      (updateEventStatus as any).mockResolvedValue(event);
       (createActivityOption as any).mockResolvedValue({});
 
       await handleWindowExpiry('event-1', deps);
@@ -160,16 +161,6 @@ describe('responseWindowScheduler', () => {
       expect(generateActivityOptions).toHaveBeenCalled();
       expect(createActivityOption).toHaveBeenCalledTimes(3);
       expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'options_ready');
-    });
-
-    it('should mark event as awaiting_decision when < 2 responses', async () => {
-      (getEventById as any).mockResolvedValue(makeEvent());
-      (getResponsesByEventId as any).mockResolvedValue([mockResponses[0]]);
-
-      await handleWindowExpiry('event-1', deps);
-
-      expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'awaiting_decision');
-      expect(generateActivityOptions).not.toHaveBeenCalled();
     });
 
     it('should mark event as awaiting_decision when 0 responses', async () => {
@@ -208,6 +199,7 @@ describe('responseWindowScheduler', () => {
       scheduleResponseWindow(event, deps);
       expect(getActiveTimerCount()).toBe(1);
 
+      (getEventById as any).mockResolvedValue(event);
       (getResponsesByEventId as any).mockResolvedValue(mockResponses);
       (getTasteBenchmarkByUserId as any)
         .mockResolvedValueOnce(mockBenchmarks[0])
@@ -226,13 +218,15 @@ describe('responseWindowScheduler', () => {
   });
 
   describe('triggerGeneration', () => {
-    it('should collect benchmarks and dates, generate options, and store them', async () => {
+    it('should collect benchmarks and per-participant dates, pass event context', async () => {
+      const event = makeEvent();
+      (getEventById as any).mockResolvedValue(event);
       (getResponsesByEventId as any).mockResolvedValue(mockResponses);
       (getTasteBenchmarkByUserId as any)
         .mockResolvedValueOnce(mockBenchmarks[0])
         .mockResolvedValueOnce(mockBenchmarks[1]);
       (generateActivityOptions as any).mockResolvedValue(mockGeneratedOptions);
-      (updateEventStatus as any).mockResolvedValue(makeEvent());
+      (updateEventStatus as any).mockResolvedValue(event);
       (createActivityOption as any).mockResolvedValue({});
 
       const result = await triggerGeneration('event-1', deps);
@@ -240,44 +234,27 @@ describe('responseWindowScheduler', () => {
       expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'generating');
       expect(getTasteBenchmarkByUserId).toHaveBeenCalledWith(mockPool, 'user-1');
       expect(getTasteBenchmarkByUserId).toHaveBeenCalledWith(mockPool, 'user-2');
+      // Now passes per-participant date arrays and event context
       expect(generateActivityOptions).toHaveBeenCalledWith(
         [mockBenchmarks[0], mockBenchmarks[1]],
-        ['2025-01-15', '2025-01-16'],
-        'test-key'
+        [['2025-01-15'], ['2025-01-15', '2025-01-16']],
+        'test-key',
+        { title: 'Test Event', description: 'A test event' }
       );
       expect(createActivityOption).toHaveBeenCalledTimes(3);
       expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'options_ready');
       expect(result).toEqual(mockGeneratedOptions);
     });
 
-    it('should deduplicate available dates across responses', async () => {
-      const responsesWithOverlap = [
-        { ...mockResponses[0], available_dates: ['2025-01-15', '2025-01-16'] },
-        { ...mockResponses[1], available_dates: ['2025-01-15', '2025-01-17'] },
-      ];
-
-      (getResponsesByEventId as any).mockResolvedValue(responsesWithOverlap);
-      (getTasteBenchmarkByUserId as any).mockResolvedValue(mockBenchmarks[0]);
-      (generateActivityOptions as any).mockResolvedValue(mockGeneratedOptions);
-      (updateEventStatus as any).mockResolvedValue(makeEvent());
-      (createActivityOption as any).mockResolvedValue({});
-
-      await triggerGeneration('event-1', deps);
-
-      expect(generateActivityOptions).toHaveBeenCalledWith(
-        expect.any(Array),
-        ['2025-01-15', '2025-01-16', '2025-01-17'],
-        'test-key'
-      );
-    });
-
     it('should skip benchmarks for users without one', async () => {
+      const event = makeEvent();
+      (getEventById as any).mockResolvedValue(event);
       (getResponsesByEventId as any).mockResolvedValue(mockResponses);
       (getTasteBenchmarkByUserId as any)
         .mockResolvedValueOnce(mockBenchmarks[0])
         .mockResolvedValueOnce(null);
       (generateActivityOptions as any).mockResolvedValue(mockGeneratedOptions);
-      (updateEventStatus as any).mockResolvedValue(makeEvent());
+      (updateEventStatus as any).mockResolvedValue(event);
       (createActivityOption as any).mockResolvedValue({});
 
       await triggerGeneration('event-1', deps);
@@ -285,15 +262,18 @@ describe('responseWindowScheduler', () => {
       expect(generateActivityOptions).toHaveBeenCalledWith(
         [mockBenchmarks[0]],
         expect.any(Array),
-        'test-key'
+        'test-key',
+        { title: 'Test Event', description: 'A test event' }
       );
     });
 
     it('should revert to collecting status on generation failure', async () => {
+      const event = makeEvent();
+      (getEventById as any).mockResolvedValue(event);
       (getResponsesByEventId as any).mockResolvedValue(mockResponses);
       (getTasteBenchmarkByUserId as any).mockResolvedValue(mockBenchmarks[0]);
       (generateActivityOptions as any).mockRejectedValue(new Error('Gemini API failed'));
-      (updateEventStatus as any).mockResolvedValue(makeEvent());
+      (updateEventStatus as any).mockResolvedValue(event);
 
       await expect(triggerGeneration('event-1', deps)).rejects.toThrow('Gemini API failed');
 

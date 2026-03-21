@@ -1,6 +1,22 @@
-node_modules
+# Dependencies and build outputs
+**/node_modules
 dist
+client/dist
+.next
+
+# Unrelated directories from other branch layouts
+backend
+frontend
+apps
+packages
+_main_reference
+
+# Local config and VCS
 .kiro
 .vscode
 .git
+.env
+
+# Docs and media
 *.md
+resources

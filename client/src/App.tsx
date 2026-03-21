@@ -19,7 +19,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const [authOpen, setAuthOpen] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { email?: string } } | null) => {
       if (event === 'SIGNED_IN' && session?.user && !getCurrentUserId()) {
         try {
           const { userId: id, isNew } = await api.post<{ userId: string; isNew: boolean }>(
@@ -45,7 +45,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
     <div className="gf-app">
       <header className="gf-topbar">
         <Link className="gf-brand" to="/dashboard">
-          <span>🐟</span>
+          <img src="/logo.png" alt="Go Fish" className="gf-brand__icon" />
           <span>Go Fish</span>
         </Link>
         <nav className="gf-nav">
@@ -73,6 +73,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="gf-main">{children}</main>
+      <footer className="gf-footer">v1.6.0</footer>
       <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
     </div>
   );

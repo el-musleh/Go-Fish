@@ -6,6 +6,9 @@ services:
     environment:
       DATABASE_URL: postgres://gofish:gofish@db:5432/gofish
       NODE_ENV: production
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      RESEND_FROM: ${RESEND_FROM}
     depends_on:
       - db
     networks:

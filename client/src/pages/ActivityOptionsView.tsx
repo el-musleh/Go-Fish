@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 
-interface ActivityOption { id: string; title: string; description: string; suggested_date: string; rank: number; is_selected: boolean; }
+interface ActivityOption { id: string; title: string; description: string; suggested_date: string; suggested_time: string | null; rank: number; is_selected: boolean; }
 
 const RANK_CLASS: Record<number, string> = { 1: 'gf-option-card--rank-1', 2: 'gf-option-card--rank-2', 3: 'gf-option-card--rank-3' };
 
@@ -58,7 +58,7 @@ export default function ActivityOptionsView() {
               <h3 className="gf-card-title">{opt.title}</h3>
               <p className="gf-muted">{opt.description}</p>
               <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
-                📅 {prettyDate(opt.suggested_date)}
+                📅 {prettyDate(opt.suggested_date)}{opt.suggested_time ? ` at ${opt.suggested_time}` : ''}
               </p>
               <button onClick={() => handleSelect(opt.id)} disabled={selecting !== null} className="gf-button gf-button--primary">
                 {selecting === opt.id ? 'Selecting…' : 'Choose This'}
