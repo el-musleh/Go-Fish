@@ -1,4 +1,4 @@
-import nodemailer, { Transporter } from 'nodemailer';
+import { Resend } from 'resend';
 import { Pool } from 'pg';
 import { getEventById } from '../repositories/eventRepository';
 import { getActivityOptionsByEventId } from '../repositories/activityOptionRepository';
@@ -8,48 +8,28 @@ import { createEmailLog, updateEmailLogStatus } from '../repositories/emailLogRe
 import { ActivityOption } from '../models/ActivityOption';
 
 const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 5_000; // 5 seconds between retries
+const RETRY_DELAY_MS = 5_000;
 
-export function createTransporter(): Transporter {
-  const host = process.env.SMTP_HOST;
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
-
-  if (!host || !user || !pass) {
-    console.warn('[EmailService] SMTP not configured — emails will be logged to console only.');
-    return createConsoleTransporter();
-  }
-
-  const port = Number(process.env.SMTP_PORT) || 465;
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: port === 465,
-    auth: { user, pass },
-  });
-}
-
-/**
- * Fallback transporter that logs emails to console instead of sending.
- * Useful for local development without SMTP credentials.
- */
-function createConsoleTransporter(): Transporter {
-  return {
-    sendMail: async (opts: any) => {
-      console.log('─────────────────────────────────────');
-      console.log('📧 EMAIL (console-only, SMTP not configured)');
-      console.log(`   From: ${opts.from}`);
-      console.log(`   To:   ${opts.to}`);
-      console.log(`   Subject: ${opts.subject}`);
-      console.log('   Body:');
-      opts.text?.split('\n').forEach((line: string) => console.log(`     ${line}`));
-      console.log('─────────────────────────────────────');
-      return { messageId: `console-${Date.now()}` };
-    },
-  } as unknown as Transporter;
+function getResendClient(): Resend {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error('RESEND_API_KEY is not configured');
+  return new Resend(key);
 }
 
 export function buildEmailBody(activity: ActivityOption): string {
+  return `<div style="font-family:sans-serif;max-width:480px;margin:0 auto">
+  <h2 style="color:#ff9d49">🐟 Go Fish</h2>
+  <p>Your group activity has been finalized!</p>
+  <div style="background:#1a100b;border:1px solid rgba(255,157,73,0.2);border-radius:16px;padding:20px;color:#f7efe7">
+    <h3 style="margin:0 0 8px">${activity.title}</h3>
+    <p style="margin:0 0 8px;color:rgba(247,239,231,0.7)">${activity.description}</p>
+    <p style="margin:0;font-size:0.9rem;color:rgba(247,239,231,0.5)">📅 ${activity.suggested_date}</p>
+  </div>
+  <p style="margin-top:16px">See you there! 🎉</p>
+</div>`;
+}
+
+export function buildEmailText(activity: ActivityOption): string {
   return [
     `Your group activity has been finalized!`,
     ``,
@@ -64,7 +44,7 @@ export function buildEmailBody(activity: ActivityOption): string {
 export async function sendNotificationEmails(
   pool: Pool,
   eventId: string,
-  transporter?: Transporter
+  resendClient?: Resend
 ): Promise<void> {
   const event = await getEventById(pool, eventId);
   if (!event || event.status !== 'finalized') return;
@@ -81,42 +61,43 @@ export async function sendNotificationEmails(
   }
   recipientIds.add(event.inviter_id);
 
-  const mailer = transporter ?? createTransporter();
-  const body = buildEmailBody(selected);
+  const client = resendClient ?? getResendClient();
+  const html = buildEmailBody(selected);
+  const text = buildEmailText(selected);
   const subject = `Go Fish: ${selected.title}`;
+  const from = process.env.RESEND_FROM || 'Go Fish <onboarding@resend.dev>';
 
   for (const userId of recipientIds) {
     const user = await getUserById(pool, userId);
     if (!user) continue;
 
     const log = await createEmailLog(pool, { event_id: eventId, user_id: userId });
-    await sendWithRetry(pool, mailer, log.id, user.email, subject, body);
+    await sendWithRetry(pool, client, log.id, user.email, from, subject, html, text);
   }
 }
 
 export async function sendWithRetry(
   pool: Pool,
-  transporter: Transporter,
+  client: Resend,
   emailLogId: string,
   to: string,
+  from: string,
   subject: string,
-  body: string,
+  html: string,
+  text: string,
   attempt: number = 1
 ): Promise<void> {
   try {
-    await transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER || 'noreply@gofish.app',
-      to,
-      subject,
-      text: body,
-    });
+    const { error } = await client.emails.send({ from, to, subject, html, text });
+    if (error) throw new Error(error.message);
     await updateEmailLogStatus(pool, emailLogId, 'sent');
+    console.log(`[Email] Sent to ${to}: "${subject}"`);
   } catch (err) {
-    console.error(`[EmailService] Send failed (attempt ${attempt}/${MAX_RETRIES}) to ${to}:`, err);
+    console.error(`[Email] Failed (attempt ${attempt}/${MAX_RETRIES}) to ${to}:`, err);
     if (attempt < MAX_RETRIES) {
       await updateEmailLogStatus(pool, emailLogId, 'pending');
       await delay(RETRY_DELAY_MS);
-      await sendWithRetry(pool, transporter, emailLogId, to, subject, body, attempt + 1);
+      await sendWithRetry(pool, client, emailLogId, to, from, subject, html, text, attempt + 1);
     } else {
       await updateEmailLogStatus(pool, emailLogId, 'failed');
     }
