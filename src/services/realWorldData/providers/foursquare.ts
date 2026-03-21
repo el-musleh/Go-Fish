@@ -2,24 +2,17 @@ import { GeoLocation, NormalizedVenue } from '../types';
 import { apiCache, CACHE_TTL } from '../cache';
 
 interface FoursquarePlace {
-  fsq_id: string;
+  fsq_place_id: string;
   name: string;
-  categories: Array<{ id: number; name: string }>;
+  categories: Array<{ fsq_category_id: string; name: string }>;
   location: {
     address?: string;
     locality?: string;
     country?: string;
     formatted_address?: string;
   };
-  rating?: number;
-  price?: number;
+  website?: string;
   link?: string;
-  photos?: Array<{
-    prefix: string;
-    suffix: string;
-    width: number;
-    height: number;
-  }>;
 }
 
 interface FoursquareResponse {
@@ -63,16 +56,16 @@ export async function fetchFoursquareVenues(
       ll: `${location.latitude},${location.longitude}`,
       radius: '5000',
       query,
-      fields: 'fsq_id,name,categories,location,rating,price,link,photos',
       limit: '5',
     });
 
     const response = await fetch(
-      `https://api.foursquare.com/v3/places/search?${params}`,
+      `https://places-api.foursquare.com/places/search?${params}`,
       {
         headers: {
           Accept: 'application/json',
-          Authorization: apiKey,
+          Authorization: `Bearer ${apiKey}`,
+          'X-Places-Api-Version': '2025-06-17',
         },
       }
     );
@@ -86,23 +79,17 @@ export async function fetchFoursquareVenues(
     const data = (await response.json()) as FoursquareResponse;
 
     for (const place of data.results) {
-      const photoUrl = place.photos?.[0]
-        ? `${place.photos[0].prefix}300x300${place.photos[0].suffix}`
-        : null;
-
       allVenues.push({
         source: 'foursquare' as const,
-        sourceId: place.fsq_id,
+        sourceId: place.fsq_place_id,
         name: place.name,
         category: place.categories[0]?.name?.toLowerCase() ?? 'unknown',
         address:
           place.location.formatted_address ?? place.location.address ?? '',
-        rating: place.rating
-          ? Math.round((place.rating / 2) * 10) / 10
-          : null, // Convert 10-scale to 5-scale
-        priceLevel: place.price ?? null,
-        url: place.link ?? null,
-        photoUrl,
+        rating: null,
+        priceLevel: null,
+        url: place.website ?? null,
+        photoUrl: null,
       });
     }
   }
