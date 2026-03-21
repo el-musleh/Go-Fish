@@ -3,12 +3,17 @@ import { ActivityOption } from '../models/ActivityOption';
 
 export async function createActivityOption(
   pool: Pool,
-  data: Pick<ActivityOption, 'event_id' | 'title' | 'description' | 'suggested_date' | 'suggested_time' | 'rank'>
+  data: Pick<ActivityOption, 'event_id' | 'title' | 'description' | 'suggested_date' | 'suggested_time' | 'rank'> & {
+    source_url?: string | null;
+    venue_name?: string | null;
+    price_range?: string | null;
+    weather_note?: string | null;
+  }
 ): Promise<ActivityOption> {
   const { rows } = await pool.query(
-    `INSERT INTO activity_option (event_id, title, description, suggested_date, suggested_time, rank)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-    [data.event_id, data.title, data.description, data.suggested_date, data.suggested_time, data.rank]
+    `INSERT INTO activity_option (event_id, title, description, suggested_date, suggested_time, rank, source_url, venue_name, price_range, weather_note)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *`,
+    [data.event_id, data.title, data.description, data.suggested_date, data.suggested_time, data.rank, data.source_url ?? null, data.venue_name ?? null, data.price_range ?? null, data.weather_note ?? null]
   );
   return rows[0];
 }
