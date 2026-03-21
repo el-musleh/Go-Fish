@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { buildPrompt, parseGeminiResponse } from './decisionAgent';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { buildPrompt, parseGeminiResponse, rankDatesByOverlap, findCommonPreferences } from './decisionAgent';
 import { TasteBenchmark } from '../models/TasteBenchmark';
 
 const mockGenerateContent = vi.fn();
@@ -10,24 +10,28 @@ vi.mock('@google/generative-ai', () => ({
       generateContent: mockGenerateContent,
     }),
   })),
+  SchemaType: { ARRAY: 'ARRAY', OBJECT: 'OBJECT', STRING: 'STRING', INTEGER: 'INTEGER' },
 }));
 
 const sampleBenchmarks: TasteBenchmark[] = [
   {
     id: '1',
     user_id: 'u1',
-    answers: { q1: ['hiking', 'biking'], q2: ['outdoors'] },
+    answers: { q1: ['Hiking', 'Cycling'], q2: ['Board games'] },
     created_at: new Date(),
   },
   {
     id: '2',
     user_id: 'u2',
-    answers: { q1: ['cooking', 'movies'], q2: ['indoors'] },
+    answers: { q1: ['Hiking', 'Swimming'], q2: ['Cooking'] },
     created_at: new Date(),
   },
 ];
 
-const sampleDates = ['2025-08-01', '2025-08-02', '2025-08-03'];
+const sampleDates = [
+  ['2025-08-01', '2025-08-02'],
+  ['2025-08-02', '2025-08-03'],
+];
 
 const validGeminiResponse = JSON.stringify([
   { title: 'Outdoor Cooking', description: 'Cook together in a park', suggested_date: '2025-08-01', rank: 1 },
@@ -35,26 +39,63 @@ const validGeminiResponse = JSON.stringify([
   { title: 'Bike & Brunch', description: 'Bike ride then brunch', suggested_date: '2025-08-03', rank: 3 },
 ]);
 
+describe('rankDatesByOverlap', () => {
+  it('ranks dates by frequency descending', () => {
+    const result = rankDatesByOverlap(sampleDates);
+    expect(result[0]).toEqual({ date: '2025-08-02', count: 2 });
+    expect(result.length).toBe(3);
+  });
+
+  it('returns empty for no dates', () => {
+    expect(rankDatesByOverlap([])).toEqual([]);
+  });
+});
+
+describe('findCommonPreferences', () => {
+  it('finds preferences shared by majority', () => {
+    const common = findCommonPreferences(sampleBenchmarks);
+    expect(common['Outdoor activities']).toContain('Hiking');
+    expect(common['Outdoor activities']).not.toContain('Cycling');
+  });
+
+  it('returns empty for no benchmarks', () => {
+    expect(findCommonPreferences([])).toEqual({});
+  });
+});
+
 describe('buildPrompt', () => {
-  it('includes all participant preferences', () => {
+  it('includes labeled participant preferences', () => {
     const prompt = buildPrompt(sampleBenchmarks, sampleDates);
     expect(prompt).toContain('Participant 1');
-    expect(prompt).toContain('hiking, biking');
+    expect(prompt).toContain('Outdoor activities');
+    expect(prompt).toContain('Hiking, Cycling');
     expect(prompt).toContain('Participant 2');
-    expect(prompt).toContain('cooking, movies');
   });
 
-  it('includes all available dates', () => {
+  it('includes date overlap counts', () => {
     const prompt = buildPrompt(sampleBenchmarks, sampleDates);
-    expect(prompt).toContain('2025-08-01');
-    expect(prompt).toContain('2025-08-02');
-    expect(prompt).toContain('2025-08-03');
+    expect(prompt).toContain('2025-08-02 (2/2 available)');
+    expect(prompt).toContain('2025-08-01 (1/2 available)');
   });
 
-  it('requests JSON array of exactly 3 options', () => {
+  it('includes shared preferences section', () => {
+    const prompt = buildPrompt(sampleBenchmarks, sampleDates);
+    expect(prompt).toContain('Shared Group Preferences');
+    expect(prompt).toContain('Hiking');
+  });
+
+  it('includes event context when provided', () => {
+    const prompt = buildPrompt(sampleBenchmarks, sampleDates, {
+      title: 'Birthday Party',
+      description: 'Celebrating Joes birthday',
+    });
+    expect(prompt).toContain('Birthday Party');
+    expect(prompt).toContain('Celebrating Joes birthday');
+  });
+
+  it('requests exactly 3 options', () => {
     const prompt = buildPrompt(sampleBenchmarks, sampleDates);
     expect(prompt).toContain('exactly 3');
-    expect(prompt).toContain('JSON array');
   });
 });
 
@@ -106,7 +147,12 @@ describe('parseGeminiResponse', () => {
 
 describe('generateActivityOptions', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('returns parsed options on successful API call', async () => {
@@ -142,7 +188,10 @@ describe('generateActivityOptions', () => {
       });
 
     const { generateActivityOptions } = await import('./decisionAgent');
-    const options = await generateActivityOptions(sampleBenchmarks, sampleDates, 'test-key');
+    const promise = generateActivityOptions(sampleBenchmarks, sampleDates, 'test-key');
+    // Advance past both retry delays (5s + 10s)
+    await vi.advanceTimersByTimeAsync(20000);
+    const options = await promise;
     expect(options).toHaveLength(3);
     expect(mockGenerateContent).toHaveBeenCalledTimes(3);
   });
@@ -154,9 +203,12 @@ describe('generateActivityOptions', () => {
       .mockRejectedValueOnce(new Error('fail 3'));
 
     const { generateActivityOptions } = await import('./decisionAgent');
-    await expect(
-      generateActivityOptions(sampleBenchmarks, sampleDates, 'test-key')
-    ).rejects.toThrow('Activity generation failed after 3 attempts');
+    let caughtError: Error | undefined;
+    const promise = generateActivityOptions(sampleBenchmarks, sampleDates, 'test-key')
+      .catch((err: Error) => { caughtError = err; });
+    await vi.advanceTimersByTimeAsync(30000);
+    await promise;
+    expect(caughtError?.message).toContain('Activity generation failed after 3 attempts');
     expect(mockGenerateContent).toHaveBeenCalledTimes(3);
   });
 
@@ -170,8 +222,26 @@ describe('generateActivityOptions', () => {
       });
 
     const { generateActivityOptions } = await import('./decisionAgent');
-    const options = await generateActivityOptions(sampleBenchmarks, sampleDates, 'test-key');
+    const promise = generateActivityOptions(sampleBenchmarks, sampleDates, 'test-key');
+    await vi.advanceTimersByTimeAsync(10000);
+    const options = await promise;
     expect(options).toHaveLength(3);
     expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+  });
+
+  it('passes event context to the prompt', async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      response: { text: () => validGeminiResponse },
+    });
+
+    const { generateActivityOptions } = await import('./decisionAgent');
+    await generateActivityOptions(sampleBenchmarks, sampleDates, 'test-key', {
+      title: 'Game Night',
+      description: 'Weekly hangout',
+    });
+    // Verify the prompt was called (generateContent receives the prompt string)
+    const callArg = mockGenerateContent.mock.calls[0][0];
+    expect(callArg).toContain('Game Night');
+    expect(callArg).toContain('Weekly hangout');
   });
 });
