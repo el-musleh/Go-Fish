@@ -420,6 +420,22 @@ export async function registerEventRoutes(app: FastifyInstance) {
     };
   });
 
+  app.delete("/v1/events/:id", async (request) => {
+    const user = await requireUser(request);
+    const event = await getEventForOwner((request.params as { id: string }).id, user.id);
+
+    await db.event.update({
+      where: { id: event.id },
+      data: { selectedOptionId: null },
+    });
+
+    await db.event.delete({
+      where: { id: event.id },
+    });
+
+    return { deleted: true };
+  });
+
   app.post("/v1/events/:id/generate-options", async (request) => {
     const user = await requireUser(request);
     const event = await getEventForOwner((request.params as { id: string }).id, user.id);

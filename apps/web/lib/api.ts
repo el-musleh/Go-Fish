@@ -88,6 +88,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  deleteEvent: (eventId: string) =>
+    request<{ deleted: boolean }>(`/v1/events/${eventId}`, { method: "DELETE" }),
   getEvents: () => request<{ events: DashboardResponse["events"] }>("/v1/events"),
   getGeneratedOptions: (_eventId: string) => Promise.resolve(null as GenerateOptionsResponse | null),
 };

@@ -42,6 +42,17 @@ export default function DashboardPage() {
     );
   }
 
+  async function handleDelete(eventId: string) {
+    try {
+      await api.deleteEvent(eventId);
+      setData((prev) =>
+        prev ? { ...prev, events: prev.events.filter((e) => e.id !== eventId) } : prev,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not delete event.");
+    }
+  }
+
   const myEvents = data?.events.filter((e) => e.isOwner) ?? [];
   const joinedEvents = data?.events.filter((e) => !e.isOwner) ?? [];
   const hasAny = myEvents.length > 0 || joinedEvents.length > 0;
@@ -55,7 +66,7 @@ export default function DashboardPage() {
           <h2 className="gf-section-title">My Events</h2>
           <div className="gf-grid gf-grid--two">
             {myEvents.map((event) => (
-              <EventCard event={event} key={event.id} />
+              <EventCard event={event} key={event.id} onDelete={handleDelete} />
             ))}
           </div>
         </section>
