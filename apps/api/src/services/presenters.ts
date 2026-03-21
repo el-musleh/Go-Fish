@@ -7,6 +7,7 @@ type EventWithRelations = Event & {
   invitees: Array<
     EventInvitee & {
       availableDates: Array<{ date: Date }>;
+      user?: User | null;
     }
   >;
   options: EventOption[];
@@ -75,11 +76,12 @@ export function serializeEvent(event: EventWithRelations, isOwner: boolean) {
   };
 }
 
-export function serializeInvitee(invitee: EventInvitee & { availableDates: Array<{ date: Date }> }) {
+export function serializeInvitee(invitee: EventInvitee & { availableDates: Array<{ date: Date }>; user?: User | null }) {
   return {
     id: invitee.id,
     email: invitee.email,
     userId: invitee.userId,
+    name: invitee.user ? displayName(invitee.user) : null,
     responseStatus: invitee.responseStatus,
     availableDates: invitee.availableDates.map((item) => formatDateOnly(item.date)),
   };

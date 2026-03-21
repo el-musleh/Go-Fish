@@ -11,7 +11,7 @@ import { db } from "@go-fish/database";
 import type { FastifyInstance, FastifyRequest } from "fastify";
 
 import { auth, headersFromNode } from "../lib/auth";
-import { addHours, formatDateOnly, parseDateOnly } from "../lib/date";
+import { addDays, addHours, formatDateOnly, parseDateOnly } from "../lib/date";
 import { AppError } from "../lib/errors";
 import { env } from "../lib/env";
 import { sendFinalEventEmail } from "../lib/mailer";
@@ -40,7 +40,7 @@ async function getEventForOwner(eventId: string, userId: string) {
   const event = await db.event.findFirst({
     where: { id: eventId, inviterId: userId },
     include: {
-      invitees: { include: { availableDates: true } },
+      invitees: { include: { availableDates: true, user: true } },
       options: true,
     },
   });
@@ -105,7 +105,7 @@ export async function registerEventRoutes(app: FastifyInstance) {
         ],
       },
       include: {
-        invitees: { include: { availableDates: true } },
+        invitees: { include: { availableDates: true, user: true } },
         options: true,
       },
       orderBy: { createdAt: "desc" },
@@ -139,7 +139,7 @@ export async function registerEventRoutes(app: FastifyInstance) {
         ],
       },
       include: {
-        invitees: { include: { availableDates: true } },
+        invitees: { include: { availableDates: true, user: true } },
         options: true,
       },
       orderBy: { createdAt: "desc" },
@@ -153,22 +153,29 @@ export async function registerEventRoutes(app: FastifyInstance) {
   app.post("/v1/events", async (request) => {
     const user = await requireUser(request);
     const payload = eventCreateSchema.parse(request.body);
-    assertDateWindow(payload.dateFrom, payload.dateTo);
+
+    const now = new Date();
+    const dateFrom = payload.dateFrom ? parseDateOnly(payload.dateFrom) : now;
+    const dateTo = payload.dateTo ? parseDateOnly(payload.dateTo) : addDays(now, 14);
+
+    if (dateFrom > dateTo) {
+      throw new AppError("Start date must be before end date.", 400);
+    }
 
     const event = await db.event.create({
       data: {
         title: payload.title,
         description: payload.description ?? null,
-        locationHint: payload.locationHint,
-        dateFrom: parseDateOnly(payload.dateFrom),
-        dateTo: parseDateOnly(payload.dateTo),
-        responseDeadlineAt: addHours(new Date(), 24),
+        locationHint: payload.locationHint ?? "",
+        dateFrom,
+        dateTo,
+        responseDeadlineAt: addHours(now, 24),
         status: "collecting_responses",
         inviterId: user.id,
         slug: toSlug(payload.title),
       },
       include: {
-        invitees: { include: { availableDates: true } },
+        invitees: { include: { availableDates: true, user: true } },
         options: true,
       },
     });
@@ -201,7 +208,7 @@ export async function registerEventRoutes(app: FastifyInstance) {
         responseDeadlineAt: addHours(new Date(), 24),
       },
       include: {
-        invitees: { include: { availableDates: true } },
+        invitees: { include: { availableDates: true, user: true } },
         options: true,
       },
     });
@@ -229,7 +236,7 @@ export async function registerEventRoutes(app: FastifyInstance) {
       },
       include: {
         inviter: true,
-        invitees: { include: { availableDates: true } },
+        invitees: { include: { availableDates: true, user: true } },
         options: true,
       },
     });
@@ -251,7 +258,7 @@ export async function registerEventRoutes(app: FastifyInstance) {
       where: { slug: (request.params as { slug: string }).slug },
       include: {
         inviter: true,
-        invitees: { include: { availableDates: true } },
+        invitees: { include: { availableDates: true, user: true } },
         options: true,
       },
     });
@@ -268,7 +275,7 @@ export async function registerEventRoutes(app: FastifyInstance) {
             where: { id: initialEvent.id },
             include: {
               inviter: true,
-              invitees: { include: { availableDates: true } },
+              invitees: { include: { availableDates: true, user: true } },
               options: true,
             },
           })
@@ -347,7 +354,7 @@ export async function registerEventRoutes(app: FastifyInstance) {
     const event = await db.event.findUnique({
       where: { id: eventId },
       include: {
-        invitees: { include: { availableDates: true } },
+        invitees: { include: { availableDates: true, user: true } },
         options: true,
       },
     });
@@ -389,7 +396,7 @@ export async function registerEventRoutes(app: FastifyInstance) {
       where: { id: event.id },
       include: {
         inviter: true,
-        invitees: { include: { availableDates: true } },
+        invitees: { include: { availableDates: true, user: true } },
         options: true,
       },
     });
@@ -453,7 +460,7 @@ export async function registerEventRoutes(app: FastifyInstance) {
       },
       include: {
         inviter: true,
-        invitees: { include: { availableDates: true } },
+        invitees: { include: { availableDates: true, user: true } },
         options: true,
       },
     });

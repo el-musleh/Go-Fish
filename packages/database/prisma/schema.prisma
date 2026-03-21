@@ -129,7 +129,7 @@ model Event {
   slug               String       @unique
   title              String
   description        String?
-  locationHint       String
+  locationHint       String    @default("")
   dateFrom           DateTime     @db.Date
   dateTo             DateTime     @db.Date
   responseDeadlineAt DateTime

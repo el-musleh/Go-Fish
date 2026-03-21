@@ -14,3 +14,7 @@ export function isWithinDateWindow(target: Date, from: Date, to: Date) {
   return target >= from && target <= to;
 }
 
+export function addDays(value: Date, days: number) {
+  return new Date(value.getTime() + days * 24 * 60 * 60 * 1000);
+}
+

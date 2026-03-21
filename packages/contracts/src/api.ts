@@ -22,9 +22,9 @@ export const timeOfDaySchema = z.enum(["morning", "afternoon", "evening", "late_
 export const eventCreateSchema = z.object({
   title: z.string().min(2).max(80),
   description: z.string().max(280).optional(),
-  locationHint: z.string().min(2).max(120),
-  dateFrom: isoDate,
-  dateTo: isoDate,
+  locationHint: z.string().max(120).optional(),
+  dateFrom: isoDate.optional(),
+  dateTo: isoDate.optional(),
 });
 
 export const eventInviteesSchema = z.object({
@@ -51,6 +51,7 @@ export const inviteeSchema = z.object({
   id: z.string(),
   email: z.email(),
   userId: z.string().nullable(),
+  name: z.string().nullable(),
   responseStatus: inviteeResponseStatusSchema,
   availableDates: z.array(isoDate),
 });
