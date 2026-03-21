@@ -1,13 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, getCurrentUserId } from '../api/client';
 import InvitationLinkPanel from './InvitationLinkPanel';
 
-interface EventData { id: string; title: string; description: string; status: string; response_window_end: string; inviter_id: string; }
+interface EventData { id: string; title: string; description: string; status: string; response_window_end: string; inviter_id: string; location_city?: string; }
 interface Respondent { id: string; email: string; available_dates: { date: string; start_time: string; end_time: string }[]; responded_at: string; }
 interface ActivityOption { id: string; title: string; description: string; suggested_date: string; suggested_time: string | null; rank: number; is_selected: boolean; }
-
-const RANK_CLASS: Record<number, string> = { 1: 'gf-option-card--rank-1', 2: 'gf-option-card--rank-2', 3: 'gf-option-card--rank-3' };
 
 function formatRemaining(ms: number) {
   if (ms <= 0) return '0:00';
@@ -37,6 +35,7 @@ function prettyDate(d: string) {
 
 export default function EventDetail() {
   const { eventId } = useParams<{ eventId: string }>();
+  const navigate = useNavigate();
   const [event, setEvent] = useState<EventData | null>(null);
   const [respondents, setRespondents] = useState<Respondent[]>([]);
   const [options, setOptions] = useState<ActivityOption[]>([]);
@@ -70,11 +69,15 @@ export default function EventDetail() {
     api.get<{ respondents: Respondent[] }>(`/events/${eventId}/respondents`).then(d => setRespondents(d.respondents)).catch(() => {});
   }, [eventId, isCreator]);
 
-  // Fetch options when status changes to options_ready
   useEffect(() => {
-    if (!eventId || !event || (event.status !== 'options_ready' && event.status !== 'finalized')) return;
+    if (!eventId || !event || event.status !== 'finalized') return;
     api.get<{ options: ActivityOption[] }>(`/events/${eventId}/options`).then(d => setOptions([...d.options].sort((a, b) => a.rank - b.rank))).catch(() => {});
   }, [eventId, event?.status]);
+
+  useEffect(() => {
+    if (!eventId || !isCreator || event?.status !== 'options_ready') return;
+    navigate(`/events/${eventId}/options`, { replace: true });
+  }, [eventId, event?.status, isCreator, navigate]);
 
   const { remaining, expired } = useCountdown(event?.response_window_end || '');
 
@@ -88,20 +91,6 @@ export default function EventDetail() {
       setEvent(updated);
     } catch {
       setError('Generation failed. Make sure at least one person has responded.');
-    } finally {
-      setWorking(false);
-    }
-  }
-
-  async function handleSelect(optionId: string) {
-    if (!eventId) return;
-    setWorking(true);
-    try {
-      await api.post(`/events/${eventId}/select`, { activityOptionId: optionId });
-      const updated = await api.get<EventData>(`/events/${eventId}`);
-      setEvent(updated);
-    } catch {
-      setError('Could not finalize the event.');
     } finally {
       setWorking(false);
     }
@@ -126,7 +115,10 @@ export default function EventDetail() {
     const selected = options.find(o => o.is_selected);
     return (
       <div className="gf-stack gf-stack--xl">
-        <h2 className="gf-section-title">{event.title}</h2>
+        <div>
+          <h2 className="gf-section-title">{event.title}</h2>
+          {event.location_city && <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>&#128205; {event.location_city}</p>}
+        </div>
         {selected ? (
           <div className="gf-card gf-option-card gf-option-card--featured">
             <h3 className="gf-card-title">{selected.title}</h3>
@@ -148,32 +140,6 @@ export default function EventDetail() {
     );
   }
 
-  // Options ready — show ranked cards
-  if (event.status === 'options_ready' && options.length > 0 && isCreator) {
-    return (
-      <div className="gf-stack gf-stack--xl">
-        <div className="gf-actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 className="gf-section-title">{event.title}</h2>
-          <button className="gf-button gf-button--ghost" onClick={copyLink}>{copied ? 'Copied' : 'Copy link'}</button>
-        </div>
-        {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
-        <div className="gf-grid gf-grid--three">
-          {options.map(opt => (
-            <div className={`gf-card gf-option-card ${RANK_CLASS[opt.rank] || ''}`} key={opt.id}>
-              {opt.rank === 1 && <span className="gf-top-pick">Top Pick</span>}
-              <h3 className="gf-card-title">{opt.title}</h3>
-              <p className="gf-muted">{prettyDate(opt.suggested_date)}{opt.suggested_time ? ` at ${opt.suggested_time}` : ''}</p>
-              <p className="gf-muted" style={{ fontSize: '0.9rem' }}>{opt.description}</p>
-              <button className="gf-button gf-button--primary" disabled={working} onClick={() => handleSelect(opt.id)}>
-                {working ? 'Working...' : 'Choose'}
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   // Generating
   if (event.status === 'generating') {
     return (
@@ -182,6 +148,7 @@ export default function EventDetail() {
         <div className="gf-card">
           <h3 className="gf-card-title">Generating options...</h3>
           <p className="gf-muted">The AI is creating activity suggestions. This usually takes a moment.</p>
+          <p className="gf-muted" style={{ marginTop: 6 }}>You will be taken to the picks automatically as soon as they are ready.</p>
         </div>
       </div>
     );
@@ -190,7 +157,10 @@ export default function EventDetail() {
   // Collecting responses (main state)
   return (
     <div className="gf-stack gf-stack--xl">
-      <h2 className="gf-section-title">{event.title}</h2>
+      <div>
+        <h2 className="gf-section-title">{event.title}</h2>
+        {event.location_city && <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>&#128205; {event.location_city}</p>}
+      </div>
 
       {isCreator && (
         <div className="gf-actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>

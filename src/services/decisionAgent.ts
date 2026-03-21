@@ -2,6 +2,7 @@ import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
 import type { Schema } from '@google/generative-ai';
 import { TasteBenchmark } from '../models/TasteBenchmark';
 import { DateTimeWindow } from '../models/Response';
+import { RealWorldContext } from './realWorldData/types';
 
 export interface GeneratedOption {
   title: string;
@@ -9,6 +10,10 @@ export interface GeneratedOption {
   suggested_date: string;
   suggested_time: string;
   rank: number;
+  source_url?: string | null;
+  venue_name?: string | null;
+  price_range?: string | null;
+  weather_note?: string | null;
 }
 
 export interface ParticipantAvailability {
@@ -107,7 +112,8 @@ export function findCommonPreferences(
 export function buildPrompt(
   benchmarks: TasteBenchmark[],
   participantAvailability: ParticipantAvailability[],
-  eventContext?: EventContext
+  eventContext?: EventContext,
+  realWorldContext?: RealWorldContext
 ): string {
   const participantSummaries = benchmarks
     .map((b, i) => summarizeParticipant(b, i))
@@ -139,6 +145,56 @@ export function buildPrompt(
     ? `Event: "${eventContext.title}"\nDescription: ${eventContext.description}\n\n`
     : '';
 
+  // Build real-world data section if available
+  let realWorldSection = '';
+  if (realWorldContext) {
+    const { events, venues, weather, location } = realWorldContext;
+
+    realWorldSection += `\n=== REAL-WORLD DATA ===\n\nLocation: ${location.city}, ${location.country}\n`;
+
+    if (weather.length > 0) {
+      realWorldSection += '\nWeather Forecast:\n';
+      for (const w of weather) {
+        const outdoor = w.isOutdoorFriendly ? 'outdoor-friendly' : 'NOT outdoor-friendly';
+        realWorldSection += `  - ${w.date}: ${w.tempHighC}°C/${w.tempLowC}°C, ${w.description}, ${w.precipProbability}% rain, ${outdoor}\n`;
+      }
+    }
+
+    if (events.length > 0) {
+      realWorldSection += '\nUpcoming Events (nearby, on available dates):\n';
+      for (let i = 0; i < events.length; i++) {
+        const e = events[i];
+        const time = e.startTime ? ` ${e.startTime}` : '';
+        const venue = e.venueName ? ` at ${e.venueName}` : '';
+        const price = e.priceRange ? ` | Price: ${e.priceRange}` : '';
+        const url = e.url ? ` | URL: ${e.url}` : '';
+        const img = e.imageUrl ? ` | Image: ${e.imageUrl}` : '';
+        realWorldSection += `  ${i + 1}. "${e.title}" - ${e.category} - ${e.date}${time}${venue}${price}${url}${img}\n`;
+      }
+    }
+
+    if (venues.length > 0) {
+      realWorldSection += '\nNearby Venues:\n';
+      for (let i = 0; i < venues.length; i++) {
+        const v = venues[i];
+        const rating = v.rating ? ` - Rating: ${v.rating}/5` : '';
+        const price = v.priceLevel !== null ? ` - ${'€'.repeat(v.priceLevel + 1)}` : '';
+        const url = v.url ? ` | URL: ${v.url}` : '';
+        const img = v.photoUrl ? ` | Image: ${v.photoUrl}` : '';
+        realWorldSection += `  ${i + 1}. "${v.name}" - ${v.category}${rating}${price}${url}${img}\n`;
+      }
+    }
+  }
+
+  const realWorldInstructions = realWorldContext
+    ? `- IMPORTANT: Base your suggestions on the REAL-WORLD DATA provided above. At least 2 of your 3 suggestions MUST reference actual events or venues from the data.
+- Include the source_url from the real event/venue data when available.
+- Include the venue_name from the real data when applicable.
+- Include the price_range from the real data when available.
+- Include a weather_note considering the forecast for the suggested date.
+- You may suggest one creative option if none of the real data fits well.`
+    : `- source_url, venue_name, price_range, and weather_note should be null when no real-world data is available.`;
+
   return `You are Go Fish, an AI group activity planner. Your job is to suggest 3 activity options that maximize group enjoyment by finding the sweet spot across everyone's preferences.
 
 ${eventSection}GROUP PROFILE (${benchmarks.length} participants):
@@ -150,7 +206,7 @@ ${datesSection}
 
 PARTICIPANT TIME WINDOWS:
 ${availabilitySummary}
-
+${realWorldSection}
 INSTRUCTIONS:
 - Suggest exactly 3 activity options ranked by estimated group compatibility (1 = best fit).
 - Strongly prefer dates where the most participants are available.
@@ -159,7 +215,8 @@ INSTRUCTIONS:
 - Each suggestion should feel distinct — don't suggest 3 variations of the same thing.
 - Descriptions should be specific and actionable (include what, where-type, and why it fits the group).
 - suggested_date must be one of the available dates listed above in YYYY-MM-DD format.
-- suggested_time must be in HH:MM format (24-hour) within the overlapping availability window.`;
+- suggested_time must be in HH:MM format (24-hour) within the overlapping availability window.
+${realWorldInstructions}`;
 }
 
 export function parseGeminiResponse(text: string): GeneratedOption[] {
@@ -190,6 +247,10 @@ export function parseGeminiResponse(text: string): GeneratedOption[] {
       suggested_date: String(item.suggested_date),
       suggested_time: suggestedTime,
       rank: Number(item.rank),
+      source_url: item.source_url ? String(item.source_url) : null,
+      venue_name: item.venue_name ? String(item.venue_name) : null,
+      price_range: item.price_range ? String(item.price_range) : null,
+      weather_note: item.weather_note ? String(item.weather_note) : null,
     };
   });
 
@@ -211,11 +272,15 @@ const RESPONSE_SCHEMA: Schema = {
   items: {
     type: SchemaType.OBJECT,
     properties: {
-      title: { type: SchemaType.STRING, description: 'Short activity name' },
+      title: { type: SchemaType.STRING, description: 'Short activity name (use real event/venue name if based on real data)' },
       description: { type: SchemaType.STRING, description: 'Brief, actionable description of the activity' },
       suggested_date: { type: SchemaType.STRING, description: 'One of the available dates in YYYY-MM-DD format' },
       suggested_time: { type: SchemaType.STRING, description: 'Start time in HH:MM 24-hour format within overlapping availability' },
       rank: { type: SchemaType.INTEGER, description: 'Rank 1-3 where 1 is best fit' },
+      source_url: { type: SchemaType.STRING, description: 'URL to the real event/venue page, or null if custom suggestion', nullable: true },
+      venue_name: { type: SchemaType.STRING, description: 'Name of the venue, or null if not applicable', nullable: true },
+      price_range: { type: SchemaType.STRING, description: 'Estimated cost (e.g. "Free", "EUR 15-30"), or null', nullable: true },
+      weather_note: { type: SchemaType.STRING, description: 'Brief weather consideration for this activity, or null', nullable: true },
     },
     required: ['title', 'description', 'suggested_date', 'suggested_time', 'rank'],
   },
@@ -225,7 +290,8 @@ export async function generateActivityOptions(
   benchmarks: TasteBenchmark[],
   participantAvailability: ParticipantAvailability[],
   apiKey?: string,
-  eventContext?: EventContext
+  eventContext?: EventContext,
+  realWorldContext?: RealWorldContext
 ): Promise<GeneratedOption[]> {
   const key = apiKey ?? process.env.GEMINI_API_KEY;
   if (!key) {
@@ -234,14 +300,14 @@ export async function generateActivityOptions(
 
   const genAI = new GoogleGenerativeAI(key);
   const model = genAI.getGenerativeModel({
-    model: 'gemini-2.5-flash',
+    model: 'gemini-3-flash-preview',
     generationConfig: {
       temperature: 0.7,
       responseMimeType: 'application/json',
       responseSchema: RESPONSE_SCHEMA,
     },
   });
-  const prompt = buildPrompt(benchmarks, participantAvailability, eventContext);
+  const prompt = buildPrompt(benchmarks, participantAvailability, eventContext, realWorldContext);
 
   let lastError: Error | undefined;
 

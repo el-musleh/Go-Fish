@@ -155,21 +155,21 @@ export default function EventResponseForm() {
                 <span className="gf-time-window__label">
                   {dateInfo?.label} {dateInfo?.day} {dateInfo?.month}
                 </span>
-                <div className="gf-time-window__slider">
-                  <label className="gf-time-window__slider-label">
-                    From
-                    <input type="range" min={0} max={35} value={window.start}
-                      onChange={e => updateWindow(dateValue, 'start', +e.target.value)} />
-                  </label>
-                  <label className="gf-time-window__slider-label">
-                    To
-                    <input type="range" min={1} max={36} value={window.end}
-                      onChange={e => updateWindow(dateValue, 'end', +e.target.value)} />
-                  </label>
+                <div className="gf-dual-range" style={{
+                  '--start-pct': `${(window.start / 36) * 100}%`,
+                  '--end-pct': `${(window.end / 36) * 100}%`,
+                } as React.CSSProperties}>
+                  <div className="gf-dual-range__track" />
+                  <div className="gf-dual-range__fill" />
+                  <input type="range" className="gf-dual-range__input" min={0} max={35}
+                    value={window.start} onChange={e => updateWindow(dateValue, 'start', +e.target.value)} />
+                  <input type="range" className="gf-dual-range__input" min={1} max={36}
+                    value={window.end} onChange={e => updateWindow(dateValue, 'end', +e.target.value)} />
                 </div>
-                <span className="gf-time-window__range">
-                  {slotToTime(window.start)} – {slotToTime(window.end)}
-                </span>
+                <div className="gf-dual-range__labels">
+                  <span>{slotToTime(window.start)}</span>
+                  <span>{slotToTime(window.end)}</span>
+                </div>
               </div>
             );
           })}
