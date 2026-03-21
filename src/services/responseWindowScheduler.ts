@@ -7,6 +7,8 @@ import { getEventById, updateEventStatus } from '../repositories/eventRepository
 import { generateActivityOptions, GeneratedOption, ParticipantAvailability } from './decisionAgent';
 import { sendNotificationEmails } from './emailService';
 import { getActivityOptionsByEventId, markActivityOptionSelected } from '../repositories/activityOptionRepository';
+import { fetchRealWorldContext } from './realWorldData';
+import { GeoLocation } from './realWorldData/types';
 
 const MIN_RESPONSES = 1;
 
@@ -136,12 +138,48 @@ export async function triggerGeneration(
       ? { title: event.title, description: event.description }
       : undefined;
 
+    // Fetch real-world data if event has location
+    let realWorldContext;
+    if (event?.location_lat && event?.location_lng && event?.location_city) {
+      const location: GeoLocation = {
+        latitude: event.location_lat,
+        longitude: event.location_lng,
+        city: event.location_city,
+        country: event.location_country ?? 'DE',
+      };
+
+      // Determine date range from participant availability
+      const allDates = participantAvailability.flatMap((pa) =>
+        pa.windows.map((w) => w.date)
+      );
+      const sortedDates = [...new Set(allDates)].sort();
+      const startDate = sortedDates[0];
+      const endDate = sortedDates[sortedDates.length - 1];
+
+      if (startDate && endDate) {
+        try {
+          realWorldContext = await fetchRealWorldContext(
+            location,
+            startDate,
+            endDate,
+            benchmarks
+          );
+          console.log(
+            `Event ${eventId}: fetched ${realWorldContext.events.length} events, ${realWorldContext.venues.length} venues, ${realWorldContext.weather.length} weather days`
+          );
+        } catch (err) {
+          console.warn(`Event ${eventId}: real-world data fetch failed, proceeding without:`, err);
+        }
+      }
+    }
+
     // Generate activity options via Gemini
     const options = await generateActivityOptions(
       benchmarks,
       participantAvailability,
       apiKey,
-      eventContext
+      eventContext,
+      realWorldContext
     );
 
     // Store generated options in parallel
@@ -154,6 +192,10 @@ export async function triggerGeneration(
           suggested_date: option.suggested_date,
           suggested_time: option.suggested_time,
           rank: option.rank,
+          source_url: option.source_url,
+          venue_name: option.venue_name,
+          price_range: option.price_range,
+          weather_note: option.weather_note,
         })
       )
     );
