@@ -48,7 +48,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="gf-main">{children}</main>
-      <footer className="gf-footer">v1.3.0</footer>
+      <footer className="gf-footer">v1.4.0</footer>
     </div>
   );
 }
