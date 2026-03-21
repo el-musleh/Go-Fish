@@ -1,10 +1,10 @@
 "use client";
 
-import { startTransition, useState } from "react";
+import { startTransition, useRef, useState } from "react";
 
 import type { BenchmarkQuestion, BenchmarkSubmission, TasteProfile } from "@go-fish/contracts";
 import { benchmarkSubmissionSchema } from "@go-fish/contracts";
-import { Button, Card, Chip } from "@go-fish/ui";
+import { Button, Chip } from "@go-fish/ui";
 
 type SelectionMap = Record<string, string[]>;
 
@@ -32,13 +32,11 @@ export function PreferenceBenchmark({
   const [selections, setSelections] = useState<SelectionMap>(() => toSelectionMap(initialValue));
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [submittedOnce, setSubmittedOnce] = useState(false);
+  const questionRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
-  const currentQuestion = questions[currentIndex];
-
-  if (!currentQuestion) {
-    return null;
-  }
+  const answeredCount = questions.filter((q) => (selections[q.id] ?? []).length > 0).length;
+  const progress = questions.length > 0 ? (answeredCount / questions.length) * 100 : 0;
 
   function toggle(questionId: string, option: string) {
     setSelections((current) => {
@@ -56,26 +54,17 @@ export function PreferenceBenchmark({
     });
   }
 
-  function goBack() {
-    setError(null);
-    setCurrentIndex((current) => Math.max(0, current - 1));
-  }
-
-  function goNext() {
-    if (!currentQuestion) {
-      return;
-    }
-
-    if ((selections[currentQuestion.id] ?? []).length === 0) {
-      setError("Choose at least one option to continue.");
-      return;
-    }
-
-    setError(null);
-    setCurrentIndex((current) => Math.min(questions.length - 1, current + 1));
-  }
-
   function handleSubmit() {
+    setSubmittedOnce(true);
+
+    // Find first unanswered question
+    const firstUnanswered = questions.find((q) => (selections[q.id] ?? []).length === 0);
+    if (firstUnanswered) {
+      questionRefs.current[firstUnanswered.id]?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setError("Please answer all questions.");
+      return;
+    }
+
     try {
       setError(null);
       const payload = benchmarkSubmissionSchema.parse({
@@ -100,35 +89,42 @@ export function PreferenceBenchmark({
 
   return (
     <div className="gf-stack gf-stack--xl">
-      <h2 className="gf-section-title">{currentQuestion.label}</h2>
-      <Card>
-        <div className="gf-chip-grid">
-          {currentQuestion.options.map((option) => {
-            const active = (selections[currentQuestion.id] ?? []).includes(option);
-            return (
-              <button className="gf-chip-button" key={option} onClick={() => toggle(currentQuestion.id, option)} type="button">
-                <Chip active={active}>{option}</Chip>
-              </button>
-            );
-          })}
-        </div>
-      </Card>
-      {error ? <p className="gf-feedback gf-feedback--error">{error}</p> : null}
-      <div className="gf-actions">
-        <Button disabled={currentIndex === 0 || isSaving} onClick={goBack} type="button" variant="ghost">
-          Back
-        </Button>
-        <span className="gf-muted">{currentIndex + 1}/{questions.length}</span>
-        {currentIndex < questions.length - 1 ? (
-          <Button disabled={(selections[currentQuestion.id] ?? []).length === 0 || isSaving} onClick={goNext} type="button">
-            Next
-          </Button>
-        ) : (
-          <Button loading={isSaving} onClick={handleSubmit} type="button">
-            {submitLabel}
-          </Button>
-        )}
+      <div className="gf-benchmark-progress">
+        <div className="gf-benchmark-progress__fill" style={{ width: `${progress}%` }} />
       </div>
+
+      {questions.map((question, index) => {
+        const questionSelections = selections[question.id] ?? [];
+        const hasError = submittedOnce && questionSelections.length === 0;
+
+        return (
+          <div
+            className={`gf-benchmark-question${hasError ? " gf-benchmark-question--error" : ""}`}
+            key={question.id}
+            ref={(el) => { questionRefs.current[question.id] = el; }}
+          >
+            <div className="gf-benchmark-question__header">
+              <span className="gf-benchmark-question__number">{index + 1}.</span>
+              <span>{question.label}</span>
+            </div>
+            <div className="gf-chip-grid">
+              {question.options.map((option) => {
+                const active = questionSelections.includes(option);
+                return (
+                  <button className="gf-chip-button" key={option} onClick={() => toggle(question.id, option)} type="button">
+                    <Chip active={active}>{option}</Chip>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      {error ? <p className="gf-feedback gf-feedback--error">{error}</p> : null}
+      <Button loading={isSaving} onClick={handleSubmit}>
+        {submitLabel}
+      </Button>
     </div>
   );
 }
