@@ -445,6 +445,7 @@ export async function registerEventRoutes(app: FastifyInstance) {
       where: { id: event.id },
       data: {
         status: "collecting_responses",
+        responseDeadlineAt: new Date(),
       },
     });
 

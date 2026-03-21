@@ -3,5 +3,6 @@ export function eventReadyForGeneration(input: { deadline: Date; pendingInvitees
     return false;
   }
 
-  return input.pendingInvitees === 0 || input.deadline <= new Date();
+  // Only generate when deadline has passed (timer expired or organizer clicked "Generate options")
+  return input.deadline <= new Date();
 }

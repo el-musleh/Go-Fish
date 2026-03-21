@@ -174,7 +174,7 @@ export default function EventDetailPage() {
           onClick={() => void generateNow()}
           variant="primary"
         >
-          Generate Now{total > 0 ? ` (${event.respondedInvitees} responded)` : ""}
+          Generate options{total > 0 ? ` (${event.respondedInvitees} responded)` : ""}
         </Button>
       </div>
     </div>
