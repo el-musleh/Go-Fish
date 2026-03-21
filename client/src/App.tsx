@@ -17,7 +17,9 @@ import MemoriesPage from './pages/MemoriesPage';
 function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
   const location = useLocation();
   const [path, qs] = to.split('?');
-  const isActive = location.pathname === path && (!qs || location.search === `?${qs}`);
+  const isActive = qs
+    ? location.pathname === path && location.search === `?${qs}`
+    : location.pathname === path && !location.search;
   return (
     <Link to={to} className={isActive ? 'gf-nav-link gf-nav-link--active' : 'gf-nav-link'}>
       {children}
@@ -88,7 +90,13 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="gf-main">{children}</main>
-      <footer className="gf-footer">v1.6.0</footer>
+      <footer className="gf-footer">
+        <div className="gf-footer__inner">
+          <span className="gf-footer__brand">Go Fish</span>
+          <span className="gf-footer__copy">© {new Date().getFullYear()} Go Fish. All rights reserved.</span>
+          <span className="gf-footer__meta">Social event coordinator · v1.6.0</span>
+        </div>
+      </footer>
     </div>
   );
 }
