@@ -6,3 +6,5 @@ client/dist/
 client/node_modules/
 .env
 *.log
+logs/
+.claude/
