@@ -84,10 +84,10 @@ export default function TasteBenchmarkForm() {
   if (loading) return <p className="gf-muted">Loading…</p>;
 
   return (
-    <div className="gf-stack gf-stack--xl" style={{ maxWidth: 640, margin: '0 auto' }}>
+    <div className="gf-stack gf-stack--xl gf-narrow">
       <div>
         <h1 className="gf-section-title">{isUpdate ? 'Update Preferences' : 'Taste Benchmark'}</h1>
-        <p className="gf-muted" style={{ marginTop: 8 }}>
+        <p className="gf-muted">
           {isUpdate
             ? 'Update your preferences to help us find better activities for your group.'
             : 'Tell us what you\'re into so we can find the perfect activity for your group.'}
@@ -113,7 +113,7 @@ export default function TasteBenchmarkForm() {
                 <span className="gf-benchmark-question__number">{idx + 1}.</span>
                 <span>{q.text}</span>
               </div>
-              {hasErr && <p className="gf-feedback gf-feedback--error" style={{ fontSize: '0.8rem', margin: '0 0 8px' }}>Pick at least one</p>}
+              {hasErr && <p className="gf-feedback gf-feedback--error">Pick at least one</p>}
               <div className="gf-chip-grid">
                 {q.options.map((opt) => {
                   const selected = answers[q.id]?.includes(opt);
@@ -128,7 +128,7 @@ export default function TasteBenchmarkForm() {
           );
         })}
 
-        <button type="submit" disabled={submitting} className="gf-button gf-button--primary" style={{ width: '100%' }}>
+        <button type="submit" disabled={submitting} className="gf-button gf-button--primary gf-button--full">
           {submitting ? 'Saving…' : (isUpdate ? 'Update Preferences' : 'Submit Preferences')}
         </button>
       </form>

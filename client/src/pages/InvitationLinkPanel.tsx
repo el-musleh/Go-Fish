@@ -28,18 +28,18 @@ export default function InvitationLinkPanel({ eventId }: Props) {
   }
 
   return (
-    <div className="gf-card" style={{ marginTop: 16 }}>
-      <h2 className="gf-card-title" style={{ fontSize: '1.1rem', marginBottom: 12 }}>📎 Invitation Link</h2>
+    <div className="gf-card">
+      <h3 className="gf-card-title" style={{ fontSize: '1.1rem', marginBottom: 12 }}>Invitation Link</h3>
       {error && <p className="gf-feedback gf-feedback--error" style={{ marginBottom: 12 }}>{error}</p>}
 
       {!link ? (
-        <button onClick={handleGenerate} disabled={generating} className="gf-button gf-button--primary">
+        <button type="button" onClick={handleGenerate} disabled={generating} className="gf-button gf-button--primary">
           {generating ? 'Generating…' : 'Generate Link'}
         </button>
       ) : (
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <input type="text" readOnly value={link} aria-label="Invitation link" className="gf-input" style={{ flex: 1, fontSize: '0.85rem' }} />
-          <button onClick={handleCopy} className="gf-button gf-button--secondary" style={{ whiteSpace: 'nowrap' }}>
+        <div className="gf-actions">
+          <input type="text" readOnly value={link} aria-label="Invitation link" className="gf-input" style={{ flex: 1 }} />
+          <button type="button" onClick={handleCopy} className="gf-button gf-button--secondary" style={{ whiteSpace: 'nowrap' }}>
             {copied ? '✓ Copied' : 'Copy'}
           </button>
         </div>

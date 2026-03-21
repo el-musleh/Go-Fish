@@ -85,6 +85,7 @@ function groupByDate(events: EventItem[]): Record<string, EventItem[]> {
 }
 
 function TimelineDetail({ event }: { event: EventItem }) {
+  const navigate = useNavigate();
   const s = STATUS_LABELS[event.status] || { label: event.status, cls: '' };
   const activity = event.selected_activity;
 
@@ -147,28 +148,20 @@ function TimelineDetail({ event }: { event: EventItem }) {
       )}
 
       <div className="gf-actions">
-        <Link to={`/events/${event.id}/respond`}>
-          <button className="gf-button gf-button--primary">RSVP</button>
-        </Link>
         <button
-          className="gf-button gf-button--ghost"
-          title="Coming soon"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+          type="button"
+          className="gf-button gf-button--primary"
+          onClick={() => navigate(`/events/${event.id}/respond`)}
         >
+          RSVP
+        </button>
+        <button type="button" className="gf-button gf-button--ghost gf-inline-icon" title="Coming soon">
           <Split size={14} /> Split Cost
         </button>
-        <button
-          className="gf-button gf-button--ghost"
-          title="Coming soon"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-        >
+        <button type="button" className="gf-button gf-button--ghost gf-inline-icon" title="Coming soon">
           <Calendar size={14} /> Add to Calendar
         </button>
-        <button
-          className="gf-button gf-button--ghost"
-          title="Coming soon"
-          style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
-        >
+        <button type="button" className="gf-button gf-button--ghost gf-inline-icon" title="Coming soon">
           <Navigation size={14} /> Map &amp; Navigation
         </button>
       </div>

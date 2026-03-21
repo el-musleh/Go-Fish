@@ -93,7 +93,7 @@ export default function MemoriesPage() {
 
   return (
     <div className="gf-stack gf-stack--xl">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div className="gf-row-between">
         <h2 className="gf-section-title">Memories</h2>
         {saved && <p className="gf-feedback gf-feedback--success">✓ Saved</p>}
       </div>
@@ -113,6 +113,7 @@ export default function MemoriesPage() {
           <div className="gf-panel__list">
             {filteredCategories.map(cat => (
               <button
+                type="button"
                 key={cat}
                 onClick={() => {
                   setSelectedCategory(cat);
@@ -142,6 +143,7 @@ export default function MemoriesPage() {
           <div className="gf-panel__list">
             {filteredItems.map(item => (
               <button
+                type="button"
                 key={item}
                 onClick={() => { setSelectedItem(item); setEditing(false); }}
                 className={`gf-panel-item${
@@ -162,21 +164,21 @@ export default function MemoriesPage() {
         <div className="gf-panel-content">
           <div className="gf-panel-content__header">
             <h3 className="gf-card-title" style={{ fontSize: '1.3rem' }}>{selectedItem}</h3>
-            <div className="gf-actions" style={{ gap: '8px' }}>
+            <div className="gf-actions">
               {!editing && (
                 <button
+                  type="button"
                   onClick={enterEdit}
-                  className="gf-button gf-button--ghost"
-                  style={{ minHeight: '36px', padding: '6px 14px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  className="gf-button gf-button--ghost gf-button--sm gf-inline-icon"
                 >
                   <Pencil size={15} /> Edit
                 </button>
               )}
               {editing && (
                 <button
+                  type="button"
                   onClick={handleSave}
-                  className="gf-button gf-button--primary"
-                  style={{ minHeight: '36px', padding: '6px 16px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                  className="gf-button gf-button--primary gf-button--sm gf-inline-icon"
                 >
                   <Save size={13} /> Save
                 </button>
@@ -193,10 +195,9 @@ export default function MemoriesPage() {
                   className="gf-input"
                   value={editSeason}
                   onChange={e => setEditSeason(e.target.value)}
-                  style={{ padding: '8px 14px' }}
                 />
               ) : (
-                <p style={{ margin: 0, fontSize: '0.9rem', color: content.season ? 'var(--text)' : 'var(--muted)' }}>
+                <p className={content.season ? undefined : 'gf-muted'} style={{ margin: 0 }}>
                   {content.season || '—'}
                 </p>
               )}
@@ -210,7 +211,6 @@ export default function MemoriesPage() {
                   className="gf-input"
                   value={editSetting}
                   onChange={e => setEditSetting(e.target.value as MemoryContent['setting'])}
-                  style={{ padding: '8px 14px', cursor: 'pointer' }}
                 >
                   <option>Indoor</option>
                   <option>Outdoor</option>
@@ -234,7 +234,7 @@ export default function MemoriesPage() {
                   ))}
                 </ul>
               ) : (
-                <p style={{ margin: 0, fontSize: '0.88rem', color: 'var(--muted)', fontStyle: 'italic' }}>
+                <p className="gf-muted" style={{ margin: 0, fontStyle: 'italic' }}>
                   No checklist items yet.
                 </p>
               )}
@@ -246,13 +246,12 @@ export default function MemoriesPage() {
               {editing ? (
                 <textarea
                   rows={2}
-                  className="gf-input"
+                  className="gf-input gf-textarea--fixed"
                   value={editEssentials}
                   onChange={e => setEditEssentials(e.target.value)}
-                  style={{ resize: 'none' }}
                 />
               ) : (
-                <p style={{ margin: 0, fontSize: '0.9rem', color: content.essentials ? 'var(--text)' : 'var(--muted)' }}>
+                <p className={content.essentials ? undefined : 'gf-muted'} style={{ margin: 0 }}>
                   {content.essentials || '—'}
                 </p>
               )}
@@ -265,11 +264,11 @@ export default function MemoriesPage() {
                 rows={4}
                 key={`${selectedItem}-feedback`}
                 placeholder="Add feedback from past events..."
-                className="gf-input"
+                className="gf-input gf-textarea--fixed"
                 value={editing ? editFeedback : content.feedback}
                 onChange={e => editing && setEditFeedback(e.target.value)}
                 readOnly={!editing}
-                style={{ resize: 'none', opacity: !editing && !content.feedback ? 0.5 : 1 }}
+                style={{ opacity: !editing && !content.feedback ? 0.5 : 1 }}
               />
             </div>
           </div>

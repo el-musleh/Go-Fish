@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
 import { api, getCurrentUserId } from '../api/client';
@@ -21,7 +21,7 @@ export default function EventCreationForm() {
     return null;
   }
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: React.BaseSyntheticEvent) {
     e.preventDefault();
     setError('');
     setSaving(true);
@@ -75,7 +75,6 @@ export default function EventCreationForm() {
                 className="gf-input"
                 value={time}
                 onChange={e => setTime(e.target.value)}
-                style={{ cursor: 'pointer' }}
               >
                 {TIME_OPTIONS.map(t => (
                   <option key={t} value={t}>{t}</option>
@@ -86,17 +85,13 @@ export default function EventCreationForm() {
 
           <label className="gf-field">
             <span className="gf-field__label">Location</span>
-            <div style={{ position: 'relative' }}>
-              <MapPin
-                size={15}
-                style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', pointerEvents: 'none' }}
-              />
+            <div className="gf-input-icon-wrapper">
+              <MapPin size={15} className="gf-input-icon" />
               <input
                 className="gf-input"
                 placeholder="Hall of Soccer GmbH, Berlin"
                 value={location}
                 onChange={e => setLocation(e.target.value)}
-                style={{ paddingLeft: '38px' }}
               />
             </div>
           </label>

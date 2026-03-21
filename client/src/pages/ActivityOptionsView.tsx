@@ -45,7 +45,7 @@ export default function ActivityOptionsView() {
     <div className="gf-stack gf-stack--xl">
       <div>
         <h1 className="gf-section-title">Pick Your Activity</h1>
-        <p className="gf-muted" style={{ marginTop: 8 }}>Gemini analyzed everyone's preferences. Here are the top picks.</p>
+        <p className="gf-muted">AI analyzed everyone's preferences. Here are the top picks.</p>
       </div>
 
       {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
@@ -57,10 +57,10 @@ export default function ActivityOptionsView() {
               {opt.rank === 1 && <span className="gf-top-pick">Top Pick</span>}
               <h3 className="gf-card-title">{opt.title}</h3>
               <p className="gf-muted">{opt.description}</p>
-              <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
-                📅 {prettyDate(opt.suggested_date)}{opt.suggested_time ? ` at ${opt.suggested_time}` : ''}
+              <p className="gf-muted">
+                {prettyDate(opt.suggested_date)}{opt.suggested_time ? ` at ${opt.suggested_time}` : ''}
               </p>
-              <button onClick={() => handleSelect(opt.id)} disabled={selecting !== null} className="gf-button gf-button--primary">
+              <button type="button" onClick={() => handleSelect(opt.id)} disabled={selecting !== null} className="gf-button gf-button--primary">
                 {selecting === opt.id ? 'Selecting…' : 'Choose This'}
               </button>
             </div>

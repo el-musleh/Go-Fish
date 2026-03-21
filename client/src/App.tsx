@@ -55,7 +55,6 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <header className="gf-topbar">
         <Link className="gf-brand" to="/dashboard">
           <img src="/logo.png" alt="Go Fish" className="gf-brand__icon" />
-          <span>Go Fish</span>
         </Link>
         <nav className="gf-nav">
           {userId && <NavItem to="/dashboard">Home</NavItem>}
@@ -65,34 +64,33 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="gf-topbar__actions">
           <button
-            className="gf-button gf-button--ghost"
+            className="gf-button gf-button--ghost gf-button--sm"
             onClick={toggleTheme}
             type="button"
             aria-label="Toggle theme"
-            style={{ minHeight: '38px', padding: '8px 12px' }}
           >
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           {userId ? (
             <>
-              <Link to="/benchmark">
-                <button className="gf-button gf-button--ghost" type="button">Preferences</button>
-              </Link>
+              <button className="gf-button gf-button--ghost" type="button" onClick={() => navigate('/benchmark')}>
+                Preferences
+              </button>
               <button className="gf-button gf-button--secondary" onClick={handleSignOut} type="button">
                 Sign out
               </button>
             </>
           ) : (
-            <Link to="/login">
-              <button className="gf-button gf-button--secondary">Sign in</button>
-            </Link>
+            <button className="gf-button gf-button--secondary" type="button" onClick={() => navigate('/login')}>
+              Sign in
+            </button>
           )}
         </div>
       </header>
       <main className="gf-main">{children}</main>
       <footer className="gf-footer">
         <div className="gf-footer__inner">
-          <span className="gf-footer__brand">Go Fish</span>
+          <img src="/logo.png" alt="Go Fish" className="gf-footer__logo" />
           <span className="gf-footer__copy">© {new Date().getFullYear()} Go Fish. All rights reserved.</span>
           <span className="gf-footer__meta">Social event coordinator · v1.6.0</span>
         </div>
