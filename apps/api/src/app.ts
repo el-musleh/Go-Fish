@@ -17,6 +17,7 @@ export async function createApp() {
   await app.register(cors, {
     origin: env.trustedOrigins,
     credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   });
 
   const authHandler = toNodeHandler(auth);

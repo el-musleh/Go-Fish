@@ -29,9 +29,8 @@ export function EventCard({ event, onDelete }: { event: EventSummary; onDelete?:
 
   function handleDelete(e: React.MouseEvent) {
     e.preventDefault();
-    if (window.confirm(`Delete "${event.title}"?`)) {
-      onDelete?.(event.id);
-    }
+    e.stopPropagation();
+    onDelete?.(event.id);
   }
 
   return (
