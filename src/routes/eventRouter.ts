@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
 import { requireAuth } from '../middleware/auth';
-import { createEvent, getEventById, getEventsByInviterId, getEventsByIds } from '../repositories/eventRepository';
+import { createEvent, deleteEvent, getEventById, getEventsByInviterId, getEventsByIds } from '../repositories/eventRepository';
 import { createInvitationLink, getInvitationLinkByEventId } from '../repositories/invitationLinkRepository';
 import { triggerGeneration, scheduleResponseWindow } from '../services/responseWindowScheduler';
 import { sendNotificationEmails } from '../services/emailService';
@@ -267,6 +267,33 @@ export function createEventRouter(pool: Pool): Router {
     } catch (error) {
       console.error('Error selecting activity option:', error);
       res.status(500).json({ error: 'internal_error', message: 'Failed to select activity option.' });
+    }
+  });
+
+  /**
+   * DELETE /api/events/:eventId
+   * Delete an event (Inviter only). Cascade removes related records.
+   */
+  router.delete('/:eventId', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId as string;
+      const event = await getEventById(pool, req.params.eventId);
+
+      if (!event) {
+        res.status(404).json({ error: 'not_found', message: 'Event not found.' });
+        return;
+      }
+
+      if (event.inviter_id !== userId) {
+        res.status(403).json({ error: 'forbidden', message: 'Only the inviter can delete this event.' });
+        return;
+      }
+
+      await deleteEvent(pool, event.id);
+      res.json({ deleted: true });
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      res.status(500).json({ error: 'internal_error', message: 'Failed to delete event.' });
     }
   });
 

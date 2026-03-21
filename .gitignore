@@ -1,5 +1,7 @@
 node_modules/
 dist/
+.next/
+**/src/generated/
 client/dist/
 client/node_modules/
 .env
