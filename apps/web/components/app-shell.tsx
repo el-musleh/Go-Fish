@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -42,7 +43,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="gf-app">
       <header className="gf-topbar">
         <Link className="gf-brand" href="/dashboard">
-          Go Fish
+          <Image className="gf-brand__icon" priority src="/logo.png" alt="Go Fish" width={468} height={232} />
+          <span className="gf-brand__wordmark">Go Fish</span>
         </Link>
         <nav className="gf-nav">
           <Link className={pathname?.startsWith("/events/new") ? "is-active" : ""} href="/events/new">
