@@ -4,7 +4,6 @@ import { fetchTicketmasterEvents } from './providers/ticketmaster';
 import { fetchWeatherForecast } from './providers/openWeatherMap';
 import { fetchGooglePlacesVenues } from './providers/googlePlaces';
 import { fetchFoursquareVenues } from './providers/foursquare';
-import { fetchPredictHQEvents } from './providers/predicthq';
 import { rankEvents, rankVenues, extractKeywords } from './relevanceScorer';
 
 const MAX_EVENTS = 15;
@@ -21,13 +20,11 @@ export async function fetchRealWorldContext(
   // Fetch all data sources in parallel
   const [
     ticketmasterResult,
-    predictHQResult,
     googlePlacesResult,
     foursquareResult,
     weatherResult,
   ] = await Promise.allSettled([
     fetchTicketmasterEvents(location, startDate, endDate, keywords),
-    fetchPredictHQEvents(location, startDate, endDate),
     fetchGooglePlacesVenues(location, keywords),
     fetchFoursquareVenues(location, keywords),
     fetchWeatherForecast(location),
@@ -39,11 +36,6 @@ export async function fetchRealWorldContext(
     allEvents.push(...ticketmasterResult.value);
   } else {
     console.warn('Ticketmaster fetch failed:', ticketmasterResult.reason);
-  }
-  if (predictHQResult.status === 'fulfilled') {
-    allEvents.push(...predictHQResult.value);
-  } else {
-    console.warn('PredictHQ fetch failed:', predictHQResult.reason);
   }
 
   // Collect venues

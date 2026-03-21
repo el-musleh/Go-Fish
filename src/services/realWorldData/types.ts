@@ -6,7 +6,7 @@ export interface GeoLocation {
 }
 
 export interface NormalizedEvent {
-  source: 'ticketmaster' | 'predicthq';
+  source: 'ticketmaster';
   sourceId: string;
   title: string;
   description: string;
