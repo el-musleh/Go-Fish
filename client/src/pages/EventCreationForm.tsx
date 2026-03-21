@@ -6,6 +6,7 @@ export default function EventCreationForm() {
   const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [locationCity, setLocationCity] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -19,7 +20,14 @@ export default function EventCreationForm() {
     setError('');
     setSaving(true);
     try {
-      const event = await api.post<{ id: string }>('/events', { title, description });
+      const event = await api.post<{ id: string }>('/events', {
+        title,
+        description,
+        location_city: locationCity,
+        location_country: 'DE',
+        location_lat: null,
+        location_lng: null,
+      });
       navigate(`/events/${event.id}`);
     } catch {
       setError('Could not create the group.');
@@ -37,6 +45,11 @@ export default function EventCreationForm() {
             <span className="gf-field__label">Title</span>
             <span className="gf-field__hint">A short, clear title works best.</span>
             <input className="gf-input" placeholder="Sunday dinner in Berlin" value={title} onChange={e => setTitle(e.target.value)} />
+          </label>
+          <label className="gf-field">
+            <span className="gf-field__label">Stadt / City</span>
+            <span className="gf-field__hint">Where should the activity take place?</span>
+            <input className="gf-input" placeholder="Berlin" value={locationCity} onChange={e => setLocationCity(e.target.value)} required />
           </label>
           <label className="gf-field">
             <span className="gf-field__label">Description</span>

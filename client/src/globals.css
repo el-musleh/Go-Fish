@@ -265,43 +265,64 @@ button, input, textarea { font: inherit; }
   font-weight: 600;
   color: var(--text);
 }
-.gf-time-window__slider {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+/* Dual-range slider */
+.gf-dual-range {
+  position: relative;
+  height: 36px;
 }
-.gf-time-window__slider-label {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.78rem;
-  color: var(--muted);
-  min-width: 0;
-}
-.gf-time-window__slider-label input[type="range"] {
-  flex: 1;
-  -webkit-appearance: none;
-  appearance: none;
+.gf-dual-range__track {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
   height: 6px;
+  transform: translateY(-50%);
   border-radius: 999px;
   background: var(--line);
-  outline: none;
 }
-.gf-time-window__slider-label input[type="range"]::-webkit-slider-thumb {
+.gf-dual-range__fill {
+  position: absolute;
+  top: 50%;
+  left: var(--start-pct);
+  right: calc(100% - var(--end-pct));
+  height: 6px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-strong));
+  pointer-events: none;
+}
+.gf-dual-range__input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  background: transparent;
+  pointer-events: none;
+  margin: 0;
+  outline: none;
+}
+.gf-dual-range__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  pointer-events: auto;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent-strong), var(--accent));
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(255, 157, 73, 0.3);
+  box-shadow: 0 2px 10px rgba(255, 157, 73, 0.4);
+  position: relative;
+  z-index: 2;
 }
-.gf-time-window__range {
-  font-size: 0.85rem;
+.gf-dual-range__labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9rem;
+  font-weight: 700;
   color: var(--accent);
-  text-align: center;
-  font-weight: 600;
+  margin-top: 4px;
 }
 
 .gf-button {

@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, getCurrentUserId } from '../api/client';
 import InvitationLinkPanel from './InvitationLinkPanel';
 
-interface EventData { id: string; title: string; description: string; status: string; response_window_end: string; inviter_id: string; }
+interface EventData { id: string; title: string; description: string; status: string; response_window_end: string; inviter_id: string; location_city?: string; }
 interface Respondent { id: string; email: string; available_dates: { date: string; start_time: string; end_time: string }[]; responded_at: string; }
 interface ActivityOption { id: string; title: string; description: string; suggested_date: string; suggested_time: string | null; rank: number; is_selected: boolean; }
 
@@ -126,7 +126,10 @@ export default function EventDetail() {
     const selected = options.find(o => o.is_selected);
     return (
       <div className="gf-stack gf-stack--xl">
-        <h2 className="gf-section-title">{event.title}</h2>
+        <div>
+          <h2 className="gf-section-title">{event.title}</h2>
+          {event.location_city && <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>&#128205; {event.location_city}</p>}
+        </div>
         {selected ? (
           <div className="gf-card gf-option-card gf-option-card--featured">
             <h3 className="gf-card-title">{selected.title}</h3>
@@ -153,7 +156,10 @@ export default function EventDetail() {
     return (
       <div className="gf-stack gf-stack--xl">
         <div className="gf-actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 className="gf-section-title">{event.title}</h2>
+          <div>
+            <h2 className="gf-section-title">{event.title}</h2>
+            {event.location_city && <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>&#128205; {event.location_city}</p>}
+          </div>
           <button className="gf-button gf-button--ghost" onClick={copyLink}>{copied ? 'Copied' : 'Copy link'}</button>
         </div>
         {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
@@ -190,7 +196,10 @@ export default function EventDetail() {
   // Collecting responses (main state)
   return (
     <div className="gf-stack gf-stack--xl">
-      <h2 className="gf-section-title">{event.title}</h2>
+      <div>
+        <h2 className="gf-section-title">{event.title}</h2>
+        {event.location_city && <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>&#128205; {event.location_city}</p>}
+      </div>
 
       {isCreator && (
         <div className="gf-actions" style={{ justifyContent: 'space-between', alignItems: 'center' }}>

@@ -2,7 +2,19 @@ import { useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
 
-interface ActivityOption { id: string; title: string; description: string; suggested_date: string; suggested_time: string | null; rank: number; is_selected: boolean; }
+interface ActivityOption {
+  id: string;
+  title: string;
+  description: string;
+  suggested_date: string;
+  suggested_time: string | null;
+  rank: number;
+  is_selected: boolean;
+  source_url: string | null;
+  venue_name: string | null;
+  price_range: string | null;
+  weather_note: string | null;
+}
 
 const RANK_CLASS: Record<number, string> = { 1: 'gf-option-card--rank-1', 2: 'gf-option-card--rank-2', 3: 'gf-option-card--rank-3' };
 
@@ -56,10 +68,26 @@ export default function ActivityOptionsView() {
             <div key={opt.id} className={`gf-card gf-option-card ${RANK_CLASS[opt.rank] ?? ''}`}>
               {opt.rank === 1 && <span className="gf-top-pick">Top Pick</span>}
               <h3 className="gf-card-title">{opt.title}</h3>
+              {opt.venue_name && <p className="gf-muted" style={{ marginTop: -6, fontSize: '0.9rem' }}>{opt.venue_name}</p>}
               <p className="gf-muted">{opt.description}</p>
               <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
                 📅 {prettyDate(opt.suggested_date)}{opt.suggested_time ? ` at ${opt.suggested_time}` : ''}
               </p>
+              {opt.price_range && (
+                <span style={{ display: 'inline-block', alignSelf: 'flex-start', padding: '3px 10px', borderRadius: '999px', border: '1px solid var(--line-strong)', fontSize: '0.8rem', color: 'var(--accent)', background: 'rgba(255,157,73,0.08)' }}>
+                  {opt.price_range}
+                </span>
+              )}
+              {opt.weather_note && (
+                <p className="gf-muted" style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span>&#x26C5;</span>{opt.weather_note}
+                </p>
+              )}
+              {opt.source_url && (
+                <a href={opt.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                  More info
+                </a>
+              )}
               <button onClick={() => handleSelect(opt.id)} disabled={selecting !== null} className="gf-button gf-button--primary">
                 {selecting === opt.id ? 'Selecting…' : 'Choose This'}
               </button>
