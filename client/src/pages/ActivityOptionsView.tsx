@@ -14,6 +14,7 @@ interface ActivityOption {
   venue_name: string | null;
   price_range: string | null;
   weather_note: string | null;
+  image_url: string | null;
 }
 
 const RANK_CLASS: Record<number, string> = { 1: 'gf-option-card--rank-1', 2: 'gf-option-card--rank-2', 3: 'gf-option-card--rank-3' };
@@ -66,6 +67,9 @@ export default function ActivityOptionsView() {
         <div className="gf-grid gf-grid--three">
           {options.map((opt) => (
             <div key={opt.id} className={`gf-card gf-option-card ${RANK_CLASS[opt.rank] ?? ''}`}>
+              {opt.image_url && (
+                <img src={opt.image_url} alt={opt.title} style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+              )}
               {opt.rank === 1 && <span className="gf-top-pick">Top Pick</span>}
               <h3 className="gf-card-title">{opt.title}</h3>
               {opt.venue_name && <p className="gf-muted" style={{ marginTop: -6, fontSize: '0.9rem' }}>{opt.venue_name}</p>}

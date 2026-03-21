@@ -196,6 +196,7 @@ export async function triggerGeneration(
           venue_name: option.venue_name,
           price_range: option.price_range,
           weather_note: option.weather_note,
+          image_url: option.image_url,
         })
       )
     );

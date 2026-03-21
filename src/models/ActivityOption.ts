@@ -11,5 +11,6 @@ export interface ActivityOption {
   venue_name: string | null;
   price_range: string | null;
   weather_note: string | null;
+  image_url: string | null;
   created_at: Date;
 }
