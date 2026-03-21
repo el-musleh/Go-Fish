@@ -4,6 +4,7 @@ import { Sun, Moon } from 'lucide-react';
 import { getCurrentUserId } from './api/client';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
+import LandingPage from './pages/LandingPage';
 import TasteBenchmarkForm from './pages/TasteBenchmarkForm';
 import EventCreationForm from './pages/EventCreationForm';
 import EventDetail from './pages/EventDetail';
@@ -53,7 +54,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="gf-app">
       <header className="gf-topbar">
-        <Link className="gf-brand" to="/dashboard">
+        <Link className="gf-brand" to="/">
           <img src="/logo.png" alt="Go Fish" className="gf-brand__icon" />
         </Link>
         <nav className="gf-nav">
@@ -109,6 +110,7 @@ export default function App() {
           element={
             <AppShell>
               <Routes>
+                <Route path="/" element={<LandingPage />} />
                 <Route path="/login" element={<AuthPage />} />
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/benchmark" element={<TasteBenchmarkForm />} />

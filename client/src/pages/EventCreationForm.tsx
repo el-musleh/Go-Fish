@@ -29,9 +29,12 @@ export default function EventCreationForm() {
       const event = await api.post<{ id: string }>('/events', {
         title,
         description,
+        location_city: location || undefined,
+        location_country: 'DE',
+        location_lat: null,
+        location_lng: null,
         date: date || undefined,
         time: time || undefined,
-        location: location || undefined,
         participants: participants !== '' ? participants : undefined,
       });
       navigate(`/events/${event.id}`);

@@ -7,6 +7,8 @@ import { getEventById, updateEventStatus } from '../repositories/eventRepository
 import { generateActivityOptions, GeneratedOption, ParticipantAvailability } from './decisionAgent';
 import { sendNotificationEmails } from './emailService';
 import { getActivityOptionsByEventId, markActivityOptionSelected } from '../repositories/activityOptionRepository';
+import { fetchRealWorldContext } from './realWorldData';
+import { GeoLocation } from './realWorldData/types';
 
 const MIN_RESPONSES = 1;
 
@@ -136,13 +138,99 @@ export async function triggerGeneration(
       ? { title: event.title, description: event.description }
       : undefined;
 
+    // Fetch real-world data if event has location
+    let realWorldContext;
+    if (event?.location_lat && event?.location_lng && event?.location_city) {
+      const location: GeoLocation = {
+        latitude: event.location_lat,
+        longitude: event.location_lng,
+        city: event.location_city,
+        country: event.location_country ?? 'DE',
+      };
+
+      // Determine date range from participant availability, fallback to next 14 days
+      const allDates = participantAvailability.flatMap((pa) =>
+        pa.windows.map((w) => w.date)
+      );
+      const sortedDates = [...new Set(allDates)].sort();
+      let startDate = sortedDates[0];
+      let endDate = sortedDates[sortedDates.length - 1];
+
+      if (!startDate || !endDate) {
+        const now = new Date();
+        startDate = now.toISOString().split('T')[0];
+        const twoWeeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+        endDate = twoWeeks.toISOString().split('T')[0];
+      }
+
+      {
+        try {
+          realWorldContext = await fetchRealWorldContext(
+            location,
+            startDate,
+            endDate,
+            benchmarks
+          );
+          console.log(
+            `Event ${eventId}: fetched ${realWorldContext.events.length} events, ${realWorldContext.venues.length} venues, ${realWorldContext.weather.length} weather days`
+          );
+        } catch (err) {
+          console.warn(`Event ${eventId}: real-world data fetch failed, proceeding without:`, err);
+        }
+      }
+    }
+
     // Generate activity options via Gemini
     const options = await generateActivityOptions(
       benchmarks,
       participantAvailability,
       apiKey,
-      eventContext
+      eventContext,
+      realWorldContext
     );
+
+    // Match image URLs from real-world data by title/venue name similarity
+    // Images are ALWAYS sourced from API data, never from Gemini (which hallucinates URLs)
+    const imageUrls = new Map<number, string>();
+    if (realWorldContext) {
+      for (const option of options) {
+        const titleLower = option.title.toLowerCase();
+        const venueLower = (option.venue_name ?? '').toLowerCase();
+
+        // Check venues for matching photo (Google Places photos are most reliable)
+        const matchedVenue = realWorldContext.venues.find((v) =>
+          titleLower.includes(v.name.toLowerCase()) ||
+          v.name.toLowerCase().includes(titleLower) ||
+          (venueLower && v.name.toLowerCase().includes(venueLower))
+        );
+        if (matchedVenue?.photoUrl) {
+          imageUrls.set(option.rank, matchedVenue.photoUrl);
+          continue;
+        }
+
+        // Check events for matching image (Ticketmaster images)
+        const matchedEvent = realWorldContext.events.find((e) =>
+          titleLower.includes(e.title.toLowerCase()) ||
+          e.title.toLowerCase().includes(titleLower) ||
+          (venueLower && e.venueName?.toLowerCase().includes(venueLower))
+        );
+        if (matchedEvent?.imageUrl) {
+          imageUrls.set(option.rank, matchedEvent.imageUrl);
+          continue;
+        }
+
+        // Fallback: use first available venue/event image for unmatched options
+        const fallbackVenue = realWorldContext.venues.find((v) => v.photoUrl);
+        if (fallbackVenue?.photoUrl) {
+          imageUrls.set(option.rank, fallbackVenue.photoUrl);
+        } else {
+          const fallbackEvent = realWorldContext.events.find((e) => e.imageUrl);
+          if (fallbackEvent?.imageUrl) {
+            imageUrls.set(option.rank, fallbackEvent.imageUrl);
+          }
+        }
+      }
+    }
 
     // Store generated options in parallel
     await Promise.all(
@@ -154,6 +242,11 @@ export async function triggerGeneration(
           suggested_date: option.suggested_date,
           suggested_time: option.suggested_time,
           rank: option.rank,
+          source_url: option.source_url,
+          venue_name: option.venue_name,
+          price_range: option.price_range,
+          weather_note: option.weather_note,
+          image_url: imageUrls.get(option.rank) ?? null,
         })
       )
     );

@@ -27,6 +27,9 @@ vi.mock('../repositories/eventRepository', () => ({
 vi.mock('./decisionAgent', () => ({
   generateActivityOptions: vi.fn(),
 }));
+vi.mock('./realWorldData', () => ({
+  fetchRealWorldContext: vi.fn(),
+}));
 
 import { getResponsesByEventId } from '../repositories/responseRepository';
 import { getTasteBenchmarkByUserId } from '../repositories/tasteBenchmarkRepository';
@@ -234,12 +237,13 @@ describe('responseWindowScheduler', () => {
       expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'generating');
       expect(getTasteBenchmarkByUserId).toHaveBeenCalledWith(mockPool, 'user-1');
       expect(getTasteBenchmarkByUserId).toHaveBeenCalledWith(mockPool, 'user-2');
-      // Now passes per-participant date arrays and event context
+      // Now passes per-participant availability, event context, and optional realWorldContext
       expect(generateActivityOptions).toHaveBeenCalledWith(
         [mockBenchmarks[0], mockBenchmarks[1]],
-        [['2025-01-15'], ['2025-01-15', '2025-01-16']],
+        expect.any(Array),
         'test-key',
-        { title: 'Test Event', description: 'A test event' }
+        { title: 'Test Event', description: 'A test event' },
+        undefined
       );
       expect(createActivityOption).toHaveBeenCalledTimes(3);
       expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'options_ready');
@@ -263,7 +267,8 @@ describe('responseWindowScheduler', () => {
         [mockBenchmarks[0]],
         expect.any(Array),
         'test-key',
-        { title: 'Test Event', description: 'A test event' }
+        { title: 'Test Event', description: 'A test event' },
+        undefined
       );
     });
 
