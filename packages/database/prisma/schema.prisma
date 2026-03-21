@@ -1,0 +1,221 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/client"
+  engineType = "client"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum EventStatus {
+  draft
+  collecting_responses
+  generating_options
+  awaiting_selection
+  finalized
+  generation_failed
+}
+
+enum InviteeResponseStatus {
+  pending
+  responded
+}
+
+enum EmailType {
+  magic_link
+  final_details
+}
+
+enum EmailStatus {
+  pending
+  sent
+  failed
+}
+
+model User {
+  id              String        @id
+  name            String
+  email           String        @unique
+  emailVerified   Boolean       @default(false)
+  image           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  sessions        Session[]
+  accounts        Account[]
+  tasteProfile    TasteProfile?
+  createdEvents   Event[]       @relation("EventInviter")
+  eventInvitations EventInvitee[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([identifier, value])
+  @@map("verification")
+}
+
+model TasteProfile {
+  id         String              @id @default(cuid())
+  userId     String              @unique
+  isComplete Boolean             @default(false)
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+  user       User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers    TasteProfileAnswer[]
+
+  @@map("taste_profile")
+}
+
+model TasteProfileAnswer {
+  id         String       @id @default(cuid())
+  profileId  String
+  questionId String
+  selections String[]
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  profile    TasteProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, questionId])
+  @@index([questionId])
+  @@map("taste_profile_answer")
+}
+
+model Event {
+  id                 String       @id @default(cuid())
+  slug               String       @unique
+  title              String
+  description        String?
+  locationHint       String    @default("")
+  dateFrom           DateTime     @db.Date
+  dateTo             DateTime     @db.Date
+  responseDeadlineAt DateTime
+  status             EventStatus  @default(draft)
+  inviterId          String
+  generationAttempts Int          @default(0)
+  lastGenerationAt   DateTime?
+  lastGenerationSource String?
+  selectedOptionId   String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  inviter            User         @relation("EventInviter", fields: [inviterId], references: [id], onDelete: Cascade)
+  invitees           EventInvitee[]
+  options            EventOption[]
+  emailLogs          EmailLog[]
+
+  @@index([inviterId, status])
+  @@map("event")
+}
+
+model EventInvitee {
+  id             String                @id @default(cuid())
+  eventId        String
+  email          String
+  userId         String?
+  responseStatus InviteeResponseStatus @default(pending)
+  respondedAt    DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+  event          Event                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user           User?                 @relation(fields: [userId], references: [id], onDelete: SetNull)
+  availableDates AvailabilityDate[]
+  emailLogs      EmailLog[]
+
+  @@unique([eventId, email])
+  @@index([userId])
+  @@map("event_invitee")
+}
+
+model AvailabilityDate {
+  id        String       @id @default(cuid())
+  inviteeId String
+  date      DateTime     @db.Date
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+  invitee   EventInvitee @relation(fields: [inviteeId], references: [id], onDelete: Cascade)
+
+  @@unique([inviteeId, date])
+  @@map("availability_date")
+}
+
+model EventOption {
+  id                   String   @id @default(cuid())
+  eventId              String
+  rank                 Int
+  title                String
+  recommendedDate      DateTime @db.Date
+  timeOfDay            String
+  activityType         String
+  locationHint         String
+  whyItFits            String   @db.Text
+  attendanceConfidence Float
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  event                Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, rank])
+  @@map("event_option")
+}
+
+model EmailLog {
+  id             String       @id @default(cuid())
+  eventId        String?
+  inviteeId      String?
+  recipientEmail String
+  type           EmailType
+  provider       String
+  subject        String
+  status         EmailStatus  @default(pending)
+  metadata       Json?
+  sentAt         DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  event          Event?       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  invitee        EventInvitee? @relation(fields: [inviteeId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, type, recipientEmail])
+  @@map("email_log")
+}

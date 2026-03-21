@@ -1,0 +1,29 @@
+{
+  "name": "@go-fish/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "db:generate": "prisma generate --schema ./prisma/schema.prisma",
+    "db:push": "prisma db push --schema ./prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "7.5.0",
+    "@prisma/client": "7.5.0"
+    ,
+    "pg": "8.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "25.5.0",
+    "dotenv": "17.3.1",
+    "prisma": "7.5.0",
+    "typescript": "5.9.3",
+    "vitest": "4.1.0"
+  }
+}
