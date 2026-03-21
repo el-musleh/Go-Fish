@@ -78,7 +78,8 @@ export function PreferenceBenchmark({
       startTransition(() => {
         void onSubmit(payload)
           .catch((submitError) => {
-            setError(submitError instanceof Error ? submitError.message : "Could not save preferences.");
+            const msg = submitError instanceof Error ? submitError.message : "";
+            setError(msg === "Failed to fetch" ? "Could not reach the server. Please try again." : msg || "Could not save preferences.");
           })
           .finally(() => setIsSaving(false));
       });
