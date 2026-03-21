@@ -94,6 +94,11 @@ button, input, textarea { font: inherit; }
   cursor: pointer;
 }
 
+.gf-brand__icon {
+  height: 2rem;
+  width: auto;
+}
+
 .gf-nav { display: flex; justify-content: center; }
 
 .gf-nav a {
@@ -340,7 +345,8 @@ button, input, textarea { font: inherit; }
   background: rgba(255, 154, 129, 0.12);
 }
 
-.gf-option-card { display: grid; gap: 14px; padding: 28px; }
+.gf-option-card { display: flex; flex-direction: column; gap: 14px; padding: 28px; }
+.gf-option-card .gf-button { margin-top: auto; }
 .gf-option-card--rank-1 { border-color: rgba(255, 215, 0, 0.3); }
 .gf-option-card--rank-1::before { background: linear-gradient(160deg, rgba(255, 215, 0, 0.1), transparent 45%, rgba(255, 255, 255, 0.02)); }
 .gf-option-card--rank-2 { border-color: rgba(192, 192, 192, 0.2); }
@@ -394,6 +400,14 @@ button, input, textarea { font: inherit; }
   .gf-nav { justify-content: flex-start; flex-wrap: wrap; }
   .gf-topbar__actions { justify-content: space-between; }
   .gf-grid--three, .gf-grid--two { grid-template-columns: 1fr; }
+}
+
+.gf-footer {
+  text-align: center;
+  padding: 24px 0 8px;
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
 }
 
 @media (max-width: 720px) {
