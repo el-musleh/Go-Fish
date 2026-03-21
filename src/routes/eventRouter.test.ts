@@ -16,6 +16,7 @@ vi.mock('../repositories/invitationLinkRepository', () => ({
 
 vi.mock('../services/responseWindowScheduler', () => ({
   triggerGeneration: vi.fn(),
+  scheduleResponseWindow: vi.fn(),
 }));
 
 vi.mock('../repositories/activityOptionRepository', () => ({
@@ -26,7 +27,7 @@ vi.mock('../repositories/activityOptionRepository', () => ({
 
 import { createEvent, getEventById, updateEventStatus } from '../repositories/eventRepository';
 import { createInvitationLink, getInvitationLinkByEventId } from '../repositories/invitationLinkRepository';
-import { triggerGeneration } from '../services/responseWindowScheduler';
+import { scheduleResponseWindow, triggerGeneration } from '../services/responseWindowScheduler';
 import { getActivityOptionsByEventId, getActivityOptionById, markActivityOptionSelected } from '../repositories/activityOptionRepository';
 
 const mockPool = {} as any;
@@ -94,7 +95,7 @@ describe('POST /api/events', () => {
     expect(res.body.fields).toEqual(['title']);
   });
 
-  it('creates event with status collecting and 24h window on valid input', async () => {
+  it('creates event with status collecting and a 10 minute window on valid input', async () => {
     const now = Date.now();
     const mockEvent = {
       id: 'evt-1',
@@ -102,7 +103,7 @@ describe('POST /api/events', () => {
       title: 'Game Night',
       description: 'Board games at my place',
       response_window_start: new Date(now),
-      response_window_end: new Date(now + 24 * 60 * 60 * 1000),
+      response_window_end: new Date(now + 10 * 60 * 1000),
       status: 'collecting',
       created_at: new Date(now),
     };
@@ -125,13 +126,13 @@ describe('POST /api/events', () => {
       description: 'Board games at my place',
     }));
 
-    // Verify the response_window_end is ~24h from now
+    // Verify the response_window_end is ~10 minutes from now.
     const callArgs = (createEvent as any).mock.calls[0][1];
     const windowEnd = callArgs.response_window_end as Date;
     const diffMs = windowEnd.getTime() - now;
-    // Allow 5 seconds of tolerance for test execution time
-    expect(diffMs).toBeGreaterThanOrEqual(24 * 60 * 60 * 1000 - 5000);
-    expect(diffMs).toBeLessThanOrEqual(24 * 60 * 60 * 1000 + 5000);
+    expect(diffMs).toBeGreaterThanOrEqual(10 * 60 * 1000 - 5000);
+    expect(diffMs).toBeLessThanOrEqual(10 * 60 * 1000 + 5000);
+    expect(scheduleResponseWindow).toHaveBeenCalledWith(mockEvent, { pool: mockPool });
   });
 });
 
