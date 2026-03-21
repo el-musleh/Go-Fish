@@ -50,4 +50,7 @@ export const api = {
       method: 'POST',
       body: data ? JSON.stringify(data) : undefined,
     }),
+
+  delete: <T>(path: string) =>
+    request<T>(path, { method: 'DELETE' }),
 };
