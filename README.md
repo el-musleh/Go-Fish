@@ -2,7 +2,7 @@
 
 Group activity finder — help your crew decide what to do together.
 
-**Version:** 1.2.0
+**Version:** 1.3.0
 
 ## Quick Start
 
