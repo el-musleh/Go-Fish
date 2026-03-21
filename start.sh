@@ -81,19 +81,28 @@ log "${DIM}node $(node --version) · npm $(npm --version) · $($DOCKER_COMPOSE v
 # ═══════════════════════════════════════════════════════════════════════════
 # 2. Port conflict check
 # ═══════════════════════════════════════════════════════════════════════════
-port_in_use() {
+get_pids_on_port() {
   if command -v lsof >/dev/null 2>&1; then
-    lsof -iTCP:"$1" -sTCP:LISTEN -t >/dev/null 2>&1
+    lsof -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null
   elif command -v ss >/dev/null 2>&1; then
-    ss -tlnp | grep -q ":$1 "
+    ss -tlnp | awk -F'[=,]' "/\":$1 \"/{print \$2}"
   else
-    return 1  # can't check; proceed optimistically
+    warn "Neither lsof nor ss available; skipping port $1 check"
   fi
 }
 
 for port in 3000 5173 5433; do
-  if port_in_use "$port"; then
-    die "Port $port is already in use. Free it and try again.\n  → Find what's using it: lsof -iTCP:$port -sTCP:LISTEN"
+  pids=$(get_pids_on_port "$port")
+  if [ -n "$pids" ]; then
+    warn "Port $port is in use (PID $pids) — killing..."
+    echo "$pids" | xargs kill 2>/dev/null || true
+    sleep 1
+    still=$(get_pids_on_port "$port")
+    if [ -n "$still" ]; then
+      echo "$still" | xargs kill -9 2>/dev/null || true
+      sleep 1
+    fi
+    log "Port $port freed"
   fi
 done
 
