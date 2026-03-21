@@ -1,4 +1,5 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { GoogleGenerativeAI, SchemaType } from '@google/generative-ai';
+import type { Schema } from '@google/generative-ai';
 import { TasteBenchmark } from '../models/TasteBenchmark';
 import { DateTimeWindow } from '../models/Response';
 
@@ -15,21 +16,108 @@ export interface ParticipantAvailability {
   windows: DateTimeWindow[];
 }
 
+export interface EventContext {
+  title: string;
+  description: string;
+}
+
 const MAX_RETRIES = 3;
 const BASE_DELAY_MS = 5000;
 
+/** Human-readable labels for the 10 benchmark questions. */
+const QUESTION_LABELS: Record<string, string> = {
+  q1: 'Outdoor activities',
+  q2: 'Indoor activities',
+  q3: 'Food preferences',
+  q4: 'Sports interests',
+  q5: 'Creative activities',
+  q6: 'Social setting preferences',
+  q7: 'Entertainment preferences',
+  q8: 'Adventure activities',
+  q9: 'Relaxation activities',
+  q10: 'Learning activities',
+};
+
+/**
+ * Build a preference summary per participant using labeled questions.
+ */
+function summarizeParticipant(benchmark: TasteBenchmark, index: number): string {
+  const lines = Object.entries(benchmark.answers).map(([q, vals]) => {
+    const label = QUESTION_LABELS[q] ?? q;
+    return `  - ${label}: ${vals.join(', ')}`;
+  });
+  return `Participant ${index + 1}:\n${lines.join('\n')}`;
+}
+
+/**
+ * Compute date availability ranked by how many participants selected each date.
+ */
+export function rankDatesByOverlap(
+  participantAvailability: ParticipantAvailability[]
+): { date: string; count: number }[] {
+  const freq = new Map<string, number>();
+  for (const pa of participantAvailability) {
+    for (const w of pa.windows) {
+      freq.set(w.date, (freq.get(w.date) ?? 0) + 1);
+    }
+  }
+  return Array.from(freq.entries())
+    .map(([date, count]) => ({ date, count }))
+    .sort((a, b) => b.count - a.count || a.date.localeCompare(b.date));
+}
+
+/**
+ * Find preferences shared by the majority of participants (> 50%).
+ */
+export function findCommonPreferences(
+  benchmarks: TasteBenchmark[]
+): Record<string, string[]> {
+  const total = benchmarks.length;
+  if (total === 0) return {};
+
+  const freqByQuestion = new Map<string, Map<string, number>>();
+
+  for (const b of benchmarks) {
+    for (const [q, vals] of Object.entries(b.answers)) {
+      if (!freqByQuestion.has(q)) freqByQuestion.set(q, new Map());
+      const qMap = freqByQuestion.get(q)!;
+      for (const v of vals) {
+        qMap.set(v, (qMap.get(v) ?? 0) + 1);
+      }
+    }
+  }
+
+  const common: Record<string, string[]> = {};
+  for (const [q, qMap] of freqByQuestion) {
+    const majority = Array.from(qMap.entries())
+      .filter(([, count]) => count > total / 2)
+      .map(([val]) => val);
+    if (majority.length > 0) {
+      const label = QUESTION_LABELS[q] ?? q;
+      common[label] = majority;
+    }
+  }
+  return common;
+}
+
+/**
+ * Build the full prompt with event context, labeled preferences,
+ * date-overlap ranking with time windows, and shared-preference highlights.
+ */
 export function buildPrompt(
   benchmarks: TasteBenchmark[],
-  participantAvailability: ParticipantAvailability[]
+  participantAvailability: ParticipantAvailability[],
+  eventContext?: EventContext
 ): string {
-  const benchmarkSummary = benchmarks
-    .map((b, i) => {
-      const answers = Object.entries(b.answers)
-        .map(([q, vals]) => `  ${q}: ${vals.join(', ')}`)
-        .join('\n');
-      return `Participant ${i + 1}:\n${answers}`;
-    })
+  const participantSummaries = benchmarks
+    .map((b, i) => summarizeParticipant(b, i))
     .join('\n\n');
+
+  const rankedDates = rankDatesByOverlap(participantAvailability);
+  const totalParticipants = participantAvailability.length;
+  const datesSection = rankedDates
+    .map((d) => `  - ${d.date} (${d.count}/${totalParticipants} available)`)
+    .join('\n');
 
   const availabilitySummary = participantAvailability
     .map((pa) => {
@@ -40,26 +128,38 @@ export function buildPrompt(
     })
     .join('\n\n');
 
-  return `You are a group activity planner. Based on the following participant preferences and available time windows, suggest exactly 3 activity options that the group would enjoy together.
+  const commonPrefs = findCommonPreferences(benchmarks);
+  const commonSection = Object.keys(commonPrefs).length > 0
+    ? `\nShared Group Preferences (majority agree):\n${Object.entries(commonPrefs)
+        .map(([cat, vals]) => `  - ${cat}: ${vals.join(', ')}`)
+        .join('\n')}\n`
+    : '';
 
-Participant Preferences:
-${benchmarkSummary}
+  const eventSection = eventContext
+    ? `Event: "${eventContext.title}"\nDescription: ${eventContext.description}\n\n`
+    : '';
 
-Participant Availability Windows:
+  return `You are Go Fish, an AI group activity planner. Your job is to suggest 3 activity options that maximize group enjoyment by finding the sweet spot across everyone's preferences.
+
+${eventSection}GROUP PROFILE (${benchmarks.length} participants):
+
+${participantSummaries}
+${commonSection}
+DATE AVAILABILITY (ranked by overlap):
+${datesSection}
+
+PARTICIPANT TIME WINDOWS:
 ${availabilitySummary}
 
-Important: Find dates and time slots where participants have overlapping availability. Suggest a specific time that falls within the overlapping window for each activity.
-
-Return a JSON array of exactly 3 objects, ranked by estimated group compatibility (1 = best fit). Each object must have:
-- "title": a short activity name
-- "description": a brief description of the activity
-- "suggested_date": one of the available dates (YYYY-MM-DD format)
-- "suggested_time": a specific start time within the overlapping availability window (HH:MM format, 24-hour)
-- "rank": 1, 2, or 3
-
-Example: [{"title":"Park Picnic","description":"A relaxed outdoor gathering","suggested_date":"2025-03-22","suggested_time":"14:00","rank":1}]
-
-Return ONLY the JSON array, no other text.`;
+INSTRUCTIONS:
+- Suggest exactly 3 activity options ranked by estimated group compatibility (1 = best fit).
+- Strongly prefer dates where the most participants are available.
+- Find overlapping time windows and suggest a specific time within the overlap.
+- Blend the group's shared preferences; for conflicts, find creative compromises.
+- Each suggestion should feel distinct — don't suggest 3 variations of the same thing.
+- Descriptions should be specific and actionable (include what, where-type, and why it fits the group).
+- suggested_date must be one of the available dates listed above in YYYY-MM-DD format.
+- suggested_time must be in HH:MM format (24-hour) within the overlapping availability window.`;
 }
 
 export function parseGeminiResponse(text: string): GeneratedOption[] {
@@ -105,10 +205,27 @@ async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** JSON schema for Gemini structured output mode. */
+const RESPONSE_SCHEMA: Schema = {
+  type: SchemaType.ARRAY,
+  items: {
+    type: SchemaType.OBJECT,
+    properties: {
+      title: { type: SchemaType.STRING, description: 'Short activity name' },
+      description: { type: SchemaType.STRING, description: 'Brief, actionable description of the activity' },
+      suggested_date: { type: SchemaType.STRING, description: 'One of the available dates in YYYY-MM-DD format' },
+      suggested_time: { type: SchemaType.STRING, description: 'Start time in HH:MM 24-hour format within overlapping availability' },
+      rank: { type: SchemaType.INTEGER, description: 'Rank 1-3 where 1 is best fit' },
+    },
+    required: ['title', 'description', 'suggested_date', 'suggested_time', 'rank'],
+  },
+};
+
 export async function generateActivityOptions(
   benchmarks: TasteBenchmark[],
   participantAvailability: ParticipantAvailability[],
-  apiKey?: string
+  apiKey?: string,
+  eventContext?: EventContext
 ): Promise<GeneratedOption[]> {
   const key = apiKey ?? process.env.GEMINI_API_KEY;
   if (!key) {
@@ -116,8 +233,15 @@ export async function generateActivityOptions(
   }
 
   const genAI = new GoogleGenerativeAI(key);
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
-  const prompt = buildPrompt(benchmarks, participantAvailability);
+  const model = genAI.getGenerativeModel({
+    model: 'gemini-2.5-flash',
+    generationConfig: {
+      temperature: 0.7,
+      responseMimeType: 'application/json',
+      responseSchema: RESPONSE_SCHEMA,
+    },
+  });
+  const prompt = buildPrompt(benchmarks, participantAvailability, eventContext);
 
   let lastError: Error | undefined;
 
