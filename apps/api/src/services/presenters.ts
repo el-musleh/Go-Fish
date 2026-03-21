@@ -66,6 +66,7 @@ export function serializeEvent(event: EventWithRelations, isOwner: boolean) {
         id: option.id,
         rank: option.rank,
         title: option.title,
+        description: option.description,
         recommendedDate: formatDateOnly(option.recommendedDate),
         timeOfDay: option.timeOfDay as "morning" | "afternoon" | "evening" | "late_night",
         activityType: option.activityType,

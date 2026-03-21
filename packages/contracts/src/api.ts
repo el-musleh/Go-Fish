@@ -39,6 +39,7 @@ export const eventOptionSchema = z.object({
   id: z.string(),
   rank: z.number().int().min(1).max(3),
   title: z.string(),
+  description: z.string(),
   recommendedDate: isoDate,
   timeOfDay: timeOfDaySchema,
   activityType: z.string(),

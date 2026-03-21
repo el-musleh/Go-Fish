@@ -186,6 +186,7 @@ model EventOption {
   eventId              String
   rank                 Int
   title                String
+  description          String   @db.Text @default("")
   recommendedDate      DateTime @db.Date
   timeOfDay            String
   activityType         String

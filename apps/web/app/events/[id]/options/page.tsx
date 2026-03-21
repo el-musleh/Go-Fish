@@ -130,6 +130,7 @@ export default function EventOptionsPage() {
               <p className="gf-muted">
                 {prettyDate(option.recommendedDate)} · {option.timeOfDay.replace("_", " ")}
               </p>
+              {option.description ? <p>{option.description}</p> : null}
               <Button
                 loading={isWorking}
                 onClick={() => choose(option.id)}

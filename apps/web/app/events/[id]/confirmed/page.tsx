@@ -70,6 +70,7 @@ export default function EventConfirmedPage() {
           <p className="gf-muted">
             {prettyDate(selected.recommendedDate)} · {selected.timeOfDay.replace("_", " ")}
           </p>
+          {selected.description ? <p style={{ marginTop: 12 }}>{selected.description}</p> : null}
           <p style={{ marginTop: 12 }}>{selected.whyItFits}</p>
         </Card>
       ) : null}

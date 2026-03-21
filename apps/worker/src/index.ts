@@ -17,7 +17,15 @@ async function buildGenerationInput(eventId: string): Promise<GenerationInput> {
   const event = await db.event.findUniqueOrThrow({
     where: { id: eventId },
     include: {
-      inviter: true,
+      inviter: {
+        include: {
+          tasteProfile: {
+            include: {
+              answers: true,
+            },
+          },
+        },
+      },
       invitees: {
         include: {
           user: {
@@ -58,6 +66,10 @@ async function buildGenerationInput(eventId: string): Promise<GenerationInput> {
     overlapScore,
     missingResponses,
     inviterName: event.inviter.name,
+    inviterPreferences: event.inviter.tasteProfile?.answers.map((answer) => ({
+      questionId: answer.questionId,
+      selections: answer.selections,
+    })) ?? [],
     topSharedDates,
     invitees: event.invitees.map((invitee) => ({
       email: invitee.email,
@@ -115,6 +127,7 @@ async function generateEventOptions(eventId: string) {
           eventId,
           rank: index + 1,
           title: option.title,
+          description: option.description,
           recommendedDate: new Date(`${option.recommendedDate}T00:00:00.000Z`),
           timeOfDay: option.timeOfDay,
           activityType: option.activityType,
