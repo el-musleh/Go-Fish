@@ -4,7 +4,7 @@ import { getResponsesByEventId } from '../repositories/responseRepository';
 import { getTasteBenchmarkByUserId } from '../repositories/tasteBenchmarkRepository';
 import { createActivityOption } from '../repositories/activityOptionRepository';
 import { getEventById, updateEventStatus } from '../repositories/eventRepository';
-import { generateActivityOptions, GeneratedOption } from './decisionAgent';
+import { generateActivityOptions, GeneratedOption, ParticipantAvailability } from './decisionAgent';
 import { sendNotificationEmails } from './emailService';
 import { getActivityOptionsByEventId, markActivityOptionSelected } from '../repositories/activityOptionRepository';
 
@@ -114,24 +114,24 @@ export async function triggerGeneration(
   try {
     const responses = await getResponsesByEventId(pool, eventId);
 
-    // Collect taste benchmarks for all respondents
+    // Collect taste benchmarks and per-participant availability
     const benchmarks = [];
-    const allDates = new Set<string>();
+    const participantAvailability: ParticipantAvailability[] = [];
+    let participantIndex = 1;
 
     for (const response of responses) {
       const benchmark = await getTasteBenchmarkByUserId(pool, response.invitee_id);
       if (benchmark) {
         benchmarks.push(benchmark);
       }
-      for (const date of response.available_dates) {
-        allDates.add(date);
-      }
+      participantAvailability.push({
+        participant_index: participantIndex++,
+        windows: response.available_dates,
+      });
     }
 
-    const availableDates = Array.from(allDates).sort();
-
     // Generate activity options via Gemini
-    const options = await generateActivityOptions(benchmarks, availableDates, apiKey);
+    const options = await generateActivityOptions(benchmarks, participantAvailability, apiKey);
 
     // Store generated options
     for (const option of options) {
@@ -140,6 +140,7 @@ export async function triggerGeneration(
         title: option.title,
         description: option.description,
         suggested_date: option.suggested_date,
+        suggested_time: option.suggested_time,
         rank: option.rank,
       });
     }
