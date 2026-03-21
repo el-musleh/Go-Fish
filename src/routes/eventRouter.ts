@@ -11,6 +11,50 @@ import { updateEventStatus } from '../repositories/eventRepository';
 import { getResponsesByEventId, getEventIdsRespondedByUser } from '../repositories/responseRepository';
 import { getUserById } from '../repositories/userRepository';
 
+// Simple geocoding: try Google Geocoding API, fall back to known cities
+const KNOWN_CITIES: Record<string, { lat: number; lng: number }> = {
+  berlin: { lat: 52.52, lng: 13.405 },
+  hamburg: { lat: 53.5511, lng: 9.9937 },
+  münchen: { lat: 48.1351, lng: 11.582 },
+  munich: { lat: 48.1351, lng: 11.582 },
+  köln: { lat: 50.9375, lng: 6.9603 },
+  cologne: { lat: 50.9375, lng: 6.9603 },
+  frankfurt: { lat: 50.1109, lng: 8.6821 },
+  stuttgart: { lat: 48.7758, lng: 9.1829 },
+  düsseldorf: { lat: 51.2277, lng: 6.7735 },
+  leipzig: { lat: 51.3397, lng: 12.3731 },
+  dresden: { lat: 51.0504, lng: 13.7373 },
+  hannover: { lat: 52.3759, lng: 9.732 },
+  nürnberg: { lat: 49.4521, lng: 11.0767 },
+  bremen: { lat: 53.0793, lng: 8.8017 },
+  wien: { lat: 48.2082, lng: 16.3738 },
+  vienna: { lat: 48.2082, lng: 16.3738 },
+  zürich: { lat: 47.3769, lng: 8.5417 },
+  zurich: { lat: 47.3769, lng: 8.5417 },
+};
+
+async function geocodeCity(city: string): Promise<{ lat: number; lng: number } | null> {
+  const known = KNOWN_CITIES[city.toLowerCase().trim()];
+  if (known) return known;
+
+  // Try Google Geocoding API
+  const apiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!apiKey) return null;
+
+  try {
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(city)}&key=${apiKey}`
+    );
+    const data = (await response.json()) as { results: Array<{ geometry: { location: { lat: number; lng: number } } }> };
+    if (data.results?.[0]) {
+      return { lat: data.results[0].geometry.location.lat, lng: data.results[0].geometry.location.lng };
+    }
+  } catch {
+    // ignore geocoding failure
+  }
+  return null;
+}
+
 export function createEventRouter(pool: Pool): Router {
   const router = Router();
 
@@ -41,6 +85,17 @@ export function createEventRouter(pool: Pool): Router {
       const now = new Date();
       const responseWindowEnd = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes
 
+      // Auto-geocode city if no coordinates provided
+      let lat = location_lat ?? null;
+      let lng = location_lng ?? null;
+      if (!lat && !lng && location_city) {
+        const coords = await geocodeCity(location_city);
+        if (coords) {
+          lat = coords.lat;
+          lng = coords.lng;
+        }
+      }
+
       const event = await createEvent(pool, {
         inviter_id: userId,
         title: title.trim(),
@@ -48,8 +103,8 @@ export function createEventRouter(pool: Pool): Router {
         response_window_end: responseWindowEnd,
         location_city: location_city ?? null,
         location_country: location_country ?? null,
-        location_lat: location_lat ?? null,
-        location_lng: location_lng ?? null,
+        location_lat: lat,
+        location_lng: lng,
       });
 
       res.status(201).json(event);

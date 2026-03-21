@@ -148,15 +148,22 @@ export async function triggerGeneration(
         country: event.location_country ?? 'DE',
       };
 
-      // Determine date range from participant availability
+      // Determine date range from participant availability, fallback to next 14 days
       const allDates = participantAvailability.flatMap((pa) =>
         pa.windows.map((w) => w.date)
       );
       const sortedDates = [...new Set(allDates)].sort();
-      const startDate = sortedDates[0];
-      const endDate = sortedDates[sortedDates.length - 1];
+      let startDate = sortedDates[0];
+      let endDate = sortedDates[sortedDates.length - 1];
 
-      if (startDate && endDate) {
+      if (!startDate || !endDate) {
+        const now = new Date();
+        startDate = now.toISOString().split('T')[0];
+        const twoWeeks = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+        endDate = twoWeeks.toISOString().split('T')[0];
+      }
+
+      {
         try {
           realWorldContext = await fetchRealWorldContext(
             location,
@@ -181,6 +188,36 @@ export async function triggerGeneration(
       eventContext,
       realWorldContext
     );
+
+    // Match image URLs from real-world data by title/venue name similarity
+    // (LLMs don't reliably copy URLs, so we match post-generation)
+    for (const option of options) {
+      if (!option.image_url && realWorldContext) {
+        const titleLower = option.title.toLowerCase();
+        const venueLower = (option.venue_name ?? '').toLowerCase();
+
+        // Check events for matching image
+        const matchedEvent = realWorldContext.events.find((e) =>
+          titleLower.includes(e.title.toLowerCase()) ||
+          e.title.toLowerCase().includes(titleLower) ||
+          (venueLower && e.venueName?.toLowerCase().includes(venueLower))
+        );
+        if (matchedEvent?.imageUrl) {
+          option.image_url = matchedEvent.imageUrl;
+          continue;
+        }
+
+        // Check venues for matching photo
+        const matchedVenue = realWorldContext.venues.find((v) =>
+          titleLower.includes(v.name.toLowerCase()) ||
+          v.name.toLowerCase().includes(titleLower) ||
+          (venueLower && v.name.toLowerCase().includes(venueLower))
+        );
+        if (matchedVenue?.photoUrl) {
+          option.image_url = matchedVenue.photoUrl;
+        }
+      }
+    }
 
     // Store generated options in parallel
     await Promise.all(
