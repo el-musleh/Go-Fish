@@ -1,0 +1,552 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import express from 'express';
+import request from 'supertest';
+import { createEventRouter } from './eventRouter';
+
+vi.mock('../repositories/eventRepository', () => ({
+  createEvent: vi.fn(),
+  getEventById: vi.fn(),
+  updateEventStatus: vi.fn(),
+}));
+
+vi.mock('../repositories/invitationLinkRepository', () => ({
+  createInvitationLink: vi.fn(),
+  getInvitationLinkByEventId: vi.fn(),
+}));
+
+vi.mock('../services/responseWindowScheduler', () => ({
+  triggerGeneration: vi.fn(),
+}));
+
+vi.mock('../repositories/activityOptionRepository', () => ({
+  getActivityOptionsByEventId: vi.fn(),
+  getActivityOptionById: vi.fn(),
+  markActivityOptionSelected: vi.fn(),
+}));
+
+import { createEvent, getEventById, updateEventStatus } from '../repositories/eventRepository';
+import { createInvitationLink, getInvitationLinkByEventId } from '../repositories/invitationLinkRepository';
+import { triggerGeneration } from '../services/responseWindowScheduler';
+import { getActivityOptionsByEventId, getActivityOptionById, markActivityOptionSelected } from '../repositories/activityOptionRepository';
+
+const mockPool = {} as any;
+
+function buildApp() {
+  const app = express();
+  app.use(express.json());
+  app.use('/api/events', createEventRouter(mockPool));
+  return app;
+}
+
+describe('POST /api/events', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when no x-user-id header is provided', async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events')
+      .send({ title: 'Test', description: 'Desc' });
+    expect(res.status).toBe(401);
+    expect(res.body.error).toBe('unauthorized');
+  });
+
+  it('returns 400 with both fields when title and description are missing', async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events')
+      .set('x-user-id', 'user-1')
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('missing_fields');
+    expect(res.body.fields).toEqual(expect.arrayContaining(['title', 'description']));
+    expect(res.body.fields).toHaveLength(2);
+  });
+
+  it('returns 400 when title is missing', async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events')
+      .set('x-user-id', 'user-1')
+      .send({ description: 'A description' });
+    expect(res.status).toBe(400);
+    expect(res.body.fields).toEqual(['title']);
+  });
+
+  it('returns 400 when description is missing', async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events')
+      .set('x-user-id', 'user-1')
+      .send({ title: 'A title' });
+    expect(res.status).toBe(400);
+    expect(res.body.fields).toEqual(['description']);
+  });
+
+  it('returns 400 when title is an empty string', async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events')
+      .set('x-user-id', 'user-1')
+      .send({ title: '   ', description: 'Desc' });
+    expect(res.status).toBe(400);
+    expect(res.body.fields).toEqual(['title']);
+  });
+
+  it('creates event with status collecting and 24h window on valid input', async () => {
+    const now = Date.now();
+    const mockEvent = {
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      title: 'Game Night',
+      description: 'Board games at my place',
+      response_window_start: new Date(now),
+      response_window_end: new Date(now + 24 * 60 * 60 * 1000),
+      status: 'collecting',
+      created_at: new Date(now),
+    };
+    (createEvent as any).mockResolvedValue(mockEvent);
+
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events')
+      .set('x-user-id', 'user-1')
+      .send({ title: 'Game Night', description: 'Board games at my place' });
+
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBe('evt-1');
+    expect(res.body.status).toBe('collecting');
+    expect(res.body.inviter_id).toBe('user-1');
+
+    expect(createEvent).toHaveBeenCalledWith(mockPool, expect.objectContaining({
+      inviter_id: 'user-1',
+      title: 'Game Night',
+      description: 'Board games at my place',
+    }));
+
+    // Verify the response_window_end is ~24h from now
+    const callArgs = (createEvent as any).mock.calls[0][1];
+    const windowEnd = callArgs.response_window_end as Date;
+    const diffMs = windowEnd.getTime() - now;
+    // Allow 5 seconds of tolerance for test execution time
+    expect(diffMs).toBeGreaterThanOrEqual(24 * 60 * 60 * 1000 - 5000);
+    expect(diffMs).toBeLessThanOrEqual(24 * 60 * 60 * 1000 + 5000);
+  });
+});
+
+describe('GET /api/events/:eventId', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when no x-user-id header is provided', async () => {
+    const app = buildApp();
+    const res = await request(app).get('/api/events/evt-1');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 when event does not exist', async () => {
+    (getEventById as any).mockResolvedValue(null);
+    const app = buildApp();
+    const res = await request(app)
+      .get('/api/events/nonexistent')
+      .set('x-user-id', 'user-1');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('not_found');
+  });
+
+  it('returns the event when it exists', async () => {
+    const mockEvent = {
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      title: 'Game Night',
+      description: 'Board games',
+      status: 'collecting',
+      created_at: new Date(),
+    };
+    (getEventById as any).mockResolvedValue(mockEvent);
+
+    const app = buildApp();
+    const res = await request(app)
+      .get('/api/events/evt-1')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.id).toBe('evt-1');
+    expect(res.body.title).toBe('Game Night');
+    expect(getEventById).toHaveBeenCalledWith(mockPool, 'evt-1');
+  });
+});
+
+describe('POST /api/events/:eventId/link', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when no x-user-id header is provided', async () => {
+    const app = buildApp();
+    const res = await request(app).post('/api/events/evt-1/link');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 when event does not exist', async () => {
+    (getEventById as any).mockResolvedValue(null);
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/nonexistent/link')
+      .set('x-user-id', 'user-1');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('not_found');
+  });
+
+  it('returns existing link if one already exists for the event', async () => {
+    const mockEvent = { id: 'evt-1', inviter_id: 'user-1', title: 'Test', status: 'collecting' };
+    (getEventById as any).mockResolvedValue(mockEvent);
+    (getInvitationLinkByEventId as any).mockResolvedValue({
+      id: 'link-1',
+      event_id: 'evt-1',
+      token: 'existing-token-abc',
+      created_at: new Date(),
+    });
+
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/link')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.token).toBe('existing-token-abc');
+    expect(res.body.link).toBe('/api/invite/existing-token-abc');
+    expect(createInvitationLink).not.toHaveBeenCalled();
+  });
+
+  it('generates a new invitation link with a URL-safe token', async () => {
+    const mockEvent = { id: 'evt-1', inviter_id: 'user-1', title: 'Test', status: 'collecting' };
+    (getEventById as any).mockResolvedValue(mockEvent);
+    (getInvitationLinkByEventId as any).mockResolvedValue(null);
+    (createInvitationLink as any).mockImplementation((_pool: any, data: any) =>
+      Promise.resolve({ id: 'link-1', event_id: data.event_id, token: data.token, created_at: new Date() })
+    );
+
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/link')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(201);
+    expect(res.body.token).toBeDefined();
+    expect(typeof res.body.token).toBe('string');
+    expect(res.body.token.length).toBeGreaterThan(0);
+    // base64url tokens only contain [A-Za-z0-9_-]
+    expect(res.body.token).toMatch(/^[A-Za-z0-9_-]+$/);
+    expect(res.body.link).toBe(`/api/invite/${res.body.token}`);
+    expect(createInvitationLink).toHaveBeenCalledWith(mockPool, {
+      event_id: 'evt-1',
+      token: expect.any(String),
+    });
+  });
+});
+
+describe('POST /api/events/:eventId/generate', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when no x-user-id header is provided', async () => {
+    const app = buildApp();
+    const res = await request(app).post('/api/events/evt-1/generate');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 when event does not exist', async () => {
+    (getEventById as any).mockResolvedValue(null);
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/generate')
+      .set('x-user-id', 'user-1');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('not_found');
+  });
+
+  it('returns 403 when user is not the inviter', async () => {
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      status: 'collecting',
+    });
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/generate')
+      .set('x-user-id', 'user-other');
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+  });
+
+  it('returns 409 when event status is not collecting', async () => {
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      status: 'options_ready',
+    });
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/generate')
+      .set('x-user-id', 'user-1');
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('invalid_status');
+  });
+
+  it('triggers generation and returns options on success', async () => {
+    const mockEvent = {
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      status: 'collecting',
+    };
+    const mockOptions = [
+      { title: 'Hiking', description: 'Mountain trail', suggested_date: '2025-08-01', rank: 1 },
+      { title: 'Bowling', description: 'Bowling alley', suggested_date: '2025-08-02', rank: 2 },
+      { title: 'Movie', description: 'Cinema night', suggested_date: '2025-08-03', rank: 3 },
+    ];
+    (getEventById as any).mockResolvedValue(mockEvent);
+    (triggerGeneration as any).mockResolvedValue(mockOptions);
+
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/generate')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.options).toHaveLength(3);
+    expect(res.body.options[0].title).toBe('Hiking');
+    expect(triggerGeneration).toHaveBeenCalledWith('evt-1', { pool: mockPool });
+  });
+
+  it('returns 503 when generation fails', async () => {
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      status: 'collecting',
+    });
+    (triggerGeneration as any).mockRejectedValue(new Error('Gemini API failed'));
+
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/generate')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(503);
+    expect(res.body.error).toBe('generation_failed');
+  });
+});
+
+describe('GET /api/events/:eventId/options', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when no x-user-id header is provided', async () => {
+    const app = buildApp();
+    const res = await request(app).get('/api/events/evt-1/options');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 404 when event does not exist', async () => {
+    (getEventById as any).mockResolvedValue(null);
+    const app = buildApp();
+    const res = await request(app)
+      .get('/api/events/evt-1/options')
+      .set('x-user-id', 'user-1');
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('not_found');
+  });
+
+  it('returns activity options for the event', async () => {
+    const mockEvent = { id: 'evt-1', inviter_id: 'user-1', status: 'options_ready' };
+    const mockOptions = [
+      { id: 'opt-1', event_id: 'evt-1', title: 'Hiking', description: 'Trail', suggested_date: '2025-08-01', rank: 1, is_selected: false },
+      { id: 'opt-2', event_id: 'evt-1', title: 'Bowling', description: 'Alley', suggested_date: '2025-08-02', rank: 2, is_selected: false },
+      { id: 'opt-3', event_id: 'evt-1', title: 'Movie', description: 'Cinema', suggested_date: '2025-08-03', rank: 3, is_selected: false },
+    ];
+    (getEventById as any).mockResolvedValue(mockEvent);
+    (getActivityOptionsByEventId as any).mockResolvedValue(mockOptions);
+
+    const app = buildApp();
+    const res = await request(app)
+      .get('/api/events/evt-1/options')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.options).toHaveLength(3);
+    expect(res.body.options[0].title).toBe('Hiking');
+    expect(res.body.options[2].rank).toBe(3);
+    expect(getActivityOptionsByEventId).toHaveBeenCalledWith(mockPool, 'evt-1');
+  });
+
+  it('returns empty array when no options exist yet', async () => {
+    (getEventById as any).mockResolvedValue({ id: 'evt-1', inviter_id: 'user-1', status: 'collecting' });
+    (getActivityOptionsByEventId as any).mockResolvedValue([]);
+
+    const app = buildApp();
+    const res = await request(app)
+      .get('/api/events/evt-1/options')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.options).toEqual([]);
+  });
+});
+
+describe('POST /api/events/:eventId/select', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 when no x-user-id header is provided', async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/select')
+      .send({ activityOptionId: 'opt-1' });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 400 when activityOptionId is missing', async () => {
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/select')
+      .set('x-user-id', 'user-1')
+      .send({});
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('missing_fields');
+  });
+
+  it('returns 404 when event does not exist', async () => {
+    (getEventById as any).mockResolvedValue(null);
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/nonexistent/select')
+      .set('x-user-id', 'user-1')
+      .send({ activityOptionId: 'opt-1' });
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('not_found');
+  });
+
+  it('returns 403 when user is not the inviter', async () => {
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      status: 'options_ready',
+    });
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/select')
+      .set('x-user-id', 'user-other')
+      .send({ activityOptionId: 'opt-1' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toBe('forbidden');
+  });
+
+  it('returns 409 when event is already finalized', async () => {
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      status: 'finalized',
+    });
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/select')
+      .set('x-user-id', 'user-1')
+      .send({ activityOptionId: 'opt-1' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('already_finalized');
+  });
+
+  it('returns 409 when event status is not options_ready', async () => {
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      status: 'collecting',
+    });
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/select')
+      .set('x-user-id', 'user-1')
+      .send({ activityOptionId: 'opt-1' });
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe('invalid_status');
+  });
+
+  it('returns 404 when activity option does not exist', async () => {
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      status: 'options_ready',
+    });
+    (getActivityOptionById as any).mockResolvedValue(null);
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/select')
+      .set('x-user-id', 'user-1')
+      .send({ activityOptionId: 'opt-999' });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toBe('Activity option not found for this event.');
+  });
+
+  it('returns 404 when activity option belongs to a different event', async () => {
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      status: 'options_ready',
+    });
+    (getActivityOptionById as any).mockResolvedValue({
+      id: 'opt-1',
+      event_id: 'evt-other',
+      title: 'Hiking',
+      rank: 1,
+      is_selected: false,
+    });
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/select')
+      .set('x-user-id', 'user-1')
+      .send({ activityOptionId: 'opt-1' });
+    expect(res.status).toBe(404);
+    expect(res.body.message).toBe('Activity option not found for this event.');
+  });
+
+  it('selects the option and finalizes the event on success', async () => {
+    const mockEvent = {
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      status: 'options_ready',
+    };
+    const mockOption = {
+      id: 'opt-2',
+      event_id: 'evt-1',
+      title: 'Bowling',
+      description: 'Bowling alley',
+      suggested_date: '2025-08-02',
+      rank: 2,
+      is_selected: false,
+    };
+    const finalizedEvent = { ...mockEvent, status: 'finalized' };
+
+    (getEventById as any).mockResolvedValue(mockEvent);
+    (getActivityOptionById as any).mockResolvedValue(mockOption);
+    (markActivityOptionSelected as any).mockResolvedValue({ ...mockOption, is_selected: true });
+    (updateEventStatus as any).mockResolvedValue(finalizedEvent);
+
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/select')
+      .set('x-user-id', 'user-1')
+      .send({ activityOptionId: 'opt-2' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.event.status).toBe('finalized');
+    expect(res.body.selectedOption.is_selected).toBe(true);
+    expect(res.body.selectedOption.title).toBe('Bowling');
+    expect(markActivityOptionSelected).toHaveBeenCalledWith(mockPool, 'opt-2');
+    expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'evt-1', 'finalized');
+  });
+});

@@ -1,0 +1,56 @@
+import { Pool } from 'pg';
+import { Event, EventStatus } from '../models/Event';
+
+export async function createEvent(
+  pool: Pool,
+  data: Pick<Event, 'inviter_id' | 'title' | 'description'> & {
+    response_window_end: Date;
+  }
+): Promise<Event> {
+  const { rows } = await pool.query(
+    `INSERT INTO event (inviter_id, title, description, response_window_end)
+     VALUES ($1, $2, $3, $4) RETURNING *`,
+    [data.inviter_id, data.title, data.description, data.response_window_end]
+  );
+  return rows[0];
+}
+
+export async function getEventById(pool: Pool, id: string): Promise<Event | null> {
+  const { rows } = await pool.query(`SELECT * FROM event WHERE id = $1`, [id]);
+  return rows[0] ?? null;
+}
+
+export async function updateEventStatus(
+  pool: Pool,
+  id: string,
+  status: EventStatus
+): Promise<Event | null> {
+  const { rows } = await pool.query(
+    `UPDATE event SET status = $1 WHERE id = $2 RETURNING *`,
+    [status, id]
+  );
+  return rows[0] ?? null;
+}
+
+export async function getEventsByInviterId(pool: Pool, inviterId: string): Promise<Event[]> {
+  const { rows } = await pool.query(
+    `SELECT * FROM event WHERE inviter_id = $1 ORDER BY created_at DESC`,
+    [inviterId]
+  );
+  return rows;
+}
+
+export async function deleteEvent(pool: Pool, id: string): Promise<boolean> {
+  const { rowCount } = await pool.query(`DELETE FROM event WHERE id = $1`, [id]);
+  return (rowCount ?? 0) > 0;
+}
+
+export async function getEventsByIds(pool: Pool, ids: string[]): Promise<Event[]> {
+  if (ids.length === 0) return [];
+  const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+  const { rows } = await pool.query(
+    `SELECT * FROM event WHERE id IN (${placeholders}) ORDER BY created_at DESC`,
+    ids
+  );
+  return rows;
+}

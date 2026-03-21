@@ -1,0 +1,117 @@
+import { Router, Request, Response } from 'express';
+import { Pool } from 'pg';
+import { requireAuth } from '../middleware/auth';
+import { tasteBenchmarkGate } from '../middleware/tasteBenchmarkGate';
+import { getEventById } from '../repositories/eventRepository';
+import {
+  createResponse,
+  getResponsesByEventId,
+  getResponseByEventAndInvitee,
+} from '../repositories/responseRepository';
+
+export function createResponseRouter(pool: Pool): Router {
+  const router = Router({ mergeParams: true });
+
+  /**
+   * POST /api/events/:eventId/responses
+   * Submit invitee response with available dates.
+   * Requires auth + taste benchmark.
+   */
+  router.post(
+    '/',
+    requireAuth,
+    tasteBenchmarkGate(pool),
+    async (req: Request, res: Response) => {
+      try {
+        const userId = (req as any).userId as string;
+        const { eventId } = req.params;
+        const { available_dates } = req.body;
+
+        // Validate dates
+        if (
+          !available_dates ||
+          !Array.isArray(available_dates) ||
+          available_dates.length === 0
+        ) {
+          res.status(400).json({
+            error: 'invalid_dates',
+            message: 'At least one available date is required.',
+          });
+          return;
+        }
+
+        // Check event exists
+        const event = await getEventById(pool, eventId);
+        if (!event) {
+          res.status(404).json({ error: 'not_found', message: 'Event not found.' });
+          return;
+        }
+
+        // Check response window is open
+        const now = new Date();
+        if (now > new Date(event.response_window_end)) {
+          res.status(403).json({
+            error: 'window_closed',
+            message: 'The response period for this event has ended.',
+          });
+          return;
+        }
+
+        // Enforce one response per invitee per event
+        const existing = await getResponseByEventAndInvitee(pool, eventId, userId);
+        if (existing) {
+          res.status(409).json({
+            error: 'duplicate_response',
+            message: 'You have already submitted a response for this event.',
+          });
+          return;
+        }
+
+        const response = await createResponse(pool, {
+          event_id: eventId,
+          invitee_id: userId,
+          available_dates,
+        });
+
+        res.status(201).json(response);
+      } catch (error) {
+        console.error('Error submitting response:', error);
+        res.status(500).json({ error: 'internal_error', message: 'Failed to submit response.' });
+      }
+    },
+  );
+
+  /**
+   * GET /api/events/:eventId/responses
+   * Return all responses for an event (Inviter only).
+   */
+  router.get('/', requireAuth, async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId as string;
+      const { eventId } = req.params;
+
+      const event = await getEventById(pool, eventId);
+      if (!event) {
+        res.status(404).json({ error: 'not_found', message: 'Event not found.' });
+        return;
+      }
+
+      // Only the inviter can view responses
+      if (event.inviter_id !== userId) {
+        res.status(403).json({
+          error: 'forbidden',
+          message: 'Only the event inviter can view responses.',
+        });
+        return;
+      }
+
+      const responses = await getResponsesByEventId(pool, eventId);
+      res.json(responses);
+    } catch (error) {
+      console.error('Error fetching responses:', error);
+      res.status(500).json({ error: 'internal_error', message: 'Failed to fetch responses.' });
+    }
+  });
+
+  return router;
+}
