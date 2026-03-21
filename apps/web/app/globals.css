@@ -531,8 +531,14 @@ textarea {
 }
 
 .gf-option-card {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 14px;
+}
+
+.gf-option-card .gf-button {
+  margin-top: auto;
+  width: 100%;
 }
 
 .gf-option-card--dismissible {
