@@ -15,7 +15,6 @@ export default function EventConfirmation() {
   const [selected, setSelected] = useState<ActivityOption | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     if (!eventId) return;
@@ -24,13 +23,6 @@ export default function EventConfirmation() {
       .catch(() => setError('Failed to load confirmation.'))
       .finally(() => setLoading(false));
   }, [eventId]);
-
-  async function copyLink() {
-    const link = `${window.location.origin}/invite/${eventId}`;
-    await navigator.clipboard.writeText(link);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1800);
-  }
 
   if (loading) return <p className="gf-muted">Loading…</p>;
   if (error) return <p className="gf-feedback gf-feedback--error">{error}</p>;
@@ -60,9 +52,6 @@ export default function EventConfirmation() {
       </p>
 
       <div className="gf-actions" style={{ justifyContent: 'center' }}>
-        <button className="gf-button gf-button--secondary" onClick={copyLink}>
-          {copied ? 'Copied' : 'Share Link'}
-        </button>
         <button className="gf-button gf-button--ghost" onClick={() => navigate('/dashboard')}>
           Dashboard
         </button>
