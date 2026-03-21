@@ -38,10 +38,8 @@ export default function LandingPage() {
           chats required.
         </p>
         <div className="gf-landing__cta-row">
-          <Link to="/login">
-            <button className="gf-button gf-button--primary gf-landing__cta" type="button">
-              Get started
-            </button>
+          <Link to="/login" className="gf-button gf-button--primary gf-landing__cta">
+            Get started
           </Link>
           <a className="gf-landing__scroll-hint" href="#how">
             See how it works ↓
@@ -78,10 +76,8 @@ export default function LandingPage() {
         <p className="gf-landing__final-copy">
           Ready to plan something your crew will actually agree on?
         </p>
-        <Link to="/login">
-          <button className="gf-button gf-button--primary gf-landing__cta" type="button">
-            Create your first event
-          </button>
+        <Link to="/login" className="gf-button gf-button--primary gf-landing__cta">
+          Create your first event
         </Link>
       </section>
     </div>
