@@ -59,7 +59,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 onClick={() => setMenuOpen((open) => !open)}
                 type="button"
               >
-                {userLabel}
+                Preferences
               </button>
               {menuOpen ? (
                 <div className="gf-user-menu__dropdown">
