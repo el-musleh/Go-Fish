@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { getCurrentUserId } from './api/client';
+import AuthDialog from './components/AuthDialog';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import TasteBenchmarkForm from './pages/TasteBenchmarkForm';
@@ -13,6 +15,7 @@ import EventConfirmation from './pages/EventConfirmation';
 function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const userId = getCurrentUserId();
+  const [authOpen, setAuthOpen] = useState(false);
 
   function handleSignOut() {
     localStorage.removeItem('gofish_user_id');
@@ -41,13 +44,18 @@ function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </>
           ) : (
-            <Link to="/login">
-              <button className="gf-button gf-button--secondary">Sign in</button>
-            </Link>
+            <button
+              className="gf-button gf-button--secondary"
+              onClick={() => setAuthOpen(true)}
+              type="button"
+            >
+              Sign in
+            </button>
           )}
         </div>
       </header>
       <main className="gf-main">{children}</main>
+      <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
     </div>
   );
 }

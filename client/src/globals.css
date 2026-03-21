@@ -359,6 +359,90 @@ button, input, textarea { font: inherit; }
 .gf-option-card--featured { width: 100%; padding: 36px 32px; }
 .gf-option-card--featured .gf-card-title { font-size: 2rem; }
 
+/* Auth tabs */
+.gf-auth-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(13, 8, 7, 0.6);
+  border: 1px solid var(--line);
+}
+
+.gf-auth-tab {
+  flex: 1;
+  padding: 10px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 180ms ease, color 180ms ease;
+}
+
+.gf-auth-tab--active {
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  color: #120a07;
+}
+
+/* Modal dialog */
+.gf-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(9, 5, 4, 0.72);
+  backdrop-filter: blur(8px);
+  animation: gf-fade-in 200ms ease;
+}
+
+.gf-dialog {
+  position: relative;
+  width: min(480px, 100%);
+  padding: 36px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  backdrop-filter: blur(24px);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  animation: gf-rise 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.gf-dialog__close {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 1.3rem;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background 180ms ease, color 180ms ease;
+  line-height: 1;
+}
+
+.gf-dialog__close:hover {
+  background: rgba(255, 157, 73, 0.08);
+  color: var(--text);
+}
+
+@keyframes gf-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @keyframes gf-rise {
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }

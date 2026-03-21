@@ -1,14 +1,18 @@
-import { useState, type FormEvent } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useState, useEffect, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { api, setCurrentUserId } from '../api/client';
 
+interface AuthDialogProps {
+  open: boolean;
+  onClose: () => void;
+  returnTo?: string;
+}
+
 type Mode = 'signin' | 'signup';
 
-export default function AuthPage() {
+export default function AuthDialog({ open, onClose, returnTo = '/dashboard' }: AuthDialogProps) {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const returnTo = searchParams.get('returnTo') || '/dashboard';
   const [mode, setMode] = useState<Mode>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -16,6 +20,26 @@ export default function AuthPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!open) {
+      setEmail('');
+      setPassword('');
+      setConfirmPassword('');
+      setError('');
+      setSuccess('');
+      setMode('signin');
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [open, onClose]);
 
   async function syncWithBackend(userEmail: string) {
     return api.post<{ userId: string; isNew: boolean }>('/auth/email', { email: userEmail });
@@ -33,6 +57,7 @@ export default function AuthPage() {
       if (authError) throw authError;
       const { userId, isNew } = await syncWithBackend(data.user.email!);
       setCurrentUserId(userId);
+      onClose();
       navigate(isNew ? `/benchmark?returnTo=${encodeURIComponent(returnTo)}` : returnTo, { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not sign in.');
@@ -60,6 +85,7 @@ export default function AuthPage() {
       } else if (data.user) {
         const { userId, isNew } = await syncWithBackend(data.user.email!);
         setCurrentUserId(userId);
+        onClose();
         navigate(isNew ? `/benchmark?returnTo=${encodeURIComponent(returnTo)}` : returnTo, { replace: true });
       }
     } catch (err: unknown) {
@@ -69,28 +95,28 @@ export default function AuthPage() {
     }
   }
 
-  function switchMode(next: Mode) {
-    setMode(next);
-    setError('');
-    setSuccess('');
-  }
+  if (!open) return null;
 
   return (
-    <div className="gf-page-center">
-      <div className="gf-card gf-auth-panel">
+    <div className="gf-dialog-overlay" onClick={onClose} role="dialog" aria-modal="true">
+      <div className="gf-dialog" onClick={e => e.stopPropagation()}>
+        <button className="gf-dialog__close" onClick={onClose} aria-label="Close">
+          ×
+        </button>
+
         <h2 className="gf-section-title">{mode === 'signin' ? 'Sign in' : 'Sign up'}</h2>
 
         <div className="gf-auth-tabs">
           <button
             className={`gf-auth-tab${mode === 'signin' ? ' gf-auth-tab--active' : ''}`}
-            onClick={() => switchMode('signin')}
+            onClick={() => { setMode('signin'); setError(''); setSuccess(''); }}
             type="button"
           >
             Sign in
           </button>
           <button
             className={`gf-auth-tab${mode === 'signup' ? ' gf-auth-tab--active' : ''}`}
-            onClick={() => switchMode('signup')}
+            onClick={() => { setMode('signup'); setError(''); setSuccess(''); }}
             type="button"
           >
             Sign up
