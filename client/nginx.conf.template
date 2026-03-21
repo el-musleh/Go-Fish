@@ -1,5 +1,5 @@
 server {
-    listen 3000;
+    listen ${PORT};
 
     location /api {
         proxy_pass ${BACKEND_URL};
