@@ -466,6 +466,7 @@ textarea {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  color: var(--text);
   padding: 10px 14px;
   border-radius: 999px;
   border: 1px solid var(--line);
