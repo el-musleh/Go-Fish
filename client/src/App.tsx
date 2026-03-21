@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Sun, Moon } from 'lucide-react';
 import { getCurrentUserId } from './api/client';
 import AuthPage from './pages/AuthPage';
@@ -13,6 +13,17 @@ import ActivityOptionsView from './pages/ActivityOptionsView';
 import EventConfirmation from './pages/EventConfirmation';
 import PrototypePage from './pages/prototype/PrototypePage';
 import MemoriesPage from './pages/MemoriesPage';
+
+function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
+  const location = useLocation();
+  const [path, qs] = to.split('?');
+  const isActive = location.pathname === path && (!qs || location.search === `?${qs}`);
+  return (
+    <Link to={to} className={isActive ? 'gf-nav-link gf-nav-link--active' : 'gf-nav-link'}>
+      {children}
+    </Link>
+  );
+}
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
@@ -45,8 +56,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
           <span>Go Fish</span>
         </Link>
         <nav className="gf-nav">
-          {userId && <Link to="/events/new">New</Link>}
-          {userId && <Link to="/memories">Memories</Link>}
+          {userId && <NavItem to="/dashboard">Home</NavItem>}
+          {userId && <NavItem to="/dashboard?tab=timeline">Timeline</NavItem>}
+          {userId && <NavItem to="/events/new">Create</NavItem>}
+          {userId && <NavItem to="/memories">Memories</NavItem>}
         </nav>
         <div className="gf-topbar__actions">
           <button

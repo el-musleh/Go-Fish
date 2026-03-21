@@ -126,17 +126,28 @@ button, input, textarea, select { font: inherit; color: inherit; }
 }
 .gf-brand__icon { height: 2rem; width: auto; }
 
-.gf-nav { display: flex; justify-content: center; gap: 8px; }
-.gf-nav a {
-  padding: 9px 20px;
+.gf-nav { display: flex; justify-content: center; gap: 6px; }
+
+.gf-nav-link {
+  padding: 8px 18px;
   border-radius: 999px;
-  font-size: 0.9rem;
+  border: 1px solid var(--line);
+  font-size: 0.88rem;
   font-weight: 600;
+  color: var(--muted);
+  background: transparent;
+  transition: color 180ms ease, background 180ms ease, border-color 180ms ease;
+}
+.gf-nav-link:hover {
+  color: var(--text);
+  background: var(--line);
+  border-color: var(--line-strong);
+}
+.gf-nav-link--active {
   color: #000;
   background: linear-gradient(135deg, var(--accent-strong), var(--accent));
-  transition: opacity 180ms ease, transform 180ms ease;
+  border-color: transparent;
 }
-.gf-nav a:hover { opacity: 0.88; transform: translateY(-1px); }
 
 .gf-topbar__actions { display: flex; align-items: center; gap: 10px; }
 

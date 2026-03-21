@@ -244,7 +244,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState('');
-  const [tab, setTab] = useState<'events' | 'timeline'>('events');
+  const [tab, setTab] = useState<'events' | 'timeline'>(() =>
+    searchParams.get('tab') === 'timeline' ? 'timeline' : 'events',
+  );
 
   async function handleDelete(eventId: string) {
     try {
@@ -256,6 +258,10 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
+    setTab(searchParams.get('tab') === 'timeline' ? 'timeline' : 'events');
+  }, [searchParams]);
+
+useEffect(() => {
     if (searchParams.get('prefsUpdated')) {
       setToast('Preferences updated');
       setSearchParams({}, { replace: true });
@@ -287,21 +293,6 @@ export default function Dashboard() {
     <div className="gf-stack gf-stack--xl">
       {toast && <p className="gf-feedback gf-feedback--success">✓ {toast}</p>}
       {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
-
-      <div className="gf-tabs">
-        <button
-          className={`gf-tab${tab === 'events' ? ' gf-tab--active' : ''}`}
-          onClick={() => setTab('events')}
-        >
-          Home
-        </button>
-        <button
-          className={`gf-tab${tab === 'timeline' ? ' gf-tab--active' : ''}`}
-          onClick={() => setTab('timeline')}
-        >
-          Planned / Timeline
-        </button>
-      </div>
 
       {tab === 'events' && (
         <>
