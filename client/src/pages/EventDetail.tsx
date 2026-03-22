@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, getCurrentUserId } from '../api/client';
 import InvitationLinkPanel from './InvitationLinkPanel';
@@ -18,14 +18,15 @@ function formatRemaining(ms: number) {
 }
 
 function useCountdown(target: string) {
-  const [remaining, setRemaining] = useState(0);
+  const [now, setNow] = useState(Date.now);
   useEffect(() => {
     if (!target) return;
-    const tick = () => setRemaining(new Date(target).getTime() - Date.now());
+    const tick = () => setNow(Date.now());
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [target]);
+  const remaining = target ? new Date(target).getTime() - now : 0;
   return { remaining, expired: remaining <= 0 && !!target };
 }
 
@@ -98,8 +99,10 @@ export default function EventDetail() {
     }
   }, [eventId]);
 
+  const autoGenerateAttempted = useRef(false);
   useEffect(() => {
-    if (isCreator && event?.status === 'collecting' && expired && !working) {
+    if (isCreator && event?.status === 'collecting' && expired && !working && !autoGenerateAttempted.current) {
+      autoGenerateAttempted.current = true;
       handleGenerate();
     }
   }, [expired, isCreator, event?.status, working, handleGenerate]);
@@ -140,8 +143,8 @@ export default function EventDetail() {
           <button type="button" className="gf-button gf-button--primary" onClick={() => navigate(`/events/${event.id}/confirmation`)}>
             View confirmation
           </button>
-          <button type="button" className="gf-button gf-button--ghost" onClick={() => navigate('/dashboard')}>
-            Dashboard
+          <button type="button" className="gf-button gf-button--ghost" onClick={() => navigate(`/dashboard?tab=timeline&event=${event.id}`)}>
+            View in Timeline
           </button>
         </div>
       </div>
@@ -156,7 +159,9 @@ export default function EventDetail() {
         <div className="gf-card">
           <h3 className="gf-card-title">Generating options...</h3>
           <p className="gf-muted">The AI is creating activity suggestions. This usually takes a moment.</p>
-          <p className="gf-muted" style={{ marginTop: 6 }}>You can safely leave this page. The options will be ready for you to pick later.</p>
+          <p className="gf-muted" style={{ marginTop: 6 }}>
+            {isCreator ? 'You can safely leave this page. The options will be ready for you to pick later.' : 'The options will be ready for the organizer to pick shortly.'}
+          </p>
         </div>
       </div>
     );
@@ -173,9 +178,13 @@ export default function EventDetail() {
         <div className="gf-card gf-text-center" style={{ padding: '40px 20px' }}>
           <h3 className="gf-card-title">Options are ready</h3>
           <p className="gf-muted" style={{ marginBottom: '24px' }}>The AI has created activity suggestions for your group.</p>
-          <button type="button" className="gf-button gf-button--primary" onClick={() => navigate(`/events/${event.id}/options`)}>
-            Pick activity
-          </button>
+          {isCreator ? (
+            <button type="button" className="gf-button gf-button--primary" onClick={() => navigate(`/events/${event.id}/options`)}>
+              Pick activity
+            </button>
+          ) : (
+            <p className="gf-muted" style={{ fontWeight: 500, color: 'var(--accent)' }}>Waiting for the organizer to pick the final activity...</p>
+          )}
         </div>
       </div>
     );
@@ -189,7 +198,7 @@ export default function EventDetail() {
         {event.location_city && <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>&#128205; {event.location_city}</p>}
       </div>
 
-      {isCreator && (
+      {isCreator ? (
         <div className="gf-row-between">
           <button type="button" className="gf-button gf-button--secondary" onClick={copyLink}>
             {copied ? 'Copied' : 'Copy invite link'}
@@ -197,6 +206,19 @@ export default function EventDetail() {
           <div className="gf-stack gf-stack--sm" style={{ alignItems: 'center' }}>
             <span className={`gf-countdown${expired ? ' gf-countdown--expired' : ''}`}>
               {expired ? 'Expired' : formatRemaining(remaining)}
+            </span>
+            <span className="gf-countdown__label">{expired ? 'Response window closed' : 'remaining'}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="gf-card gf-text-center" style={{ padding: '32px 20px' }}>
+          <h3 className="gf-card-title">Waiting for the group...</h3>
+          <p className="gf-muted" style={{ marginBottom: '24px' }}>
+            The organizer is still collecting responses. Options will be generated once the time is up!
+          </p>
+          <div className="gf-stack gf-stack--sm" style={{ alignItems: 'center' }}>
+            <span className={`gf-countdown${expired ? ' gf-countdown--expired' : ''}`}>
+              {expired ? 'Generating...' : formatRemaining(remaining)}
             </span>
             <span className="gf-countdown__label">{expired ? 'Response window closed' : 'remaining'}</span>
           </div>

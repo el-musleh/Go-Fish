@@ -28,6 +28,8 @@ export default function TasteBenchmarkForm() {
   const [loading, setLoading] = useState(true);
   const [isUpdate, setIsUpdate] = useState(false);
   const questionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [addingOptionFor, setAddingOptionFor] = useState<string | null>(null);
+  const [newOptionValue, setNewOptionValue] = useState('');
 
   // Load existing preferences if any
   useEffect(() => {
@@ -115,7 +117,7 @@ export default function TasteBenchmarkForm() {
               </div>
               {hasErr && <p className="gf-feedback gf-feedback--error">Pick at least one</p>}
               <div className="gf-chip-grid">
-                {q.options.map((opt) => {
+                {Array.from(new Set([...q.options, ...(answers[q.id] || [])])).map((opt) => {
                   const selected = answers[q.id]?.includes(opt);
                   return (
                     <button key={opt} type="button" className="gf-chip-button" onClick={() => toggleOption(q.id, opt)} aria-pressed={selected}>
@@ -123,6 +125,38 @@ export default function TasteBenchmarkForm() {
                     </button>
                   );
                 })}
+                {addingOptionFor === q.id ? (
+                  <input
+                    type="text"
+                    className="gf-input"
+                    style={{ padding: '6px 12px', fontSize: '0.9rem', borderRadius: '999px', width: '140px', height: 'auto', border: '1px dashed var(--line-strong)' }}
+                    placeholder="Type & Enter..."
+                    autoFocus
+                    value={newOptionValue}
+                    onChange={e => setNewOptionValue(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newOptionValue.trim() && !answers[q.id]?.includes(newOptionValue.trim())) {
+                          toggleOption(q.id, newOptionValue.trim());
+                        }
+                        setAddingOptionFor(null);
+                      } else if (e.key === 'Escape') {
+                        setAddingOptionFor(null);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (newOptionValue.trim() && !answers[q.id]?.includes(newOptionValue.trim())) {
+                        toggleOption(q.id, newOptionValue.trim());
+                      }
+                      setAddingOptionFor(null);
+                    }}
+                  />
+                ) : (
+                  <button type="button" className="gf-chip-button" onClick={() => { setAddingOptionFor(q.id); setNewOptionValue(''); }}>
+                    <span className="gf-chip" style={{ borderStyle: 'dashed', background: 'transparent' }}>+ Add other</span>
+                  </button>
+                )}
               </div>
             </div>
           );

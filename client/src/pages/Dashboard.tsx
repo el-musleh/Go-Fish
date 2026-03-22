@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Users, MapPin, Calendar, Navigation, Split, Trash2, Search } from 'lucide-react';
+import { Users, MapPin, Calendar, Navigation, Trash2, Search } from 'lucide-react';
 import { api, getCurrentUserId, getCurrentUserEmail } from '../api/client';
 
 function formatWindowRemaining(end: string, status: string, working: boolean): string {
@@ -56,6 +56,11 @@ const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
   finalized: { label: 'Confirmed', cls: 'gf-status-chip--finalized' },
 };
 
+function formatOrganizerName(email?: string | null): string {
+  if (!email) return 'Unknown';
+  return email;
+}
+
 function EventCard({ event, role, onHide }: { event: EventItem; role: 'creator' | 'participant'; onHide?: (e: React.MouseEvent, id: string) => void }) {
   const s = STATUS_LABELS[event.status] || { label: event.status, cls: '' };
   const linkTo = event.status === 'options_ready' && role === 'creator'
@@ -67,8 +72,15 @@ function EventCard({ event, role, onHide }: { event: EventItem; role: 'creator' 
   return (
     <Link to={linkTo} style={{ textDecoration: 'none', color: 'inherit' }}>
       <div className="gf-card gf-event-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 className="gf-card-title">{event.title}</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div>
+            <h3 className="gf-card-title">{event.title}</h3>
+            {role === 'participant' && event.inviter_email && (
+              <p className="gf-muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+                by {formatOrganizerName(event.inviter_email)}
+              </p>
+            )}
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className={`gf-status-chip ${s.cls}`}>{s.label}</span>
             {onHide && (
@@ -121,7 +133,15 @@ function groupByDate(events: EventItem[]): DateGroup[] {
 
 function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: string) => void }) {
   const navigate = useNavigate();
-  const windowOpen = new Date(event.response_window_end) > new Date();
+  
+  // Force re-render every second to update countdown and trigger auto-generation when expired
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const windowOpen = new Date(event.response_window_end).getTime() > now;
   const isOrganizer = event.inviter_id === getCurrentUserId();
 
   const [working, setWorking] = useState(false);
@@ -139,8 +159,10 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
     }
   }, [event.id, event.status, working]);
 
+  const autoGenerateAttempted = useRef(false);
   useEffect(() => {
-    if (isOrganizer && event.status === 'collecting' && !windowOpen && !working) {
+    if (isOrganizer && event.status === 'collecting' && !windowOpen && !working && !autoGenerateAttempted.current) {
+      autoGenerateAttempted.current = true;
       handleGenerateOptions();
     }
   }, [isOrganizer, event.status, windowOpen, working, handleGenerateOptions]);
@@ -219,11 +241,7 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
         {detailRow('Date', dateValue)}
         {detailRow('Per person', suggestions?.estimated_cost_per_person ?? null)}
         {detailRow('Duration', durationValue)}
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Payment status</span>
-          <span className="gf-detail-row__value gf-detail-row__value--placeholder">— (coming soon)</span>
-        </div>
-        {detailRow('Organizer', event.inviter_email || (isOrganizer ? (getCurrentUserEmail() || 'You') : null))}
+        {(isOrganizer || event.inviter_email) && detailRow('Organizer', isOrganizer ? 'You' : formatOrganizerName(event.inviter_email))}
       </div>
 
       {event.description && (
@@ -277,9 +295,6 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
             {working ? 'Generating…' : 'End window & generate'}
           </button>
         )}
-        <button type="button" className="gf-button gf-button--ghost gf-inline-icon" title="Coming soon">
-          <Split size={14} /> Split Cost
-        </button>
         <button type="button" className="gf-button gf-button--ghost gf-inline-icon" title="Coming soon">
           <Calendar size={14} /> Add to Calendar
         </button>
@@ -341,6 +356,11 @@ function TimelineView({ events, initialEventId, onDelete, searchQuery, setSearch
                     className={`gf-timeline-card${selected?.id === ev.id ? ' gf-timeline-card--selected' : ''}`}
                   >
                     <p className="gf-timeline-card__title">{ev.title}</p>
+                    {ev.inviter_id !== getCurrentUserId() && ev.inviter_email && (
+                      <p className="gf-muted" style={{ fontSize: '0.8rem', textAlign: 'left', marginBottom: '4px' }}>
+                        by {formatOrganizerName(ev.inviter_email)}
+                      </p>
+                    )}
                     <div className="gf-timeline-card__meta">
                       {ev.respondent_count !== undefined && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>

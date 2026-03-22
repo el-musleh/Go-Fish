@@ -52,8 +52,8 @@ export default function EventConfirmation() {
       </p>
 
       <div className="gf-actions" style={{ justifyContent: 'center' }}>
-        <button type="button" className="gf-button gf-button--ghost" onClick={() => navigate('/dashboard')}>
-          Dashboard
+        <button type="button" className="gf-button gf-button--ghost" onClick={() => navigate(`/dashboard?tab=timeline&event=${eventId}`)}>
+          View in Timeline
         </button>
       </div>
     </div>
