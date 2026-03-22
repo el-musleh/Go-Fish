@@ -26,6 +26,16 @@ import {
 import { getUserById } from '../repositories/userRepository';
 
 const mockPool = {} as any;
+const sampleAvailability = [
+  { date: '2025-01-15', start_time: '18:00', end_time: '21:00' },
+];
+const alternateAvailability = [
+  { date: '2025-01-20', start_time: '19:00', end_time: '22:00' },
+];
+const multiDayAvailability = [
+  { date: '2025-01-15', start_time: '18:00', end_time: '21:00' },
+  { date: '2025-01-16', start_time: '17:30', end_time: '20:30' },
+];
 
 function buildApp() {
   const app = express();
@@ -68,7 +78,7 @@ describe('POST /api/events/:eventId/responses', () => {
     const app = buildApp();
     const res = await request(app)
       .post('/api/events/evt-1/responses')
-      .send({ available_dates: ['2025-01-15'] });
+      .send({ available_dates: sampleAvailability });
     expect(res.status).toBe(401);
   });
 
@@ -78,7 +88,7 @@ describe('POST /api/events/:eventId/responses', () => {
     const res = await request(app)
       .post('/api/events/evt-1/responses')
       .set('x-user-id', 'user-1')
-      .send({ available_dates: ['2025-01-15'] });
+      .send({ available_dates: sampleAvailability });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('benchmark_required');
   });
@@ -109,7 +119,7 @@ describe('POST /api/events/:eventId/responses', () => {
     const res = await request(app)
       .post('/api/events/nonexistent/responses')
       .set('x-user-id', 'user-1')
-      .send({ available_dates: ['2025-01-15'] });
+      .send({ available_dates: sampleAvailability });
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('not_found');
   });
@@ -120,7 +130,7 @@ describe('POST /api/events/:eventId/responses', () => {
     const res = await request(app)
       .post('/api/events/evt-1/responses')
       .set('x-user-id', 'user-1')
-      .send({ available_dates: ['2025-01-15'] });
+      .send({ available_dates: sampleAvailability });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('window_closed');
   });
@@ -131,13 +141,13 @@ describe('POST /api/events/:eventId/responses', () => {
       id: 'resp-1',
       event_id: 'evt-1',
       invitee_id: 'user-1',
-      available_dates: ['2025-01-15'],
+      available_dates: sampleAvailability,
     });
     const app = buildApp();
     const res = await request(app)
       .post('/api/events/evt-1/responses')
       .set('x-user-id', 'user-1')
-      .send({ available_dates: ['2025-01-20'] });
+      .send({ available_dates: alternateAvailability });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('duplicate_response');
   });
@@ -150,7 +160,7 @@ describe('POST /api/events/:eventId/responses', () => {
       id: 'resp-1',
       event_id: 'evt-1',
       invitee_id: 'user-1',
-      available_dates: ['2025-01-15', '2025-01-16'],
+      available_dates: multiDayAvailability,
       created_at: new Date(),
     };
     (createResponse as any).mockResolvedValue(mockResponse);
@@ -159,15 +169,15 @@ describe('POST /api/events/:eventId/responses', () => {
     const res = await request(app)
       .post('/api/events/evt-1/responses')
       .set('x-user-id', 'user-1')
-      .send({ available_dates: ['2025-01-15', '2025-01-16'] });
+      .send({ available_dates: multiDayAvailability });
 
     expect(res.status).toBe(201);
     expect(res.body.id).toBe('resp-1');
-    expect(res.body.available_dates).toEqual(['2025-01-15', '2025-01-16']);
+    expect(res.body.available_dates).toEqual(multiDayAvailability);
     expect(createResponse).toHaveBeenCalledWith(mockPool, {
       event_id: 'evt-1',
       invitee_id: 'user-1',
-      available_dates: ['2025-01-15', '2025-01-16'],
+      available_dates: multiDayAvailability,
     });
   });
 });
@@ -206,8 +216,8 @@ describe('GET /api/events/:eventId/responses', () => {
   it('returns responses when user is the inviter', async () => {
     (getEventById as any).mockResolvedValue(openEvent({ inviter_id: 'user-1' }));
     const mockResponses = [
-      { id: 'r1', event_id: 'evt-1', invitee_id: 'inv-1', available_dates: ['2025-01-15'] },
-      { id: 'r2', event_id: 'evt-1', invitee_id: 'inv-2', available_dates: ['2025-01-16'] },
+      { id: 'r1', event_id: 'evt-1', invitee_id: 'inv-1', available_dates: sampleAvailability },
+      { id: 'r2', event_id: 'evt-1', invitee_id: 'inv-2', available_dates: alternateAvailability },
     ];
     (getResponsesByEventId as any).mockResolvedValue(mockResponses);
 
