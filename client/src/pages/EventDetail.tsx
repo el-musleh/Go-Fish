@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, getCurrentUserId } from '../api/client';
+import { api, ApiError, getCurrentUserId } from '../api/client';
 import OptionGenerationState from '../components/OptionGenerationState';
 import InvitationLinkPanel from './InvitationLinkPanel';
 
@@ -19,14 +19,15 @@ function formatRemaining(ms: number) {
 }
 
 function useCountdown(target: string) {
-  const [remaining, setRemaining] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!target) return;
-    const tick = () => setRemaining(new Date(target).getTime() - Date.now());
+    const tick = () => setNow(Date.now());
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [target]);
+  const remaining = target ? new Date(target).getTime() - now : 0;
   return { remaining, expired: remaining <= 0 && !!target };
 }
 
@@ -84,7 +85,7 @@ export default function EventDetail() {
 
   const { remaining, expired } = useCountdown(event?.response_window_end || '');
 
-  async function handleGenerate() {
+  const handleGenerate = useCallback(async () => {
     if (!eventId) return;
     setWorking(true);
     setError('');
@@ -92,12 +93,35 @@ export default function EventDetail() {
       await api.post(`/events/${eventId}/generate`);
       const updated = await api.get<EventData>(`/events/${eventId}`);
       setEvent(updated);
-    } catch {
-      setError('Generation failed. Please try again.');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        api.get<EventData>(`/events/${eventId}`).then(setEvent).catch(() => {});
+      } else {
+        setError('Generation failed. Please try again.');
+      }
     } finally {
       setWorking(false);
     }
-  }
+  }, [eventId]);
+
+  const autoGenerateAttempted = useRef<string | null>(null);
+  useEffect(() => {
+    if (!eventId) {
+      autoGenerateAttempted.current = null;
+      return;
+    }
+    if (autoGenerateAttempted.current !== eventId) {
+      autoGenerateAttempted.current = null;
+    }
+  }, [eventId]);
+
+  useEffect(() => {
+    if (!eventId || !isCreator || event?.status !== 'collecting' || !expired || working || autoGenerateAttempted.current === eventId) {
+      return;
+    }
+    autoGenerateAttempted.current = eventId;
+    handleGenerate();
+  }, [event?.status, eventId, expired, handleGenerate, isCreator, working]);
 
   async function copyLink() {
     if (!eventId) return;
@@ -135,8 +159,8 @@ export default function EventDetail() {
           <button type="button" className="gf-button gf-button--primary" onClick={() => navigate(`/events/${event.id}/confirmation`)}>
             View confirmation
           </button>
-          <button type="button" className="gf-button gf-button--ghost" onClick={() => navigate('/dashboard')}>
-            Dashboard
+          <button type="button" className="gf-button gf-button--ghost" onClick={() => navigate(`/dashboard?tab=timeline&event=${event.id}`)}>
+            View in Timeline
           </button>
         </div>
       </div>
@@ -148,7 +172,33 @@ export default function EventDetail() {
     return (
       <div className="gf-stack gf-stack--xl">
         <h2 className="gf-section-title">{event.title}</h2>
-        <OptionGenerationState />
+        <OptionGenerationState
+          detail={isCreator
+            ? 'You can safely leave this page. The shortlist will be ready for you to review shortly.'
+            : 'The organizer will get the shortlist shortly. You can leave this page and check back later.'}
+        />
+      </div>
+    );
+  }
+
+  if (event.status === 'options_ready') {
+    return (
+      <div className="gf-stack gf-stack--xl">
+        <div>
+          <h2 className="gf-section-title">{event.title}</h2>
+          {event.location_city && <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>&#128205; {event.location_city}</p>}
+        </div>
+        <div className="gf-card gf-text-center" style={{ padding: '40px 20px' }}>
+          <h3 className="gf-card-title">Options are ready</h3>
+          <p className="gf-muted" style={{ marginBottom: '24px' }}>The AI has created activity suggestions for your group.</p>
+          {isCreator ? (
+            <button type="button" className="gf-button gf-button--primary" onClick={() => navigate(`/events/${event.id}/options`)}>
+              Pick activity
+            </button>
+          ) : (
+            <p className="gf-muted" style={{ fontWeight: 500, color: 'var(--accent)' }}>Waiting for the organizer to pick the final activity...</p>
+          )}
+        </div>
       </div>
     );
   }
@@ -161,14 +211,27 @@ export default function EventDetail() {
         {event.location_city && <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>&#128205; {event.location_city}</p>}
       </div>
 
-      {isCreator && (
+      {isCreator ? (
         <div className="gf-row-between">
           <button type="button" className="gf-button gf-button--secondary" onClick={copyLink}>
             {copied ? 'Copied' : 'Copy invite link'}
           </button>
           <div className="gf-stack gf-stack--sm" style={{ alignItems: 'center' }}>
             <span className={`gf-countdown${expired ? ' gf-countdown--expired' : ''}`}>
-              {expired ? 'Expired' : formatRemaining(remaining)}
+              {expired ? 'Generating...' : formatRemaining(remaining)}
+            </span>
+            <span className="gf-countdown__label">{expired ? 'Response window closed' : 'remaining'}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="gf-card gf-text-center" style={{ padding: '32px 20px' }}>
+          <h3 className="gf-card-title">Waiting for the group...</h3>
+          <p className="gf-muted" style={{ marginBottom: '24px' }}>
+            The organizer is still collecting responses. Options will be generated once the time is up.
+          </p>
+          <div className="gf-stack gf-stack--sm" style={{ alignItems: 'center' }}>
+            <span className={`gf-countdown${expired ? ' gf-countdown--expired' : ''}`}>
+              {expired ? 'Generating...' : formatRemaining(remaining)}
             </span>
             <span className="gf-countdown__label">{expired ? 'Response window closed' : 'remaining'}</span>
           </div>

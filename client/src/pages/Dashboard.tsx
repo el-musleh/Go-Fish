@@ -3,8 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, MapPin, Calendar, Navigation, Split } from 'lucide-react';
 import { api, getCurrentUserId, getCurrentUserEmail } from '../api/client';
 
-function formatWindowRemaining(end: string): string {
-  const ms = new Date(end).getTime() - Date.now();
+function formatWindowRemaining(end: string, now = Date.now()): string {
+  const ms = new Date(end).getTime() - now;
   if (ms <= 0) return 'Closed';
   const h = Math.floor(ms / 3600000);
   const m = Math.floor((ms % 3600000) / 60000);
@@ -163,7 +163,8 @@ const suggestionsCache = new Map<string, EventSuggestions>();
 
 function TimelineDetail({ event }: { event: EventItem }) {
   const navigate = useNavigate();
-  const windowOpen = new Date(event.response_window_end) > new Date();
+  const [now, setNow] = useState(() => Date.now());
+  const windowOpen = new Date(event.response_window_end).getTime() > now;
   const isOrganizer = event.inviter_id === getCurrentUserId();
 
   // Seed from DB-cached suggestions (already in event data) or in-memory cache
@@ -174,6 +175,11 @@ function TimelineDetail({ event }: { event: EventItem }) {
     !event.ai_suggestions && !suggestionsCache.has(event.id) && !windowOpen
   );
   const [endingWindow, setEndingWindow] = useState(false);
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     // DB-cached suggestions take priority — no API call needed
@@ -204,7 +210,7 @@ function TimelineDetail({ event }: { event: EventItem }) {
       })
       .catch(() => setSuggestions(null))
       .finally(() => setLoadingSuggestions(false));
-  }, [event.id, event.ai_suggestions, event.response_window_end]);
+  }, [event.id, event.ai_suggestions, event.response_window_end, windowOpen]);
 
   async function handleEndWindow() {
     setEndingWindow(true);
@@ -265,7 +271,7 @@ function TimelineDetail({ event }: { event: EventItem }) {
       </div>
 
       <div className="gf-detail-rows">
-        {detailRow('Response window', formatWindowRemaining(event.response_window_end))}
+        {detailRow('Response window', formatWindowRemaining(event.response_window_end, now))}
         {loadingSuggestions && (
           <p className="gf-muted" style={{ fontSize: '0.82rem', marginBottom: '4px' }}>
             Generating suggestions…
@@ -395,7 +401,7 @@ function TimelineView({ events, initialEventId }: { events: EventItem[]; initial
       {/* Right: detail panel */}
       <div>
         {selected
-          ? <TimelineDetail event={selected} />
+          ? <TimelineDetail key={selected.id} event={selected} />
           : <div className="gf-card"><p className="gf-muted">Select an event to view details.</p></div>
         }
       </div>
