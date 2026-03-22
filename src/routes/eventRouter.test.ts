@@ -6,6 +6,8 @@ import { createEventRouter } from './eventRouter';
 vi.mock('../repositories/eventRepository', () => ({
   createEvent: vi.fn(),
   getEventById: vi.fn(),
+  getEventsByInviterId: vi.fn(),
+  getEventsByIds: vi.fn(),
   updateEventStatus: vi.fn(),
   saveEventSuggestions: vi.fn(),
   closeResponseWindow: vi.fn(),
@@ -25,6 +27,11 @@ vi.mock('../services/eventPreviewService', () => ({
   generateEventSuggestions: vi.fn(),
 }));
 
+vi.mock('../repositories/responseRepository', () => ({
+  getResponsesByEventId: vi.fn(),
+  getEventIdsRespondedByUser: vi.fn(),
+}));
+
 vi.mock('../repositories/activityOptionRepository', () => ({
   getActivityOptionsByEventId: vi.fn(),
   getActivityOptionById: vi.fn(),
@@ -34,6 +41,8 @@ vi.mock('../repositories/activityOptionRepository', () => ({
 import {
   createEvent,
   getEventById,
+  getEventsByInviterId,
+  getEventsByIds,
   updateEventStatus,
   saveEventSuggestions,
   closeResponseWindow,
@@ -42,6 +51,7 @@ import { createInvitationLink, getInvitationLinkByEventId } from '../repositorie
 import { scheduleResponseWindow, triggerGeneration } from '../services/responseWindowScheduler';
 import { getActivityOptionsByEventId, getActivityOptionById, markActivityOptionSelected } from '../repositories/activityOptionRepository';
 import { generateEventSuggestions } from '../services/eventPreviewService';
+import { getEventIdsRespondedByUser, getResponsesByEventId } from '../repositories/responseRepository';
 
 const mockPool = {} as any;
 
@@ -333,6 +343,30 @@ describe('GET /api/events/:eventId', () => {
   });
 });
 
+describe('GET /api/events', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('does not fetch joined events when there are no joined ids after filtering', async () => {
+    (getEventsByInviterId as any).mockResolvedValue([
+      { id: 'evt-1', inviter_id: 'user-1', title: 'Game Night', description: '', status: 'collecting' },
+    ]);
+    (getEventIdsRespondedByUser as any).mockResolvedValue(['evt-1']);
+    (getResponsesByEventId as any).mockResolvedValue([]);
+
+    const app = buildApp();
+    const res = await request(app)
+      .get('/api/events')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.created).toHaveLength(1);
+    expect(res.body.joined).toEqual([]);
+    expect(getEventsByIds).not.toHaveBeenCalled();
+  });
+});
+
 describe('POST /api/events/:eventId/link', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -476,6 +510,30 @@ describe('POST /api/events/:eventId/generate', () => {
     expect(triggerGeneration).toHaveBeenCalledWith('evt-1', { pool: mockPool });
   });
 
+  it('returns at most three unique-ranked options', async () => {
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      status: 'collecting',
+    });
+    (triggerGeneration as any).mockResolvedValue([
+      { title: 'Late Duplicate', description: '', suggested_date: '2025-08-04', rank: 4 },
+      { title: 'Bowling', description: '', suggested_date: '2025-08-02', rank: 2 },
+      { title: 'Hiking', description: '', suggested_date: '2025-08-01', rank: 1 },
+      { title: 'Duplicate Rank One', description: '', suggested_date: '2025-08-05', rank: 1 },
+      { title: 'Movie', description: '', suggested_date: '2025-08-03', rank: 3 },
+    ]);
+
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/generate')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.options).toHaveLength(3);
+    expect(res.body.options.map((option: { rank: number }) => option.rank)).toEqual([1, 2, 3]);
+  });
+
   it('returns 503 when generation fails', async () => {
     (getEventById as any).mockResolvedValue({
       id: 'evt-1',
@@ -548,6 +606,26 @@ describe('GET /api/events/:eventId/options', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.options).toEqual([]);
+  });
+
+  it('filters duplicate ranks before returning saved options', async () => {
+    (getEventById as any).mockResolvedValue({ id: 'evt-1', inviter_id: 'user-1', status: 'options_ready' });
+    (getActivityOptionsByEventId as any).mockResolvedValue([
+      { id: 'opt-4', event_id: 'evt-1', title: 'Late Duplicate', description: 'Later', suggested_date: '2025-08-04', rank: 4, is_selected: false },
+      { id: 'opt-2', event_id: 'evt-1', title: 'Bowling', description: 'Alley', suggested_date: '2025-08-02', rank: 2, is_selected: false },
+      { id: 'opt-1', event_id: 'evt-1', title: 'Hiking', description: 'Trail', suggested_date: '2025-08-01', rank: 1, is_selected: false },
+      { id: 'opt-1b', event_id: 'evt-1', title: 'Duplicate Rank One', description: 'Trail', suggested_date: '2025-08-05', rank: 1, is_selected: false },
+      { id: 'opt-3', event_id: 'evt-1', title: 'Movie', description: 'Cinema', suggested_date: '2025-08-03', rank: 3, is_selected: false },
+    ]);
+
+    const app = buildApp();
+    const res = await request(app)
+      .get('/api/events/evt-1/options')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.options).toHaveLength(3);
+    expect(res.body.options.map((option: { rank: number }) => option.rank)).toEqual([1, 2, 3]);
   });
 });
 

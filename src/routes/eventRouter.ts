@@ -66,6 +66,19 @@ async function generateAndSave(pool: Pool, event: { id: string; title: string; d
   return suggestions;
 }
 
+function normalizeActivityOptions<T extends { rank: number }>(options: T[]): T[] {
+  const uniqueOptions: T[] = [];
+  const seenRanks = new Set<number>();
+
+  for (const option of [...options].sort((a, b) => a.rank - b.rank)) {
+    if (seenRanks.has(option.rank) || uniqueOptions.length >= 3) continue;
+    seenRanks.add(option.rank);
+    uniqueOptions.push(option);
+  }
+
+  return uniqueOptions;
+}
+
 export function createEventRouter(pool: Pool): Router {
   const router = Router();
 
@@ -133,7 +146,7 @@ export function createEventRouter(pool: Pool): Router {
       const created = await getEventsByInviterId(pool, userId);
       const joinedIds = await getEventIdsRespondedByUser(pool, userId);
       const filteredJoinedIds = joinedIds.filter((id) => !created.some((e) => e.id === id));
-      const joined = await getEventsByIds(pool, filteredJoinedIds);
+      const joined = filteredJoinedIds.length > 0 ? await getEventsByIds(pool, filteredJoinedIds) : [];
 
       const createdWithCounts = await Promise.all(
         created.map(async (event) => {
@@ -312,7 +325,7 @@ export function createEventRouter(pool: Pool): Router {
       }
 
       const options = await triggerGeneration(event.id, { pool });
-      res.json({ options });
+      res.json({ options: normalizeActivityOptions(options) });
     } catch (error) {
       console.error('Error triggering generation:', error);
       res.status(503).json({ error: 'generation_failed', message: 'Activity generation is temporarily unavailable. Please try again shortly.' });
@@ -333,7 +346,7 @@ export function createEventRouter(pool: Pool): Router {
       }
 
       const options = await getActivityOptionsByEventId(pool, req.params.eventId);
-      res.json({ options });
+      res.json({ options: normalizeActivityOptions(options) });
     } catch (error) {
       console.error('Error fetching activity options:', error);
       res.status(500).json({ error: 'internal_error', message: 'Failed to fetch activity options.' });
