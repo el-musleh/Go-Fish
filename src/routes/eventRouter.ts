@@ -7,9 +7,10 @@ import { createInvitationLink, getInvitationLinkByEventId } from '../repositorie
 import { triggerGeneration, scheduleResponseWindow } from '../services/responseWindowScheduler';
 import { sendNotificationEmails } from '../services/emailService';
 import { getActivityOptionsByEventId, getActivityOptionById, markActivityOptionSelected } from '../repositories/activityOptionRepository';
-import { updateEventStatus } from '../repositories/eventRepository';
+import { updateEventStatus, saveEventSuggestions, closeResponseWindow } from '../repositories/eventRepository';
 import { getResponsesByEventId, getEventIdsRespondedByUser } from '../repositories/responseRepository';
 import { getUserById } from '../repositories/userRepository';
+import { generateEventSuggestions } from '../services/eventPreviewService';
 
 // Simple geocoding: try Google Geocoding API, fall back to known cities
 const KNOWN_CITIES: Record<string, { lat: number; lng: number }> = {
@@ -55,6 +56,16 @@ async function geocodeCity(city: string): Promise<{ lat: number; lng: number } |
   return null;
 }
 
+async function generateAndSave(pool: Pool, event: { id: string; title: string; description: string; location_city: string | null }) {
+  const suggestions = await generateEventSuggestions({
+    title: event.title,
+    description: event.description,
+    location_city: event.location_city,
+  });
+  await saveEventSuggestions(pool, event.id, suggestions);
+  return suggestions;
+}
+
 export function createEventRouter(pool: Pool): Router {
   const router = Router();
 
@@ -67,23 +78,17 @@ export function createEventRouter(pool: Pool): Router {
   router.post('/', async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId as string;
-      const { title, description, location_city, location_country, location_lat, location_lng } = req.body;
+      const { title, location_city, location_country, location_lat, location_lng, timeout_hours } = req.body;
+      const description: string = typeof req.body.description === 'string' ? req.body.description.trim() : '';
 
-      const missingFields: string[] = [];
       if (!title || typeof title !== 'string' || title.trim().length === 0) {
-        missingFields.push('title');
-      }
-      if (!description || typeof description !== 'string' || description.trim().length === 0) {
-        missingFields.push('description');
-      }
-
-      if (missingFields.length > 0) {
-        res.status(400).json({ error: 'missing_fields', fields: missingFields });
+        res.status(400).json({ error: 'missing_fields', fields: ['title'] });
         return;
       }
 
+      const hours = typeof timeout_hours === 'number' && timeout_hours > 0 ? timeout_hours : 24;
       const now = new Date();
-      const responseWindowEnd = new Date(now.getTime() + 10 * 60 * 1000); // 10 minutes
+      const responseWindowEnd = new Date(now.getTime() + hours * 60 * 60 * 1000);
 
       // Auto-geocode city if no coordinates provided
       let lat = location_lat ?? null;
@@ -109,7 +114,7 @@ export function createEventRouter(pool: Pool): Router {
 
       res.status(201).json(event);
 
-      // Schedule auto-generation when response window expires (2 min)
+      // Schedule auto-generation when the response window expires.
       scheduleResponseWindow(event, { pool });
     } catch (error) {
       console.error('Error creating event:', error);
@@ -179,6 +184,71 @@ export function createEventRouter(pool: Pool): Router {
     } catch (error) {
       console.error('Error fetching event:', error);
       res.status(500).json({ error: 'internal_error', message: 'Failed to fetch event.' });
+    }
+  });
+
+  /**
+   * GET /api/events/:eventId/suggestions
+   * Return AI-generated event suggestions (venue, cost, duration, timing).
+   * - Returns cached DB suggestions immediately if available.
+   * - Returns { pending: true } if the response window is still open.
+   * - Otherwise generates via AI, stores in DB, and returns.
+   */
+  router.get('/:eventId/suggestions', async (req: Request, res: Response) => {
+    try {
+      const event = await getEventById(pool, req.params.eventId);
+      if (!event) {
+        res.status(404).json({ error: 'not_found', message: 'Event not found.' });
+        return;
+      }
+
+      // Return DB-cached suggestions (shared across all users)
+      if (event.ai_suggestions) {
+        res.json(event.ai_suggestions);
+        return;
+      }
+
+      // Don't generate while the response window is still open
+      if (new Date(event.response_window_end) > new Date()) {
+        res.json({ pending: true, response_window_end: event.response_window_end });
+        return;
+      }
+
+      // Window closed — generate, cache in DB, return
+      res.json(await generateAndSave(pool, event));
+    } catch (error) {
+      console.error('Error generating event suggestions:', error);
+      res.status(500).json({ error: 'internal_error', message: 'Failed to generate suggestions.' });
+    }
+  });
+
+  /**
+   * POST /api/events/:eventId/end-window
+   * Organizer closes the response window early and triggers suggestion generation.
+   */
+  router.post('/:eventId/end-window', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId as string;
+      const event = await getEventById(pool, req.params.eventId);
+
+      if (!event) {
+        res.status(404).json({ error: 'not_found', message: 'Event not found.' });
+        return;
+      }
+      if (event.inviter_id !== userId) {
+        res.status(403).json({ error: 'forbidden', message: 'Only the organizer can close the response window.' });
+        return;
+      }
+      if (event.ai_suggestions) {
+        res.json(event.ai_suggestions);
+        return;
+      }
+
+      await closeResponseWindow(pool, event.id);
+      res.json(await generateAndSave(pool, event));
+    } catch (error) {
+      console.error('Error ending response window:', error);
+      res.status(500).json({ error: 'internal_error', message: 'Failed to generate suggestions.' });
     }
   });
 

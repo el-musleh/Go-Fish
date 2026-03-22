@@ -1,8 +1,8 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError, getCurrentUserId } from '../api/client';
 
-interface EventData { id: string; title: string; description: string; status: string; response_window_end: string; }
+interface EventData { id: string; title: string; description: string; status: string; response_window_end: string; preferred_date: string | null; preferred_time: string | null; }
 interface TimeWindow { start: number; end: number; }
 
 function getNext14Days() {
@@ -42,19 +42,48 @@ export default function EventResponseForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [windowClosed, setWindowClosed] = useState(false);
-  const dates = getNext14Days();
+  const dates = useMemo(() => getNext14Days(), []);
 
   useEffect(() => {
     if (!getCurrentUserId()) { navigate(`/login?returnTo=/events/${eventId}/respond`, { replace: true }); return; }
     if (!eventId) return;
     api.get<EventData>(`/events/${eventId}`)
-      .then(data => { setEvent(data); if (new Date(data.response_window_end) <= new Date()) setWindowClosed(true); })
+      .then(data => {
+        setEvent(data);
+        if (new Date(data.response_window_end) <= new Date()) {
+          setWindowClosed(true);
+        } else if (data.preferred_date) {
+          const preferredDate = data.preferred_date.split('T')[0];
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          const limit = new Date(today); limit.setDate(today.getDate() + 14);
+          const pDate = new Date(preferredDate + 'T00:00:00');
+          if (pDate >= today && pDate < limit) {
+            let start = DEFAULT_START;
+            let end = DEFAULT_END;
+            if (data.preferred_time) {
+              const [h, m] = data.preferred_time.split(':').map(Number);
+              const slot = Math.round((h * 60 + (m || 0) - 360) / 30);
+              start = Math.max(0, Math.min(slot - 2, 34));
+              end = Math.min(36, start + 4);
+            }
+            setSelectedDates(new Map([[preferredDate, { start, end }]]));
+          }
+        }
+      })
       .catch(err => {
         if (err instanceof ApiError && err.status === 401) navigate(`/login?returnTo=/events/${eventId}/respond`, { replace: true });
         else setError('Failed to load event.');
       })
       .finally(() => setLoading(false));
   }, [eventId, navigate]);
+
+  useEffect(() => {
+    if (!submitted) return;
+    const timer = setTimeout(() => {
+      navigate(`/dashboard?tab=timeline&event=${eventId}`, { replace: true });
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [submitted, eventId, navigate]);
 
   function toggle(value: string) {
     setSelectedDates(prev => {
@@ -122,9 +151,11 @@ export default function EventResponseForm() {
     <div className="gf-card" style={{ textAlign: 'center' }}>
       <h3 className="gf-card-title">You're in!</h3>
       <p className="gf-muted">Your dates have been recorded. You'll get an email when the activity is decided.</p>
+      <p className="gf-muted" style={{ marginTop: '12px', fontSize: '0.82rem' }}>Redirecting to your timeline…</p>
     </div>
   );
 
+  const preferredDate = event?.preferred_date?.split('T')[0];
   const sortedSelected = Array.from(selectedDates.entries()).sort(([a], [b]) => a.localeCompare(b));
 
   return (
@@ -134,12 +165,15 @@ export default function EventResponseForm() {
       <div className="gf-date-grid">
         {dates.map(d => {
           const active = selectedDates.has(d.value);
+          const isSuggested = preferredDate === d.value;
           return (
             <button key={d.value} type="button" onClick={() => toggle(d.value)}
-              className={`gf-date-card${active ? ' gf-date-card--active' : ''}`}>
+              className={`gf-date-card${active ? ' gf-date-card--active' : ''}`}
+              style={isSuggested && !active ? { outline: '2px solid var(--accent)', outlineOffset: '2px' } : undefined}>
               <span className="gf-date-card__label">{d.label}</span>
               <span className="gf-date-card__day">{d.day}</span>
               <span className="gf-date-card__month">{d.month}</span>
+              {isSuggested && <span style={{ fontSize: '0.6rem', color: 'var(--accent)', fontWeight: 600, lineHeight: 1 }}>Suggested</span>}
             </button>
           );
         })}

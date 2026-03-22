@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Moon, Sun } from 'lucide-react';
-import { getCurrentUserId, setCurrentUserId, api } from './api/client';
+import { getCurrentUserId, setCurrentUserId, setCurrentUserEmail, api } from './api/client';
 import { supabase } from './lib/supabase';
 import AuthDialog from './components/AuthDialog';
 import AuthPage from './pages/AuthPage';
@@ -64,6 +64,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
             { email: session.user.email }
           );
           setCurrentUserId(id);
+          if (session.user.email) setCurrentUserEmail(session.user.email);
           setAuthOpen(false);
           navigate(isNew ? '/benchmark' : '/dashboard', { replace: true });
         } catch { /* ignore */ }
@@ -74,6 +75,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
 
   function handleSignOut() {
     localStorage.removeItem('gofish_user_id');
+    localStorage.removeItem('gofish_user_email');
     navigate('/login');
     window.location.reload();
   }

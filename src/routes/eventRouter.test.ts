@@ -7,6 +7,8 @@ vi.mock('../repositories/eventRepository', () => ({
   createEvent: vi.fn(),
   getEventById: vi.fn(),
   updateEventStatus: vi.fn(),
+  saveEventSuggestions: vi.fn(),
+  closeResponseWindow: vi.fn(),
 }));
 
 vi.mock('../repositories/invitationLinkRepository', () => ({
@@ -19,16 +21,27 @@ vi.mock('../services/responseWindowScheduler', () => ({
   scheduleResponseWindow: vi.fn(),
 }));
 
+vi.mock('../services/eventPreviewService', () => ({
+  generateEventSuggestions: vi.fn(),
+}));
+
 vi.mock('../repositories/activityOptionRepository', () => ({
   getActivityOptionsByEventId: vi.fn(),
   getActivityOptionById: vi.fn(),
   markActivityOptionSelected: vi.fn(),
 }));
 
-import { createEvent, getEventById, updateEventStatus } from '../repositories/eventRepository';
+import {
+  createEvent,
+  getEventById,
+  updateEventStatus,
+  saveEventSuggestions,
+  closeResponseWindow,
+} from '../repositories/eventRepository';
 import { createInvitationLink, getInvitationLinkByEventId } from '../repositories/invitationLinkRepository';
 import { scheduleResponseWindow, triggerGeneration } from '../services/responseWindowScheduler';
 import { getActivityOptionsByEventId, getActivityOptionById, markActivityOptionSelected } from '../repositories/activityOptionRepository';
+import { generateEventSuggestions } from '../services/eventPreviewService';
 
 const mockPool = {} as any;
 
@@ -53,7 +66,7 @@ describe('POST /api/events', () => {
     expect(res.body.error).toBe('unauthorized');
   });
 
-  it('returns 400 with both fields when title and description are missing', async () => {
+  it('returns 400 when title is missing, even if description is also missing', async () => {
     const app = buildApp();
     const res = await request(app)
       .post('/api/events')
@@ -61,8 +74,7 @@ describe('POST /api/events', () => {
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('missing_fields');
-    expect(res.body.fields).toEqual(expect.arrayContaining(['title', 'description']));
-    expect(res.body.fields).toHaveLength(2);
+    expect(res.body.fields).toEqual(['title']);
   });
 
   it('returns 400 when title is missing', async () => {
@@ -75,14 +87,33 @@ describe('POST /api/events', () => {
     expect(res.body.fields).toEqual(['title']);
   });
 
-  it('returns 400 when description is missing', async () => {
+  it('allows creating an event without a description', async () => {
+    const now = Date.now();
+    const mockEvent = {
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      title: 'A title',
+      description: '',
+      response_window_start: new Date(now),
+      response_window_end: new Date(now + 24 * 60 * 60 * 1000),
+      status: 'collecting',
+      created_at: new Date(now),
+    };
+    (createEvent as any).mockResolvedValue(mockEvent);
+
     const app = buildApp();
     const res = await request(app)
       .post('/api/events')
       .set('x-user-id', 'user-1')
       .send({ title: 'A title' });
-    expect(res.status).toBe(400);
-    expect(res.body.fields).toEqual(['description']);
+    expect(res.status).toBe(201);
+    expect(createEvent).toHaveBeenCalledWith(
+      mockPool,
+      expect.objectContaining({
+        title: 'A title',
+        description: '',
+      })
+    );
   });
 
   it('returns 400 when title is an empty string', async () => {
@@ -95,7 +126,7 @@ describe('POST /api/events', () => {
     expect(res.body.fields).toEqual(['title']);
   });
 
-  it('creates event with status collecting and a 10 minute window on valid input', async () => {
+  it('creates event with status collecting and a 24 hour window by default', async () => {
     const now = Date.now();
     const mockEvent = {
       id: 'evt-1',
@@ -103,7 +134,7 @@ describe('POST /api/events', () => {
       title: 'Game Night',
       description: 'Board games at my place',
       response_window_start: new Date(now),
-      response_window_end: new Date(now + 10 * 60 * 1000),
+      response_window_end: new Date(now + 24 * 60 * 60 * 1000),
       status: 'collecting',
       created_at: new Date(now),
     };
@@ -126,13 +157,135 @@ describe('POST /api/events', () => {
       description: 'Board games at my place',
     }));
 
-    // Verify the response_window_end is ~10 minutes from now.
+    // Verify the response_window_end is ~24 hours from now.
     const callArgs = (createEvent as any).mock.calls[0][1];
     const windowEnd = callArgs.response_window_end as Date;
     const diffMs = windowEnd.getTime() - now;
-    expect(diffMs).toBeGreaterThanOrEqual(10 * 60 * 1000 - 5000);
-    expect(diffMs).toBeLessThanOrEqual(10 * 60 * 1000 + 5000);
+    expect(diffMs).toBeGreaterThanOrEqual(24 * 60 * 60 * 1000 - 5000);
+    expect(diffMs).toBeLessThanOrEqual(24 * 60 * 60 * 1000 + 5000);
     expect(scheduleResponseWindow).toHaveBeenCalledWith(mockEvent, { pool: mockPool });
+  });
+
+  it('uses timeout_hours when provided', async () => {
+    const now = Date.now();
+    const mockEvent = {
+      id: 'evt-2',
+      inviter_id: 'user-1',
+      title: 'Quick Lunch',
+      description: '',
+      response_window_start: new Date(now),
+      response_window_end: new Date(now + 6 * 60 * 60 * 1000),
+      status: 'collecting',
+      created_at: new Date(now),
+    };
+    (createEvent as any).mockResolvedValue(mockEvent);
+
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events')
+      .set('x-user-id', 'user-1')
+      .send({ title: 'Quick Lunch', timeout_hours: 6 });
+
+    expect(res.status).toBe(201);
+
+    const callArgs = (createEvent as any).mock.calls[0][1];
+    const windowEnd = callArgs.response_window_end as Date;
+    const diffMs = windowEnd.getTime() - now;
+    expect(diffMs).toBeGreaterThanOrEqual(6 * 60 * 60 * 1000 - 5000);
+    expect(diffMs).toBeLessThanOrEqual(6 * 60 * 60 * 1000 + 5000);
+    expect(scheduleResponseWindow).toHaveBeenCalledWith(mockEvent, { pool: mockPool });
+  });
+});
+
+describe('event suggestions routes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns cached suggestions when already saved on the event', async () => {
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      title: 'Dinner',
+      description: '',
+      response_window_end: new Date(Date.now() - 1000).toISOString(),
+      location_city: 'Berlin',
+      ai_suggestions: {
+        venue_ideas: ['A MANO', 'Coccodrillo', 'Pantry'],
+        estimated_cost_per_person: 'EUR20-30',
+        estimated_duration_minutes: 120,
+        suggested_time: '19:00-21:00',
+        suggested_day: 'Friday',
+      },
+    });
+
+    const app = buildApp();
+    const res = await request(app)
+      .get('/api/events/evt-1/suggestions')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.venue_ideas).toHaveLength(3);
+    expect(generateEventSuggestions).not.toHaveBeenCalled();
+  });
+
+  it('returns pending while the response window is still open', async () => {
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      title: 'Dinner',
+      description: '',
+      response_window_end: new Date(Date.now() + 60_000).toISOString(),
+      location_city: 'Berlin',
+      ai_suggestions: null,
+    });
+
+    const app = buildApp();
+    const res = await request(app)
+      .get('/api/events/evt-1/suggestions')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body.pending).toBe(true);
+    expect(generateEventSuggestions).not.toHaveBeenCalled();
+  });
+
+  it('closes the response window and generates suggestions for the organizer', async () => {
+    const suggestions = {
+      venue_ideas: ['A MANO', 'Coccodrillo', 'Pantry'],
+      estimated_cost_per_person: 'EUR20-30',
+      estimated_duration_minutes: 120,
+      suggested_time: '19:00-21:00',
+      suggested_day: 'Friday',
+    };
+
+    (getEventById as any).mockResolvedValue({
+      id: 'evt-1',
+      inviter_id: 'user-1',
+      title: 'Dinner',
+      description: '',
+      response_window_end: new Date(Date.now() + 60_000).toISOString(),
+      location_city: 'Berlin',
+      ai_suggestions: null,
+    });
+    (closeResponseWindow as any).mockResolvedValue(true);
+    (generateEventSuggestions as any).mockResolvedValue(suggestions);
+    (saveEventSuggestions as any).mockResolvedValue(undefined);
+
+    const app = buildApp();
+    const res = await request(app)
+      .post('/api/events/evt-1/end-window')
+      .set('x-user-id', 'user-1');
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(suggestions);
+    expect(closeResponseWindow).toHaveBeenCalledWith(mockPool, 'evt-1');
+    expect(generateEventSuggestions).toHaveBeenCalledWith({
+      title: 'Dinner',
+      description: '',
+      location_city: 'Berlin',
+    });
+    expect(saveEventSuggestions).toHaveBeenCalledWith(mockPool, 'evt-1', suggestions);
   });
 });
 
