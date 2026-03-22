@@ -2,6 +2,7 @@ import { tool } from 'langchain';
 import { TasteBenchmark } from '../../models/TasteBenchmark';
 import { DateTimeWindow } from '../../models/Response';
 import { RealWorldContext } from '../realWorldData/types';
+import { z } from 'zod';
 import {
   emptyToolInputSchema,
   listCandidatesInputSchema,
@@ -394,7 +395,7 @@ function stringify(value: unknown): string {
 
 export function createAgentTools(runtime: AgentRuntimeState) {
   const getDateOverlaps = tool(
-    async ({ limit }) =>
+    async ({ limit }: z.infer<typeof listDateOverlapsInputSchema>) =>
       stringify({
         overlaps: runtime.overlaps.slice(0, limit).map((slot) => ({
           date: slot.date,
@@ -413,7 +414,7 @@ export function createAgentTools(runtime: AgentRuntimeState) {
   );
 
   const listRealWorldEvents = tool(
-    async ({ date, limit }) =>
+    async ({ date, limit }: z.infer<typeof listCandidatesInputSchema>) =>
       stringify({
         events: runtime.eventCandidates
           .filter((candidate) => !date || candidate.suggested_date === date)
@@ -428,7 +429,7 @@ export function createAgentTools(runtime: AgentRuntimeState) {
   );
 
   const listRealWorldVenues = tool(
-    async ({ date, limit }) =>
+    async ({ date, limit }: z.infer<typeof listCandidatesInputSchema>) =>
       stringify({
         venues: runtime.venueCandidates.slice(0, limit),
         weather_note_for_date:

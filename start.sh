@@ -118,16 +118,17 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════
 step "Dependencies"
 
-if [ ! -d node_modules/ts-node ]; then
+if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock-stamp ]; then
   log "Installing backend dependencies..."
   npm install
+  touch node_modules/.package-lock-stamp
 else
   log "Backend dependencies ${DIM}(already installed)${NC}"
 fi
 
-if [ ! -d client/node_modules/vite ]; then
+if [ ! -d client/node_modules ] || [ client/package-lock.json -nt client/node_modules/.package-lock-stamp ]; then
   log "Installing frontend dependencies..."
-  (cd client && npm install)
+  (cd client && npm install && touch node_modules/.package-lock-stamp)
 else
   log "Frontend dependencies ${DIM}(already installed)${NC}"
 fi
