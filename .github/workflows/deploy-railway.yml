@@ -118,7 +118,11 @@ jobs:
                 SUCCESS)
                   exit 0
                   ;;
-                FAILED|CRASHED|REMOVED|SKIPPED)
+                SKIPPED)
+                  echo "Deployment ${deployment_id} for ${SERVICE} was skipped because Railway found no relevant service file changes."
+                  exit 0
+                  ;;
+                FAILED|CRASHED|REMOVED)
                   railway logs "${deployment_id}" \
                     --service "${SERVICE}" \
                     --environment "${RAILWAY_ENVIRONMENT}" \
