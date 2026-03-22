@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Moon, Sun } from 'lucide-react';
 import { getCurrentUserId, setCurrentUserId, api } from './api/client';
 import { supabase } from './lib/supabase';
@@ -42,8 +42,12 @@ function ThemeSwitch({
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const userId = getCurrentUserId();
   const [authOpen, setAuthOpen] = useState(false);
+  const isTimeline = location.pathname === '/dashboard' && location.search.includes('tab=timeline');
+  const isHome = location.pathname === '/dashboard' && !isTimeline;
+  const isPreferences = location.pathname === '/benchmark';
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
 
   useEffect(() => {
@@ -83,10 +87,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
         <nav className="gf-nav">
           {userId && (
-            <NavLink to="/dashboard" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`}>Home</NavLink>
+            <Link to="/dashboard" className={`gf-nav-link${isHome ? ' gf-nav-link--active' : ''}`}>Home</Link>
           )}
           {userId && (
-            <NavLink to="/dashboard?tab=timeline" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`}>Timeline</NavLink>
+            <Link to="/dashboard?tab=timeline" className={`gf-nav-link${isTimeline ? ' gf-nav-link--active' : ''}`}>Timeline</Link>
           )}
           {userId && (
             <NavLink to="/events/new" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`}>New</NavLink>
@@ -94,9 +98,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="gf-topbar__actions">
           {userId && (
-            <Link to="/benchmark">
-              <button className="gf-button gf-button--ghost" type="button">Preferences</button>
-            </Link>
+            <Link to="/benchmark" className={`gf-nav-link${isPreferences ? ' gf-nav-link--active' : ''}`}>Preferences</Link>
           )}
           <ThemeSwitch activeTheme={theme} onThemeChange={setTheme} />
           {userId ? (
