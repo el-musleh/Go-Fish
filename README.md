@@ -25,10 +25,6 @@
   <a href="#deployment"><strong>Deployment</strong></a>
 </p>
 
-<p align="center">
-  <img src="./client/src/assets/hero.png" alt="Go Fish product preview" width="920" />
-</p>
-
 Go Fish helps a group get from "we should do something" to a confirmed plan. One person creates an event, shares a single invite link, collects everyone's availability and preferences, reviews AI-ranked suggestions, and finalizes the activity with email confirmation to the group.
 
 ## Why It Exists
