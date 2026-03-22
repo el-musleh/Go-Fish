@@ -14,6 +14,8 @@ import InvitationResolver from './pages/InvitationResolver';
 import EventResponseForm from './pages/EventResponseForm';
 import ActivityOptionsView from './pages/ActivityOptionsView';
 import EventConfirmation from './pages/EventConfirmation';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import TermsOfService from './pages/TermsOfService';
 import PrototypePage from './pages/prototype/PrototypePage';
 import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
 
@@ -86,7 +88,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="gf-app">
+    <div className="gf-app" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
       <header className="gf-topbar">
         <Link className="gf-brand" to={userId ? '/dashboard' : '/'}>
           <img src="/logo.png" alt="Go Fish" className="gf-brand__icon" />
@@ -141,12 +143,15 @@ function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </header>
-      <main className="gf-main">{children}</main>
+      <main className="gf-main" style={{ flex: 1 }}>{children}</main>
       <footer className="gf-footer">
         <div className="gf-footer__inner">
           <img src="/logo.png" alt="Go Fish" className="gf-footer__logo" />
           <span className="gf-footer__copy">© {new Date().getFullYear()} Go Fish. All rights reserved.</span>
           <span className="gf-footer__meta">Social event coordinator · v1.6.0</span>
+        </div>
+        <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '0.85rem', color: 'var(--muted)' }}>
+          Read our <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}>Privacy Policy</Link> and <Link to="/terms" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}>Terms of Service</Link>
         </div>
       </footer>
       <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
@@ -174,6 +179,8 @@ export default function App() {
                 <Route path="/events/:eventId/respond" element={<EventResponseForm />} />
                 <Route path="/events/:eventId/options" element={<ActivityOptionsView />} />
                 <Route path="/events/:eventId/confirmation" element={<EventConfirmation />} />
+                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/terms" element={<TermsOfService />} />
                 <Route path="*" element={<LandingPage />} />
               </Routes>
             </AppShell>
