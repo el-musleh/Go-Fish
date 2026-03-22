@@ -1,0 +1,141 @@
+name: Deploy to Railway
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-railway-${{ github.event.workflow_run.head_branch || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main' &&
+        github.event.workflow_run.head_repository.full_name == github.repository
+      )
+    name: Deploy ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - backend
+          - client
+    env:
+      RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_API_TOKEN }}
+      RAILWAY_ENVIRONMENT: production
+      RAILWAY_PROJECT_ID: dd6ff651-2ec3-40ea-856b-9711a09ba584
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - name: Validate Railway token
+        run: |
+          set -euo pipefail
+          if [ -z "${RAILWAY_API_TOKEN:-}" ]; then
+            echo "Missing GitHub secret RAILWAY_API_TOKEN"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Railway CLI
+        run: npm install --global @railway/cli@4.30.5
+
+      - name: Link Railway service
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          set -euo pipefail
+          railway link \
+            --project "${RAILWAY_PROJECT_ID}" \
+            --environment "${RAILWAY_ENVIRONMENT}" \
+            --service "${SERVICE}"
+
+      - name: Deploy to Railway
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: |
+          set -euo pipefail
+
+          message="GitHub Actions deploy ${DEPLOY_SHA} (${SERVICE})"
+          railway up \
+            --service "${SERVICE}" \
+            --project "${RAILWAY_PROJECT_ID}" \
+            --environment "${RAILWAY_ENVIRONMENT}" \
+            --detach \
+            --message "${message}"
+
+          deadline=$((SECONDS + 1800))
+
+          while [ "${SECONDS}" -lt "${deadline}" ]; do
+            deployments_json="$(
+              railway deployment list \
+                --service "${SERVICE}" \
+                --environment "${RAILWAY_ENVIRONMENT}" \
+                --json
+            )"
+
+            deployment_id="$(
+              printf '%s' "${deployments_json}" |
+                jq -r --arg message "${message}" '
+                  .[] | select(.meta.cliMessage == $message) | .id
+                ' |
+                head -n 1
+            )"
+
+            status="$(
+              printf '%s' "${deployments_json}" |
+                jq -r --arg message "${message}" '
+                  .[] | select(.meta.cliMessage == $message) | .status
+                ' |
+                head -n 1
+            )"
+
+            if [ -n "${deployment_id}" ] && [ "${deployment_id}" != "null" ]; then
+              echo "Deployment ${deployment_id} for ${SERVICE}: ${status}"
+
+              case "${status}" in
+                SUCCESS)
+                  exit 0
+                  ;;
+                FAILED|CRASHED|REMOVED|SKIPPED)
+                  railway logs "${deployment_id}" \
+                    --service "${SERVICE}" \
+                    --environment "${RAILWAY_ENVIRONMENT}" \
+                    --build \
+                    --lines 200 || true
+                  railway logs "${deployment_id}" \
+                    --service "${SERVICE}" \
+                    --environment "${RAILWAY_ENVIRONMENT}" \
+                    --deployment \
+                    --lines 200 || true
+                  exit 1
+                  ;;
+              esac
+            fi
+
+            sleep 10
+          done
+
+          echo "Timed out waiting for ${SERVICE} deployment"
+          exit 1
