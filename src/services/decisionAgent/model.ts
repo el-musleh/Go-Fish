@@ -1,12 +1,9 @@
-import { ChatOpenRouter } from '@langchain/openrouter';
+import { ChatOpenAI } from '@langchain/openai';
 
-export const DEFAULT_OPENROUTER_MODEL = 'google/gemini-3-flash-preview';
-export const FALLBACK_OPENROUTER_MODEL = 'google/gemini-2.5-flash';
+export const DEFAULT_MODEL = 'deepseek-chat';
+export const FALLBACK_MODEL = 'deepseek-reasoner';
 
-const LEGACY_MODEL_ALIASES: Record<string, string> = {
-  'gemini-3-flash-preview': DEFAULT_OPENROUTER_MODEL,
-  'gemini-2.5-flash': FALLBACK_OPENROUTER_MODEL,
-};
+const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
 
 export interface OpenRouterModelConfig {
   apiKey?: string;
@@ -14,45 +11,44 @@ export interface OpenRouterModelConfig {
   temperature?: number;
 }
 
-function normalizeOpenRouterModelName(modelName: string): string {
-  return LEGACY_MODEL_ALIASES[modelName] ?? modelName;
-}
-
 export function resolveOpenRouterApiKey(apiKey?: string): string {
   const resolved =
     apiKey ??
+    process.env.DEEPSEEK_API_KEY ??
     process.env.OPENROUTER_API_KEY ??
     process.env.GOOGLE_API_KEY ??
     process.env.GEMINI_API_KEY;
   if (!resolved) {
     throw new Error(
-      'OPENROUTER_API_KEY is not configured (legacy GOOGLE_API_KEY/GEMINI_API_KEY fallback is still supported)'
+      'DEEPSEEK_API_KEY is not configured (set it in .env)'
     );
   }
   return resolved;
 }
 
 export function resolveOpenRouterModelName(model?: string): string {
-  const resolved =
+  return (
     model ??
+    process.env.DEEPSEEK_MODEL ??
     process.env.OPENROUTER_MODEL ??
-    process.env.GOOGLE_MODEL ??
-    DEFAULT_OPENROUTER_MODEL;
-
-  return normalizeOpenRouterModelName(resolved);
+    DEFAULT_MODEL
+  );
 }
 
-export function createChatOpenRouterModel(config: OpenRouterModelConfig = {}): ChatOpenRouter {
-  return new ChatOpenRouter({
+export function createChatOpenRouterModel(config: OpenRouterModelConfig = {}): ChatOpenAI {
+  return new ChatOpenAI({
     apiKey: resolveOpenRouterApiKey(config.apiKey),
     model: resolveOpenRouterModelName(config.model),
     maxRetries: 0,
     temperature: config.temperature ?? 0.2,
+    configuration: {
+      baseURL: DEEPSEEK_BASE_URL,
+    },
   });
 }
 
 export function shouldUseFallbackModel(error: unknown, modelName: string): boolean {
-  if (resolveOpenRouterModelName(modelName) !== DEFAULT_OPENROUTER_MODEL) {
+  if (resolveOpenRouterModelName(modelName) !== DEFAULT_MODEL) {
     return false;
   }
 

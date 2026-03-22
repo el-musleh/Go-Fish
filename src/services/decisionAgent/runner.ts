@@ -175,12 +175,18 @@ export async function runPlanningAgent(
 
   const shortlist = extractAgentShortlist(shortlistResult.messages);
 
-  const finalizer = createChatOpenRouterModel({
-    apiKey,
-    model: modelName,
-    temperature: 0.1,
-  }).withStructuredOutput(finalizedOptionsSchema);
-
-  const finalized = await finalizer.invoke(buildFinalizerPrompt(runtime, shortlist));
+  // Use manual JSON extraction instead of .withStructuredOutput() for
+  // compatibility with models that don't support JSON schema response_format.
+  const finalizer = createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.1 });
+  const finalizerResult = await finalizer.invoke([
+    {
+      role: 'user',
+      content: buildFinalizerPrompt(runtime, shortlist) + '\n\nIMPORTANT: Return ONLY a raw JSON object — no markdown fences, no commentary.',
+    },
+  ]);
+  const finalizerText = formatMessageContent(finalizerResult.content);
+  const jsonMatch = finalizerText.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error('Finalizer did not return valid JSON');
+  const finalized = finalizedOptionsSchema.parse(JSON.parse(jsonMatch[0]));
   return validateAndHydrateOptions(finalized, runtime);
 }

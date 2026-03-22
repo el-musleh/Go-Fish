@@ -1,10 +1,28 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, MapPin, Calendar, Navigation, Split } from 'lucide-react';
 import { api, getCurrentUserId, getCurrentUserEmail } from '../api/client';
 
+function formatWindowRemaining(end: string): string {
+  const ms = new Date(end).getTime() - Date.now();
+  if (ms <= 0) return 'Closed';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  if (h > 0) return `${h}h ${m}m remaining`;
+  return `${m}m remaining`;
+}
+
+interface EventSuggestions {
+  venue_ideas: string[];
+  estimated_cost_per_person: string;
+  estimated_duration_minutes: number;
+  suggested_time: string;
+  suggested_day: string;
+}
+
 interface EventItem {
   id: string;
+  inviter_id: string;
   title: string;
   description: string;
   status: string;
@@ -12,6 +30,7 @@ interface EventItem {
   preferred_date: string | null;
   preferred_time: string | null;
   duration_minutes: number | null;
+  ai_suggestions: EventSuggestions | null;
   respondent_count?: number;
   selected_activity?: { title: string; suggested_date: string; suggested_time: string | null } | null;
 }
@@ -93,36 +112,64 @@ function groupByDate(events: EventItem[]): DateGroup[] {
   });
 }
 
-interface EventSuggestions {
-  venue_ideas: string[];
-  estimated_cost_per_person: string;
-  estimated_duration_minutes: number;
-  suggested_time: string;
-  suggested_day: string;
-}
+// Module-level cache so suggestions persist across TimelineDetail mounts
+const suggestionsCache = new Map<string, EventSuggestions>();
 
 function TimelineDetail({ event }: { event: EventItem }) {
   const navigate = useNavigate();
-  const cache = useRef<Map<string, EventSuggestions>>(new Map());
-  const [suggestions, setSuggestions] = useState<EventSuggestions | null>(() => cache.current.get(event.id) ?? null);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(!cache.current.has(event.id));
+  const windowOpen = new Date(event.response_window_end) > new Date();
+  const isOrganizer = event.inviter_id === getCurrentUserId();
+
+  // Seed from DB-cached suggestions (already in event data) or in-memory cache
+  const [suggestions, setSuggestions] = useState<EventSuggestions | null>(() =>
+    event.ai_suggestions ?? suggestionsCache.get(event.id) ?? null
+  );
+  const [loadingSuggestions, setLoadingSuggestions] = useState(
+    !event.ai_suggestions && !suggestionsCache.has(event.id) && !windowOpen
+  );
+  const [endingWindow, setEndingWindow] = useState(false);
 
   useEffect(() => {
-    if (cache.current.has(event.id)) {
-      setSuggestions(cache.current.get(event.id)!);
+    // DB-cached suggestions take priority — no API call needed
+    if (event.ai_suggestions) {
+      setSuggestions(event.ai_suggestions);
+      setLoadingSuggestions(false);
+      return;
+    }
+    // Don't fetch while the response window is still open
+    if (windowOpen) {
+      setSuggestions(null);
+      setLoadingSuggestions(false);
+      return;
+    }
+    // Use in-memory cache to avoid redundant fetches between polls
+    if (suggestionsCache.has(event.id)) {
+      setSuggestions(suggestionsCache.get(event.id)!);
       setLoadingSuggestions(false);
       return;
     }
     setLoadingSuggestions(true);
     setSuggestions(null);
-    api.get<EventSuggestions>(`/events/${event.id}/suggestions`)
+    api.get<EventSuggestions | { pending: boolean }>(`/events/${event.id}/suggestions`)
       .then(data => {
-        cache.current.set(event.id, data);
-        setSuggestions(data);
+        if ('pending' in data) return;
+        suggestionsCache.set(event.id, data as EventSuggestions);
+        setSuggestions(data as EventSuggestions);
       })
       .catch(() => setSuggestions(null))
       .finally(() => setLoadingSuggestions(false));
-  }, [event.id]);
+  }, [event.id, event.ai_suggestions, event.response_window_end]);
+
+  async function handleEndWindow() {
+    setEndingWindow(true);
+    try {
+      const data = await api.post<EventSuggestions>(`/events/${event.id}/end-window`);
+      suggestionsCache.set(event.id, data);
+      setSuggestions(data);
+    } catch { /* ignore */ } finally {
+      setEndingWindow(false);
+    }
+  }
 
   const s = STATUS_LABELS[event.status] || { label: event.status, cls: '' };
   const activity = event.selected_activity;
@@ -172,9 +219,15 @@ function TimelineDetail({ event }: { event: EventItem }) {
       </div>
 
       <div className="gf-detail-rows">
+        {detailRow('Response window', formatWindowRemaining(event.response_window_end))}
         {loadingSuggestions && (
           <p className="gf-muted" style={{ fontSize: '0.82rem', marginBottom: '4px' }}>
             Generating suggestions…
+          </p>
+        )}
+        {windowOpen && !suggestions && (
+          <p className="gf-muted" style={{ fontSize: '0.82rem', marginBottom: '4px' }}>
+            Suggestions will appear once the response window closes.
           </p>
         )}
         {detailRow('Activity / Venue', venueValue)}
@@ -203,6 +256,16 @@ function TimelineDetail({ event }: { event: EventItem }) {
         >
           RSVP
         </button>
+        {isOrganizer && windowOpen && (
+          <button
+            type="button"
+            className="gf-button gf-button--secondary"
+            disabled={endingWindow}
+            onClick={handleEndWindow}
+          >
+            {endingWindow ? 'Generating…' : 'End window & generate'}
+          </button>
+        )}
         <button type="button" className="gf-button gf-button--ghost gf-inline-icon" title="Coming soon">
           <Split size={14} /> Split Cost
         </button>
@@ -218,14 +281,13 @@ function TimelineDetail({ event }: { event: EventItem }) {
 }
 
 function TimelineView({ events, initialEventId }: { events: EventItem[]; initialEventId?: string | null }) {
-  const [selected, setSelected] = useState<EventItem | null>(() => {
-    if (initialEventId) {
-      const found = events.find(e => e.id === initialEventId);
-      if (found) return found;
-    }
-    return events[0] ?? null;
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (initialEventId && events.find(e => e.id === initialEventId)) return initialEventId;
+    return events[0]?.id ?? null;
   });
-  const grouped = groupByDate(events);
+  const grouped = useMemo(() => groupByDate(events), [events]);
+  // Derive the selected event from the live events array so it always reflects the latest poll data.
+  const selected = events.find(e => e.id === selectedId) ?? events[0] ?? null;
 
   if (events.length === 0) {
     return (
@@ -247,8 +309,8 @@ function TimelineView({ events, initialEventId }: { events: EventItem[]; initial
               {evs.map(ev => (
                 <button
                   key={ev.id}
-                  onClick={() => setSelected(ev)}
-                  className={`gf-timeline-card${selected?.id === ev.id ? ' gf-timeline-card--selected' : ''}`}
+                  onClick={() => setSelectedId(ev.id)}
+                  className={`gf-timeline-card${selectedId === ev.id ? ' gf-timeline-card--selected' : ''}`}
                 >
                   <p className="gf-timeline-card__title">{ev.title}</p>
                   <div className="gf-timeline-card__meta">
@@ -325,7 +387,16 @@ export default function Dashboard() {
       .finally(() => setLoading(false));
     const id = setInterval(() => {
       api.get<{ created: EventItem[]; joined: EventItem[] }>('/events')
-        .then(data => { setCreated(data.created); setJoined(data.joined); })
+        .then(data => {
+          setCreated(prev =>
+            prev.length === data.created.length && prev.every((e, i) => e.id === data.created[i].id && e.status === data.created[i].status && e.ai_suggestions === data.created[i].ai_suggestions)
+              ? prev : data.created
+          );
+          setJoined(prev =>
+            prev.length === data.joined.length && prev.every((e, i) => e.id === data.joined[i].id && e.status === data.joined[i].status && e.ai_suggestions === data.joined[i].ai_suggestions)
+              ? prev : data.joined
+          );
+        })
         .catch(() => {});
     }, 5000);
     return () => clearInterval(id);

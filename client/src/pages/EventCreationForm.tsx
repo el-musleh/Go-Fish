@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, getCurrentUserId } from '../api/client';
 
@@ -7,6 +7,7 @@ export default function EventCreationForm() {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [locationCity, setLocationCity] = useState('');
+  const [timeoutHours, setTimeoutHours] = useState(24);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -15,7 +16,7 @@ export default function EventCreationForm() {
     return null;
   }
 
-  async function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: { preventDefault(): void }) {
     e.preventDefault();
     setError('');
     setSaving(true);
@@ -27,10 +28,11 @@ export default function EventCreationForm() {
         location_country: 'DE',
         location_lat: null,
         location_lng: null,
+        timeout_hours: timeoutHours,
       });
       navigate(`/events/${event.id}`);
     } catch {
-      setError('Could not create the group.');
+      setError('Could not create the event.');
     } finally {
       setSaving(false);
     }
@@ -38,7 +40,7 @@ export default function EventCreationForm() {
 
   return (
     <div className="gf-stack gf-stack--xl">
-      <h2 className="gf-section-title">Create group</h2>
+      <h2 className="gf-section-title">Create new event or activity</h2>
       <div className="gf-card">
         <form className="gf-form" onSubmit={handleSubmit}>
           <label className="gf-field">
@@ -56,9 +58,21 @@ export default function EventCreationForm() {
             <span className="gf-field__hint">Optional context for the AI and the group.</span>
             <textarea className="gf-input gf-textarea" placeholder="Keep it flexible, social, and not too expensive." rows={4} value={description} onChange={e => setDescription(e.target.value)} />
           </label>
+          <label className="gf-field">
+            <span className="gf-field__label">Response timeout (hours)</span>
+            <span className="gf-field__hint">How long should people have to respond? Default is 24 hours.</span>
+            <input
+              className="gf-input"
+              type="number"
+              min={1}
+              max={168}
+              value={timeoutHours}
+              onChange={e => setTimeoutHours(Number(e.target.value))}
+            />
+          </label>
           {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
           <button className="gf-button gf-button--primary" type="submit" disabled={saving}>
-            {saving ? 'Working...' : 'Create group'}
+            {saving ? 'Working...' : 'Create'}
           </button>
         </form>
       </div>

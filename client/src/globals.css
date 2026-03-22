@@ -430,6 +430,8 @@ button, input, textarea { font: inherit; }
 .gf-button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 .gf-field { display: grid; gap: 10px; }
+.gf-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 480px) { .gf-field-row { grid-template-columns: 1fr; } }
 .gf-field__label { font-size: 0.92rem; }
 
 .gf-input {

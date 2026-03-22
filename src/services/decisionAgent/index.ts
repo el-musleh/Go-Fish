@@ -17,8 +17,8 @@ import {
 } from './tools';
 import {
   createChatOpenRouterModel,
-  DEFAULT_OPENROUTER_MODEL,
-  FALLBACK_OPENROUTER_MODEL,
+  DEFAULT_MODEL,
+  FALLBACK_MODEL,
   resolveOpenRouterApiKey,
   resolveOpenRouterModelName,
   shouldUseFallbackModel,
@@ -59,8 +59,7 @@ export async function generateActivityOptions(
   realWorldContext?: RealWorldContext
 ): Promise<GeneratedOption[]> {
   const resolvedApiKey = resolveOpenRouterApiKey(apiKey);
-  const initialModel = resolveOpenRouterModelName();
-  let activeModel = initialModel;
+  let activeModel = resolveOpenRouterModelName();
   let lastError: Error | undefined;
 
   const runtime = createPlanningRuntime(
@@ -75,7 +74,7 @@ export async function generateActivityOptions(
       return await runPlanningAgent(runtime, resolvedApiKey, activeModel);
     } catch (error) {
       if (shouldUseFallbackModel(error, activeModel)) {
-        activeModel = FALLBACK_OPENROUTER_MODEL;
+        activeModel = FALLBACK_MODEL;
         continue;
       }
 
@@ -94,9 +93,9 @@ export async function generateActivityOptions(
 export {
   AgentRuntimeState,
   CandidateRef,
-  DEFAULT_OPENROUTER_MODEL,
+  DEFAULT_MODEL,
   EventContext,
-  FALLBACK_OPENROUTER_MODEL,
+  FALLBACK_MODEL,
   FinalizedOption,
   FinalizedOptions,
   GeneratedOption,

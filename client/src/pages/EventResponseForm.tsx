@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api, ApiError, getCurrentUserId } from '../api/client';
 
@@ -42,7 +42,7 @@ export default function EventResponseForm() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [windowClosed, setWindowClosed] = useState(false);
-  const dates = getNext14Days();
+  const dates = useMemo(() => getNext14Days(), []);
 
   useEffect(() => {
     if (!getCurrentUserId()) { navigate(`/login?returnTo=/events/${eventId}/respond`, { replace: true }); return; }
@@ -155,6 +155,7 @@ export default function EventResponseForm() {
     </div>
   );
 
+  const preferredDate = event?.preferred_date?.split('T')[0];
   const sortedSelected = Array.from(selectedDates.entries()).sort(([a], [b]) => a.localeCompare(b));
 
   return (
@@ -164,7 +165,6 @@ export default function EventResponseForm() {
       <div className="gf-date-grid">
         {dates.map(d => {
           const active = selectedDates.has(d.value);
-          const preferredDate = event?.preferred_date?.split('T')[0];
           const isSuggested = preferredDate === d.value;
           return (
             <button key={d.value} type="button" onClick={() => toggle(d.value)}
