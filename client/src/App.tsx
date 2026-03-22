@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Sun, Moon } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
 import { getCurrentUserId, setCurrentUserId, api } from './api/client';
 import { supabase } from './lib/supabase';
 import AuthDialog from './components/AuthDialog';
@@ -17,23 +16,15 @@ import EventConfirmation from './pages/EventConfirmation';
 import PrototypePage from './pages/prototype/PrototypePage';
 import MemoriesPage from './pages/MemoriesPage';
 
-function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
-  const location = useLocation();
-  const [path, qs] = to.split('?');
-  const isActive = qs
-    ? location.pathname === path && location.search === `?${qs}`
-    : location.pathname === path && !location.search;
-  return (
-    <Link to={to} className={isActive ? 'gf-nav-link gf-nav-link--active' : 'gf-nav-link'}>
-      {children}
-    </Link>
-  );
-}
-
 function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const userId = getCurrentUserId();
   const [authOpen, setAuthOpen] = useState(false);
+
+  useEffect(() => {
+    // Remove any leftover theme attribute so the original dark design shows
+    document.documentElement.removeAttribute('data-theme');
+  }, []);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { email?: string } } | null) => {
@@ -52,19 +43,6 @@ function AppShell({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const [theme, setTheme] = useState<'dark' | 'light'>(
-    () => (localStorage.getItem('gofish_theme') as 'dark' | 'light') ?? 'dark',
-  );
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('gofish_theme', theme);
-  }, [theme]);
-
-  function toggleTheme() {
-    setTheme(t => t === 'dark' ? 'light' : 'dark');
-  }
-
   function handleSignOut() {
     localStorage.removeItem('gofish_user_id');
     navigate('/login');
@@ -79,25 +57,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
           <span>Go Fish</span>
         </Link>
         <nav className="gf-nav">
-          {userId && <NavItem to="/dashboard">Home</NavItem>}
-          {userId && <NavItem to="/dashboard?tab=timeline">Timeline</NavItem>}
-          {userId && <NavItem to="/events/new">Create</NavItem>}
-          {userId && <NavItem to="/memories">Memories</NavItem>}
+          <Link to="/events/new">New</Link>
         </nav>
         <div className="gf-topbar__actions">
-          <button
-            className="gf-button gf-button--ghost gf-button--sm"
-            onClick={toggleTheme}
-            type="button"
-            aria-label="Toggle theme"
-          >
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
           {userId ? (
             <>
-              <button className="gf-button gf-button--ghost" type="button" onClick={() => navigate('/benchmark')}>
-                Preferences
-              </button>
+              <Link to="/benchmark">
+                <button className="gf-button gf-button--ghost" type="button">Preferences</button>
+              </Link>
               <button className="gf-button gf-button--secondary" onClick={handleSignOut} type="button">
                 Sign out
               </button>
