@@ -1,13 +1,13 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   buildEmailBody,
   buildEmailText,
   sendNotificationEmails,
   sendWithRetry,
+  type EmailTransport,
 } from './emailService';
 import { ActivityOption } from '../models/ActivityOption';
 
-// Mock all repository modules
 vi.mock('../repositories/eventRepository', () => ({
   getEventById: vi.fn(),
 }));
@@ -40,15 +40,23 @@ function makeActivity(overrides?: Partial<ActivityOption>): ActivityOption {
     title: 'Bowling Night',
     description: 'Bowling at the local alley',
     suggested_date: '2025-02-15',
+    suggested_time: '19:00',
     rank: 1,
     is_selected: true,
+    source_url: null,
+    venue_name: null,
+    price_range: null,
+    weather_note: null,
+    image_url: null,
     created_at: new Date(),
     ...overrides,
   };
 }
 
-function makeMockResend(sendResult: { data?: any; error?: any }) {
-  return { emails: { send: vi.fn().mockResolvedValue(sendResult) } } as any;
+function makeMockTransport(sendImpl?: EmailTransport['send']): EmailTransport & { send: ReturnType<typeof vi.fn> } {
+  return {
+    send: vi.fn(sendImpl ?? (() => Promise.resolve())),
+  };
 }
 
 describe('buildEmailBody', () => {
@@ -72,10 +80,19 @@ describe('buildEmailText', () => {
 });
 
 describe('sendNotificationEmails', () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  const originalEnv = process.env;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env = { ...originalEnv, EMAIL_FROM: 'Go Fish <hello@example.com>' };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
 
   it('sends emails to all respondents and the inviter', async () => {
-    const mockResend = makeMockResend({ data: { id: 'msg-1' } });
+    const mockTransport = makeMockTransport();
 
     vi.mocked(getEventById).mockResolvedValue({
       id: 'evt-1', inviter_id: 'user-inviter', title: 'Test', description: 'Desc',
@@ -97,30 +114,35 @@ describe('sendNotificationEmails', () => {
     }));
     vi.mocked(updateEmailLogStatus).mockResolvedValue(null);
 
-    await sendNotificationEmails(mockPool, 'evt-1', mockResend);
+    await sendNotificationEmails(mockPool, 'evt-1', mockTransport);
 
     expect(createEmailLog).toHaveBeenCalledTimes(3);
-    expect(mockResend.emails.send).toHaveBeenCalledTimes(3);
+    expect(mockTransport.send).toHaveBeenCalledTimes(3);
     expect(updateEmailLogStatus).toHaveBeenCalledTimes(3);
-    for (const call of vi.mocked(updateEmailLogStatus).mock.calls) {
-      expect(call[2]).toBe('sent');
-    }
+    expect(mockTransport.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        from: 'Go Fish <hello@example.com>',
+        to: 'user-a@test.com',
+        subject: 'Go Fish: Bowling Night',
+      })
+    );
   });
 
   it('does nothing if event is not finalized', async () => {
-    const mockResend = makeMockResend({ data: { id: 'msg-1' } });
+    const mockTransport = makeMockTransport();
     vi.mocked(getEventById).mockResolvedValue({
       id: 'evt-1', inviter_id: 'user-inviter', title: 'Test', description: 'Desc',
       response_window_start: new Date(), response_window_end: new Date(),
       status: 'options_ready', created_at: new Date(),
     });
 
-    await sendNotificationEmails(mockPool, 'evt-1', mockResend);
+    await sendNotificationEmails(mockPool, 'evt-1', mockTransport);
     expect(createEmailLog).not.toHaveBeenCalled();
+    expect(mockTransport.send).not.toHaveBeenCalled();
   });
 
-  it('does nothing if no selected activity option', async () => {
-    const mockResend = makeMockResend({ data: { id: 'msg-1' } });
+  it('does nothing if no selected activity option exists', async () => {
+    const mockTransport = makeMockTransport();
     vi.mocked(getEventById).mockResolvedValue({
       id: 'evt-1', inviter_id: 'user-inviter', title: 'Test', description: 'Desc',
       response_window_start: new Date(), response_window_end: new Date(),
@@ -128,12 +150,13 @@ describe('sendNotificationEmails', () => {
     });
     vi.mocked(getActivityOptionsByEventId).mockResolvedValue([makeActivity({ is_selected: false })]);
 
-    await sendNotificationEmails(mockPool, 'evt-1', mockResend);
+    await sendNotificationEmails(mockPool, 'evt-1', mockTransport);
     expect(createEmailLog).not.toHaveBeenCalled();
+    expect(mockTransport.send).not.toHaveBeenCalled();
   });
 
   it('deduplicates when inviter is also a respondent', async () => {
-    const mockResend = makeMockResend({ data: { id: 'msg-1' } });
+    const mockTransport = makeMockTransport();
     vi.mocked(getEventById).mockResolvedValue({
       id: 'evt-1', inviter_id: 'user-a', title: 'Test', description: 'Desc',
       response_window_start: new Date(), response_window_end: new Date(),
@@ -153,9 +176,48 @@ describe('sendNotificationEmails', () => {
     }));
     vi.mocked(updateEmailLogStatus).mockResolvedValue(null);
 
-    await sendNotificationEmails(mockPool, 'evt-1', mockResend);
+    await sendNotificationEmails(mockPool, 'evt-1', mockTransport);
     expect(createEmailLog).toHaveBeenCalledTimes(1);
-    expect(mockResend.emails.send).toHaveBeenCalledTimes(1);
+    expect(mockTransport.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps processing other recipients when one email log insert fails', async () => {
+    const mockTransport = makeMockTransport();
+
+    vi.mocked(getEventById).mockResolvedValue({
+      id: 'evt-1', inviter_id: 'user-inviter', title: 'Test', description: 'Desc',
+      response_window_start: new Date(), response_window_end: new Date(),
+      status: 'finalized', created_at: new Date(),
+    });
+    vi.mocked(getActivityOptionsByEventId).mockResolvedValue([makeActivity()]);
+    vi.mocked(getResponsesByEventId).mockResolvedValue([
+      { id: 'r1', event_id: 'evt-1', invitee_id: 'user-a', available_dates: ['2025-02-15'], created_at: new Date() },
+      { id: 'r2', event_id: 'evt-1', invitee_id: 'user-b', available_dates: ['2025-02-15'], created_at: new Date() },
+    ]);
+    vi.mocked(getUserById).mockImplementation(async (_pool, id) => ({
+      id, email: `${id}@test.com`, name: null, auth_provider: 'email' as const,
+      has_taste_benchmark: true, created_at: new Date(),
+    }));
+    vi.mocked(createEmailLog).mockImplementation(async (_pool, data) => {
+      if (data.user_id === 'user-b') {
+        throw new Error('fk violation');
+      }
+      return {
+        id: `log-${data.user_id}`, event_id: data.event_id, user_id: data.user_id,
+        status: 'pending' as const, retry_count: 0, last_attempt: null, created_at: new Date(),
+      };
+    });
+    vi.mocked(updateEmailLogStatus).mockResolvedValue(null);
+
+    await sendNotificationEmails(mockPool, 'evt-1', mockTransport);
+
+    expect(mockTransport.send).toHaveBeenCalledTimes(2);
+    expect(mockTransport.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'user-a@test.com' })
+    );
+    expect(mockTransport.send).toHaveBeenCalledWith(
+      expect.objectContaining({ to: 'user-inviter@test.com' })
+    );
   });
 });
 
@@ -165,43 +227,47 @@ describe('sendWithRetry', () => {
     vi.useFakeTimers();
   });
 
-  it('marks as sent on success', async () => {
-    const mockResend = makeMockResend({ data: { id: 'msg-1' } });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('marks the email as sent on success', async () => {
+    const mockTransport = makeMockTransport();
     vi.mocked(updateEmailLogStatus).mockResolvedValue(null);
 
-    await sendWithRetry(mockPool, mockResend, 'log-1', 'a@b.com', 'test@test.com', 'Sub', '<p>Body</p>', 'Body');
+    await sendWithRetry(mockPool, mockTransport, 'log-1', 'a@b.com', 'from@test.com', 'Sub', '<p>Body</p>', 'Body');
     expect(updateEmailLogStatus).toHaveBeenCalledWith(mockPool, 'log-1', 'sent');
   });
 
-  it('retries up to 3 times then marks as failed', async () => {
-    const mockResend = makeMockResend({ error: { message: 'rate limited' } });
+  it('retries up to three times then marks the email as failed', async () => {
+    const mockTransport = makeMockTransport(async () => {
+      throw new Error('rate limited');
+    });
     vi.mocked(updateEmailLogStatus).mockResolvedValue(null);
 
-    const promise = sendWithRetry(mockPool, mockResend, 'log-1', 'a@b.com', 'test@test.com', 'Sub', '<p>Body</p>', 'Body');
+    const promise = sendWithRetry(mockPool, mockTransport, 'log-1', 'a@b.com', 'from@test.com', 'Sub', '<p>Body</p>', 'Body');
     await vi.advanceTimersByTimeAsync(5_000);
     await vi.advanceTimersByTimeAsync(5_000);
     await promise;
 
-    expect(mockResend.emails.send).toHaveBeenCalledTimes(3);
+    expect(mockTransport.send).toHaveBeenCalledTimes(3);
     const lastCall = vi.mocked(updateEmailLogStatus).mock.calls.at(-1);
     expect(lastCall?.[2]).toBe('failed');
   });
 
-  it('succeeds on second attempt after first failure', async () => {
-    const mockResend = {
-      emails: {
-        send: vi.fn()
-          .mockResolvedValueOnce({ error: { message: 'rate limited' } })
-          .mockResolvedValueOnce({ data: { id: 'msg-1' } }),
-      },
-    } as any;
+  it('succeeds on the second attempt after an initial failure', async () => {
+    const mockTransport = makeMockTransport(
+      vi.fn()
+        .mockRejectedValueOnce(new Error('rate limited'))
+        .mockResolvedValueOnce(undefined)
+    );
     vi.mocked(updateEmailLogStatus).mockResolvedValue(null);
 
-    const promise = sendWithRetry(mockPool, mockResend, 'log-1', 'a@b.com', 'test@test.com', 'Sub', '<p>Body</p>', 'Body');
+    const promise = sendWithRetry(mockPool, mockTransport, 'log-1', 'a@b.com', 'from@test.com', 'Sub', '<p>Body</p>', 'Body');
     await vi.advanceTimersByTimeAsync(5_000);
     await promise;
 
-    expect(mockResend.emails.send).toHaveBeenCalledTimes(2);
+    expect(mockTransport.send).toHaveBeenCalledTimes(2);
     const lastCall = vi.mocked(updateEmailLogStatus).mock.calls.at(-1);
     expect(lastCall?.[2]).toBe('sent');
   });
