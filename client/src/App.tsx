@@ -181,16 +181,6 @@ function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           )}
           {userId && (
-            <Link
-              to="/dashboard?tab=timeline"
-              className={`gf-nav-link gf-nav-link--icon${isTimeline ? ' gf-nav-link--active' : ''}`}
-              title="Timeline"
-              aria-label="Timeline"
-            >
-              <Calendar size={20} />
-            </Link>
-          )}
-          {userId && (
             <NavLink
               to="/events/new"
               className={({ isActive }) => `gf-nav-link gf-nav-link--icon${isActive ? ' gf-nav-link--active' : ''}`}
@@ -199,6 +189,16 @@ function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Plus size={20} />
             </NavLink>
+          )}
+          {userId && (
+            <Link
+              to="/dashboard?tab=timeline"
+              className={`gf-nav-link gf-nav-link--icon${isTimeline ? ' gf-nav-link--active' : ''}`}
+              title="Timeline"
+              aria-label="Timeline"
+            >
+              <Calendar size={20} />
+            </Link>
           )}
         </nav>
         <div className="gf-topbar__actions">
