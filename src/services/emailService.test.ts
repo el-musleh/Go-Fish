@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   buildEmailBody,
   buildEmailText,
+  createResendTransport,
   sendNotificationEmails,
   sendWithRetry,
   type EmailTransport,
@@ -55,7 +56,7 @@ function makeActivity(overrides?: Partial<ActivityOption>): ActivityOption {
 
 function makeMockTransport(sendImpl?: EmailTransport['send']): EmailTransport & { send: ReturnType<typeof vi.fn> } {
   return {
-    send: vi.fn(sendImpl ?? (() => Promise.resolve())),
+    send: vi.fn(sendImpl ?? (() => Promise.resolve({ provider: 'resend' as const }))),
   };
 }
 
@@ -221,6 +222,82 @@ describe('sendNotificationEmails', () => {
   });
 });
 
+describe('createResendTransport', () => {
+  const originalFetch = global.fetch;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it('posts the expected payload to Resend and returns the message id', async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ id: 'email_123' }),
+      headers: new Headers({ 'x-ratelimit-remaining': '97' }),
+    }));
+    global.fetch = fetchMock as typeof fetch;
+
+    const transport = createResendTransport('re_test');
+    const result = await transport.send({
+      from: 'Go Fish <noreply@gofish.ink>',
+      to: 'user@example.com',
+      subject: 'Hello',
+      html: '<p>Hi</p>',
+      text: 'Hi',
+      replyTo: 'support@gofish.ink',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.resend.com/emails',
+      expect.objectContaining({
+        method: 'POST',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer re_test',
+          'Content-Type': 'application/json',
+        }),
+      })
+    );
+    expect(JSON.parse(vi.mocked(fetchMock).mock.calls[0][1]?.body as string)).toEqual({
+      from: 'Go Fish <noreply@gofish.ink>',
+      to: ['user@example.com'],
+      subject: 'Hello',
+      html: '<p>Hi</p>',
+      text: 'Hi',
+      reply_to: 'support@gofish.ink',
+    });
+    expect(result).toEqual({
+      provider: 'resend',
+      messageId: 'email_123',
+      rateLimitRemaining: '97',
+    });
+  });
+
+  it('throws a helpful error when Resend rejects the request', async () => {
+    global.fetch = vi.fn(async () => ({
+      ok: false,
+      status: 429,
+      statusText: 'Too Many Requests',
+      text: async () => '{"message":"rate limit exceeded"}',
+    })) as typeof fetch;
+
+    const transport = createResendTransport('re_test');
+
+    await expect(
+      transport.send({
+        from: 'Go Fish <noreply@gofish.ink>',
+        to: 'user@example.com',
+        subject: 'Hello',
+        html: '<p>Hi</p>',
+        text: 'Hi',
+      })
+    ).rejects.toThrow('Resend API 429');
+  });
+});
+
 describe('sendWithRetry', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -259,7 +336,7 @@ describe('sendWithRetry', () => {
     const mockTransport = makeMockTransport(
       vi.fn()
         .mockRejectedValueOnce(new Error('rate limited'))
-        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ provider: 'resend' as const })
     );
     vi.mocked(updateEmailLogStatus).mockResolvedValue(null);
 
