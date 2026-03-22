@@ -78,7 +78,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="gf-app">
       <header className="gf-topbar">
-        <Link className="gf-brand" to="/">
+        <Link className="gf-brand" to={userId ? '/dashboard' : '/'}>
           <img src="/logo.png" alt="Go Fish" className="gf-brand__icon" />
           <span>Go Fish</span>
         </Link>
