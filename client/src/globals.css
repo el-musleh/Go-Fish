@@ -99,28 +99,36 @@ button, input, textarea { font: inherit; }
   width: auto;
 }
 
-.gf-nav { display: flex; justify-content: center; }
+.gf-nav { display: flex; justify-content: center; gap: 8px; }
 
-.gf-nav a {
-  padding: 10px 20px;
-  border-radius: 999px;
-  transition: transform 180ms ease, background 180ms ease;
-  font-size: 0.92rem;
-  font-weight: 600;
-  color: #120a07;
-  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
-  box-shadow: 0 8px 20px rgba(255, 157, 73, 0.2);
-}
-
-.gf-nav a:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 24px rgba(255, 157, 73, 0.3);
-}
 
 .gf-topbar__actions {
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+}
+
+.gf-theme-toggle {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--theme-switch-bg);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: var(--theme-switch-shadow);
+  transition: transform 180ms ease, background 180ms ease, border-color 180ms ease, color 180ms ease;
+}
+
+.gf-theme-toggle:hover {
+  transform: translateY(-1px);
+  background: rgba(var(--accent-rgb), 0.1);
+  border-color: var(--line-strong);
 }
 
 .gf-muted, .gf-field__hint { color: var(--muted); }
@@ -476,10 +484,19 @@ button, input, textarea { font: inherit; }
 }
 
 @media (max-width: 1080px) {
-  .gf-topbar { grid-template-columns: 1fr; border-radius: 26px; }
+  .gf-topbar { grid-template-columns: 1fr; border-radius: 20px; padding: 14px 18px; }
+  .gf-brand { font-size: 1.6rem; }
   .gf-nav { justify-content: flex-start; flex-wrap: wrap; }
-  .gf-topbar__actions { justify-content: space-between; }
+  .gf-topbar__actions { justify-content: flex-start; }
   .gf-grid--three, .gf-grid--two { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+  .gf-topbar { padding: 12px 14px; gap: 10px; }
+  .gf-brand { font-size: 1.3rem; }
+  .gf-brand__icon { height: 1.5rem; }
+  .gf-nav-link { padding: 8px 14px; font-size: 0.85rem; }
+  .gf-topbar__actions { gap: 8px; }
 }
 
 /* ── Nav links (for multiple nav items) ── */
