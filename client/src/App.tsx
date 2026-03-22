@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate } from 'react-router-dom';
 import { Moon, Sun } from 'lucide-react';
 import { getCurrentUserId, setCurrentUserId, api } from './api/client';
 import { supabase } from './lib/supabase';
@@ -15,7 +15,6 @@ import EventResponseForm from './pages/EventResponseForm';
 import ActivityOptionsView from './pages/ActivityOptionsView';
 import EventConfirmation from './pages/EventConfirmation';
 import PrototypePage from './pages/prototype/PrototypePage';
-import MemoriesPage from './pages/MemoriesPage';
 import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
 
 function ThemeSwitch({
@@ -78,27 +77,32 @@ function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="gf-app">
       <header className="gf-topbar">
-        <Link className="gf-brand" to="/">
+        <Link className="gf-brand" to={userId ? '/dashboard' : '/'}>
           <img src="/logo.png" alt="Go Fish" className="gf-brand__icon" />
           <span>Go Fish</span>
         </Link>
         <nav className="gf-nav">
-          {userId && <Link to="/dashboard">Home</Link>}
-          {userId && <Link to="/dashboard?tab=timeline">Timeline</Link>}
-          <Link to="/events/new">New</Link>
-          {userId && <Link to="/memories">Memories</Link>}
+          {userId && (
+            <NavLink to="/dashboard" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`}>Home</NavLink>
+          )}
+          {userId && (
+            <NavLink to="/dashboard?tab=timeline" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`}>Timeline</NavLink>
+          )}
+          {userId && (
+            <NavLink to="/events/new" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`}>New</NavLink>
+          )}
         </nav>
         <div className="gf-topbar__actions">
+          {userId && (
+            <Link to="/benchmark">
+              <button className="gf-button gf-button--ghost" type="button">Preferences</button>
+            </Link>
+          )}
           <ThemeSwitch activeTheme={theme} onThemeChange={setTheme} />
           {userId ? (
-            <>
-              <Link to="/benchmark">
-                <button className="gf-button gf-button--ghost" type="button">Preferences</button>
-              </Link>
-              <button className="gf-button gf-button--secondary" onClick={handleSignOut} type="button">
-                Sign out
-              </button>
-            </>
+            <button className="gf-button gf-button--secondary" onClick={handleSignOut} type="button">
+              Sign out
+            </button>
           ) : (
             <button
               className="gf-button gf-button--secondary"
@@ -143,8 +147,7 @@ export default function App() {
                 <Route path="/events/:eventId/respond" element={<EventResponseForm />} />
                 <Route path="/events/:eventId/options" element={<ActivityOptionsView />} />
                 <Route path="/events/:eventId/confirmation" element={<EventConfirmation />} />
-                <Route path="/memories" element={<MemoriesPage />} />
-                <Route path="*" element={<Dashboard />} />
+                <Route path="*" element={<LandingPage />} />
               </Routes>
             </AppShell>
           }
