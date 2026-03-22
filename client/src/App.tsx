@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
-import { Moon, Sun } from 'lucide-react';
 import { getCurrentUserId, setCurrentUserId, api } from './api/client';
 import { supabase } from './lib/supabase';
 import AuthDialog from './components/AuthDialog';
@@ -16,41 +15,16 @@ import ActivityOptionsView from './pages/ActivityOptionsView';
 import EventConfirmation from './pages/EventConfirmation';
 import PrototypePage from './pages/prototype/PrototypePage';
 import MemoriesPage from './pages/MemoriesPage';
-import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
-
-function ThemeSwitch({
-  activeTheme,
-  onThemeChange,
-}: {
-  activeTheme: Theme;
-  onThemeChange: (theme: Theme) => void;
-}) {
-  const nextTheme = activeTheme === 'day' ? 'night' : 'day';
-  const Icon = nextTheme === 'day' ? Sun : Moon;
-
-  return (
-    <button
-      aria-label={`Switch to ${nextTheme} mode`}
-      className="gf-theme-toggle"
-      onClick={() => onThemeChange(nextTheme)}
-      title={nextTheme === 'day' ? 'Day mode' : 'Night mode'}
-      type="button"
-    >
-      <Icon aria-hidden="true" size={16} strokeWidth={2} />
-    </button>
-  );
-}
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const userId = getCurrentUserId();
   const [authOpen, setAuthOpen] = useState(false);
-  const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
 
   useEffect(() => {
-    applyTheme(theme);
-    persistTheme(theme);
-  }, [theme]);
+    // Remove any leftover theme attribute so the original dark design shows
+    document.documentElement.removeAttribute('data-theme');
+  }, []);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { email?: string } } | null) => {
@@ -83,13 +57,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
           <span>Go Fish</span>
         </Link>
         <nav className="gf-nav">
-          {userId && <Link to="/dashboard">Home</Link>}
-          {userId && <Link to="/dashboard?tab=timeline">Timeline</Link>}
           <Link to="/events/new">New</Link>
-          {userId && <Link to="/memories">Memories</Link>}
         </nav>
         <div className="gf-topbar__actions">
-          <ThemeSwitch activeTheme={theme} onThemeChange={setTheme} />
           {userId ? (
             <>
               <Link to="/benchmark">
