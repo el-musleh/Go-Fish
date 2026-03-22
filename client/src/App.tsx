@@ -156,10 +156,16 @@ function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [navigate]);
 
-  function handleSignOut() {
-    clearCurrentUser();
-    navigate('/login');
-    window.location.reload();
+  async function handleSignOut() {
+    setAuthOpen(false);
+
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } finally {
+      clearCurrentUser();
+      setAuthBootstrapping(false);
+      navigate('/login', { replace: true });
+    }
   }
 
   return (
