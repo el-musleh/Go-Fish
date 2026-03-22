@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import OptionGenerationState from '../components/OptionGenerationState';
 
 interface ActivityOption {
   id: string;
@@ -160,9 +161,11 @@ export default function ActivityOptionsView() {
           ))}
         </div>
       ) : (
-        <div className="gf-card">
-          <p className="gf-muted">Waiting for options to be generated…</p>
-        </div>
+        <OptionGenerationState
+          title="Curating your shortlist"
+          description="The final combinations are being assembled around your group's shared preferences."
+          detail="This page refreshes automatically and will reveal the picks as soon as they are ready."
+        />
       )}
     </div>
   );

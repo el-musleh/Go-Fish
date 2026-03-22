@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, getCurrentUserId } from '../api/client';
+import OptionGenerationState from '../components/OptionGenerationState';
 import InvitationLinkPanel from './InvitationLinkPanel';
 
 interface EventData { id: string; title: string; description: string; status: string; response_window_end: string; inviter_id: string; location_city?: string; }
@@ -147,11 +148,7 @@ export default function EventDetail() {
     return (
       <div className="gf-stack gf-stack--xl">
         <h2 className="gf-section-title">{event.title}</h2>
-        <div className="gf-card">
-          <h3 className="gf-card-title">Generating options...</h3>
-          <p className="gf-muted">The AI is creating activity suggestions. This usually takes a moment.</p>
-          <p className="gf-muted" style={{ marginTop: 6 }}>You will be taken to the picks automatically as soon as they are ready.</p>
-        </div>
+        <OptionGenerationState />
       </div>
     );
   }
