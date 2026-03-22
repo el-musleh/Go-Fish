@@ -78,6 +78,11 @@ const QUESTION_LABELS: Record<string, string> = {
   q10: 'Learning activities',
 };
 
+const FALLBACK_WINDOW: OverlapWindow = {
+  start_time: '10:00',
+  end_time: '22:00',
+};
+
 function timeToMinutes(time: string): number {
   const [hours, minutes] = time.split(':').map((part) => Number(part));
   return hours * 60 + minutes;
@@ -272,6 +277,44 @@ export function buildOverlapSlots(
     .map((slot, index) => ({ ...slot, priority: index + 1 }));
 }
 
+export function buildFallbackOverlapSlots(
+  realWorldContext?: RealWorldContext,
+  referenceDate: Date = new Date()
+): OverlapSlot[] {
+  const candidateDates = new Set<string>();
+
+  for (const event of realWorldContext?.events ?? []) {
+    if (event.date) {
+      candidateDates.add(event.date);
+    }
+  }
+
+  for (const day of realWorldContext?.weather ?? []) {
+    if (day.date) {
+      candidateDates.add(day.date);
+    }
+  }
+
+  if (candidateDates.size === 0) {
+    for (let offset = 0; offset < 7; offset += 1) {
+      const date = new Date(referenceDate);
+      date.setDate(referenceDate.getDate() + offset);
+      candidateDates.add(date.toISOString().split('T')[0]);
+    }
+  }
+
+  return Array.from(candidateDates)
+    .sort((left, right) => left.localeCompare(right))
+    .slice(0, 7)
+    .map((date, index) => ({
+      date,
+      participant_count: 0,
+      participant_indices: [],
+      windows: [FALLBACK_WINDOW],
+      priority: index + 1,
+    }));
+}
+
 function buildWeatherNoteMap(realWorldContext?: RealWorldContext): Map<string, string> {
   const map = new Map<string, string>();
   for (const day of realWorldContext?.weather ?? []) {
@@ -327,13 +370,18 @@ export function buildRuntimeState(
   eventContext?: EventContext,
   realWorldContext?: RealWorldContext
 ): AgentRuntimeState {
+  const overlaps =
+    participantAvailability.length > 0
+      ? buildOverlapSlots(participantAvailability)
+      : buildFallbackOverlapSlots(realWorldContext);
+
   return {
     eventContext,
     participantSummaries: benchmarks.map((benchmark, index) =>
       summarizeParticipant(benchmark, index)
     ),
     participantAvailability,
-    overlaps: buildOverlapSlots(participantAvailability),
+    overlaps,
     groupPreferences: buildGroupPreferenceSummary(benchmarks),
     eventCandidates: buildCandidateRefs(realWorldContext).events,
     venueCandidates: buildCandidateRefs(realWorldContext).venues,

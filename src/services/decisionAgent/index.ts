@@ -16,14 +16,18 @@ import {
   GroupPreferenceSummary,
 } from './tools';
 import {
-  createChatGoogleModel,
-  DEFAULT_GOOGLE_MODEL,
-  FALLBACK_GOOGLE_MODEL,
-  resolveGoogleApiKey,
-  resolveGoogleModelName,
+  createChatOpenRouterModel,
+  DEFAULT_OPENROUTER_MODEL,
+  FALLBACK_OPENROUTER_MODEL,
+  resolveOpenRouterApiKey,
+  resolveOpenRouterModelName,
   shouldUseFallbackModel,
 } from './model';
-import { GeneratedOption, runPlanningAgent, validateAndHydrateOptions } from './runner';
+import {
+  GeneratedOption,
+  runPlanningAgent,
+  validateAndHydrateOptions,
+} from './runner';
 import { FinalizedOption, FinalizedOptions } from './schemas';
 
 const MAX_RETRIES = 3;
@@ -54,8 +58,8 @@ export async function generateActivityOptions(
   eventContext?: EventContext,
   realWorldContext?: RealWorldContext
 ): Promise<GeneratedOption[]> {
-  const resolvedApiKey = resolveGoogleApiKey(apiKey);
-  const initialModel = resolveGoogleModelName();
+  const resolvedApiKey = resolveOpenRouterApiKey(apiKey);
+  const initialModel = resolveOpenRouterModelName();
   let activeModel = initialModel;
   let lastError: Error | undefined;
 
@@ -71,7 +75,7 @@ export async function generateActivityOptions(
       return await runPlanningAgent(runtime, resolvedApiKey, activeModel);
     } catch (error) {
       if (shouldUseFallbackModel(error, activeModel)) {
-        activeModel = FALLBACK_GOOGLE_MODEL;
+        activeModel = FALLBACK_OPENROUTER_MODEL;
         continue;
       }
 
@@ -90,9 +94,9 @@ export async function generateActivityOptions(
 export {
   AgentRuntimeState,
   CandidateRef,
-  DEFAULT_GOOGLE_MODEL,
+  DEFAULT_OPENROUTER_MODEL,
   EventContext,
-  FALLBACK_GOOGLE_MODEL,
+  FALLBACK_OPENROUTER_MODEL,
   FinalizedOption,
   FinalizedOptions,
   GeneratedOption,
@@ -103,11 +107,11 @@ export {
   buildOverlapSlots,
   buildRuntimeState,
   createAgentTools,
-  createChatGoogleModel,
+  createChatOpenRouterModel,
   findCommonPreferences,
   rankDatesByOverlap,
-  resolveGoogleApiKey,
-  resolveGoogleModelName,
+  resolveOpenRouterApiKey,
+  resolveOpenRouterModelName,
   shouldUseFallbackModel,
   summarizeParticipant,
   validateAndHydrateOptions,

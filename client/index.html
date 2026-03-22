@@ -4,6 +4,22 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (() => {
+        try {
+          const theme = localStorage.getItem('gofish_theme');
+          const resolvedTheme =
+            theme === 'day' || theme === 'night'
+              ? theme
+              : window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'day'
+                : 'night';
+          document.documentElement.dataset.theme = resolvedTheme;
+        } catch {
+          document.documentElement.dataset.theme = 'night';
+        }
+      })();
+    </script>
     <title>Go Fish</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

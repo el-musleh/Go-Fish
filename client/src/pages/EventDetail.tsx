@@ -90,7 +90,7 @@ export default function EventDetail() {
       const updated = await api.get<EventData>(`/events/${eventId}`);
       setEvent(updated);
     } catch {
-      setError('Generation failed. Make sure at least one person has responded.');
+      setError('Generation failed. Please try again.');
     } finally {
       setWorking(false);
     }

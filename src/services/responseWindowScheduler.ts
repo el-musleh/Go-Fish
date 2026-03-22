@@ -10,8 +10,6 @@ import { getActivityOptionsByEventId, markActivityOptionSelected } from '../repo
 import { fetchRealWorldContext } from './realWorldData';
 import { GeoLocation } from './realWorldData/types';
 
-const MIN_RESPONSES = 1;
-
 // Track active timers so they can be cancelled
 const activeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -22,8 +20,7 @@ export interface SchedulerDeps {
 
 /**
  * Schedule the response window expiry handler for an event.
- * At expiry, checks response count and either triggers generation or
- * marks the event as needing inviter decision.
+ * At expiry, triggers generation with whatever context is available.
  */
 export function scheduleResponseWindow(
   event: Event,
@@ -70,9 +67,8 @@ export async function triggerEarly(
 }
 
 /**
- * Handle response window expiry.
- * If fewer than MIN_RESPONSES, mark event as needing inviter decision.
- * Otherwise, trigger activity generation.
+ * Handle response window expiry by generating options from the current data,
+ * even if nobody responded. The agent falls back to draft planning slots.
  */
 export async function handleWindowExpiry(
   eventId: string,
@@ -83,17 +79,6 @@ export async function handleWindowExpiry(
   const event = await getEventById(pool, eventId);
   if (!event || event.status !== 'collecting') {
     return; // Event already processed or doesn't exist
-  }
-
-  const responses = await getResponsesByEventId(pool, eventId);
-
-  if (responses.length < MIN_RESPONSES) {
-    // Mark event as awaiting inviter decision (extend or proceed)
-    await updateEventStatus(pool, eventId, 'awaiting_decision' as any);
-    console.log(
-      `Event ${eventId}: fewer than ${MIN_RESPONSES} responses. Awaiting inviter decision.`
-    );
-    return;
   }
 
   await triggerGeneration(eventId, deps);
@@ -180,7 +165,7 @@ export async function triggerGeneration(
       }
     }
 
-    // Generate activity options via Gemini
+    // Generate activity options via OpenRouter
     const options = await generateActivityOptions(
       benchmarks,
       participantAvailability,
