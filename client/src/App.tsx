@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Moon, Sun } from 'lucide-react';
+import { Calendar, Home, LogIn, LogOut, Moon, Plus, Settings, Sun } from 'lucide-react';
 import {
   api,
   clearCurrentUser,
@@ -42,12 +42,12 @@ function ThemeSwitch({
   return (
     <button
       aria-label={`Switch to ${nextTheme} mode`}
-      className="gf-theme-toggle"
+      className="gf-nav-link gf-nav-link--icon"
       onClick={() => onThemeChange(nextTheme)}
       title={nextTheme === 'day' ? 'Day mode' : 'Night mode'}
       type="button"
     >
-      <Icon aria-hidden="true" size={16} strokeWidth={2} />
+      <Icon aria-hidden="true" size={18} strokeWidth={2} />
     </button>
   );
 }
@@ -171,31 +171,67 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
         <nav className="gf-nav">
           {userId && (
-            <Link to="/dashboard" className={`gf-nav-link${isHome ? ' gf-nav-link--active' : ''}`}>Home</Link>
+            <Link
+              to="/dashboard"
+              className={`gf-nav-link gf-nav-link--icon${isHome ? ' gf-nav-link--active' : ''}`}
+              title="Home"
+              aria-label="Home"
+            >
+              <Home size={20} />
+            </Link>
           )}
           {userId && (
-            <Link to="/dashboard?tab=timeline" className={`gf-nav-link${isTimeline ? ' gf-nav-link--active' : ''}`}>Timeline</Link>
+            <Link
+              to="/dashboard?tab=timeline"
+              className={`gf-nav-link gf-nav-link--icon${isTimeline ? ' gf-nav-link--active' : ''}`}
+              title="Timeline"
+              aria-label="Timeline"
+            >
+              <Calendar size={20} />
+            </Link>
           )}
           {userId && (
-            <NavLink to="/events/new" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`}>New</NavLink>
+            <NavLink
+              to="/events/new"
+              className={({ isActive }) => `gf-nav-link gf-nav-link--icon${isActive ? ' gf-nav-link--active' : ''}`}
+              title="New event"
+              aria-label="New event"
+            >
+              <Plus size={20} />
+            </NavLink>
           )}
         </nav>
         <div className="gf-topbar__actions">
           {userId && (
-            <Link to="/benchmark" className={`gf-nav-link${isPreferences ? ' gf-nav-link--active' : ''}`}>Preferences</Link>
+            <Link
+              to="/benchmark"
+              className={`gf-nav-link gf-nav-link--icon${isPreferences ? ' gf-nav-link--active' : ''}`}
+              title="Preferences"
+              aria-label="Preferences"
+            >
+              <Settings size={20} />
+            </Link>
           )}
           <ThemeSwitch activeTheme={theme} onThemeChange={setTheme} />
           {userId ? (
-            <button className="gf-button gf-button--secondary" onClick={handleSignOut} type="button">
-              Sign out
+            <button
+              className="gf-nav-link gf-nav-link--icon"
+              onClick={handleSignOut}
+              type="button"
+              title="Sign out"
+              aria-label="Sign out"
+            >
+              <LogOut size={20} />
             </button>
           ) : (
             <button
-              className="gf-button gf-button--secondary"
+              className="gf-nav-link gf-nav-link--icon"
               onClick={() => setAuthOpen(true)}
               type="button"
+              title="Sign in"
+              aria-label="Sign in"
             >
-              Sign in
+              <LogIn size={20} />
             </button>
           )}
         </div>
