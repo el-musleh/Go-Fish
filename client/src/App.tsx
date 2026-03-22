@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Moon, Sun } from 'lucide-react';
 import { getCurrentUserId, setCurrentUserId, setCurrentUserEmail, api } from './api/client';
@@ -16,6 +16,7 @@ import ActivityOptionsView from './pages/ActivityOptionsView';
 import EventConfirmation from './pages/EventConfirmation';
 import PrototypePage from './pages/prototype/PrototypePage';
 import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
+import { getPostAuthDestination, getSessionEmailForSync } from './lib/authSession';
 
 function ThemeSwitch({
   activeTheme,
@@ -49,6 +50,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const isHome = location.pathname === '/dashboard' && !isTimeline;
   const isPreferences = location.pathname === '/benchmark';
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
+  const currentPathRef = useRef('/dashboard');
+  const syncInFlightRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     applyTheme(theme);
@@ -56,21 +59,71 @@ function AppShell({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { email?: string } } | null) => {
-      if (event === 'SIGNED_IN' && session?.user && !getCurrentUserId()) {
+    currentPathRef.current = `${location.pathname}${location.search}${location.hash}` || '/dashboard';
+  }, [location.pathname, location.search, location.hash]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function syncSessionEmail(email: string) {
+      if (!active || syncInFlightRef.current) {
+        return syncInFlightRef.current ?? undefined;
+      }
+
+      syncInFlightRef.current = (async () => {
         try {
           const { userId: id, isNew } = await api.post<{ userId: string; isNew: boolean }>(
             '/auth/email',
-            { email: session.user.email }
+            { email }
           );
+          if (!active) {
+            return;
+          }
+
           setCurrentUserId(id);
-          if (session.user.email) setCurrentUserEmail(session.user.email);
+          setCurrentUserEmail(email);
           setAuthOpen(false);
-          navigate(isNew ? '/benchmark' : '/dashboard', { replace: true });
-        } catch { /* ignore */ }
+
+          const destination = getPostAuthDestination(currentPathRef.current, isNew);
+          if (destination) {
+            navigate(destination, { replace: true });
+          }
+        } catch {
+          // ignore auth bootstrap failures and leave the user on the current screen
+        } finally {
+          syncInFlightRef.current = null;
+        }
+      })();
+
+      return syncInFlightRef.current;
+    }
+
+    const handleAuthEvent = (event: string, session: { user?: { email?: string } } | null) => {
+      const email = getSessionEmailForSync(event, session, getCurrentUserId());
+      if (!email) {
+        return;
+      }
+
+      void syncSessionEmail(email);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthEvent);
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!active) {
+        return;
+      }
+
+      const email = data.session?.user?.email?.trim();
+      if (email && !getCurrentUserId()) {
+        void syncSessionEmail(email);
       }
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
   function handleSignOut() {
