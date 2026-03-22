@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, MapPin, Calendar, Navigation, Split } from 'lucide-react';
-import { api, getCurrentUserId } from '../api/client';
+import { api, getCurrentUserId, getCurrentUserEmail } from '../api/client';
 
 interface EventItem {
   id: string;
@@ -9,6 +9,9 @@ interface EventItem {
   description: string;
   status: string;
   response_window_end: string;
+  preferred_date: string | null;
+  preferred_time: string | null;
+  duration_minutes: number | null;
   respondent_count?: number;
   selected_activity?: { title: string; suggested_date: string; suggested_time: string | null } | null;
 }
@@ -70,24 +73,89 @@ function EventCard({ event, role, onDelete }: { event: EventItem; role: 'creator
 // ── Timeline helpers ────────────────────────────────────────────────────────
 
 function getEventDate(event: EventItem): string | null {
-  return event.selected_activity?.suggested_date ?? null;
+  return event.selected_activity?.suggested_date ?? event.preferred_date ?? null;
 }
 
-function groupByDate(events: EventItem[]): Record<string, EventItem[]> {
-  const grouped: Record<string, EventItem[]> = {};
+interface DateGroup { label: string; rawDate: string | null; events: EventItem[]; }
+
+function groupByDate(events: EventItem[]): DateGroup[] {
+  const map = new Map<string, DateGroup>();
   for (const ev of events) {
     const d = getEventDate(ev);
-    const key = d ? prettyDateFull(d) : 'Unscheduled';
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(ev);
+    const key = d ? d.split('T')[0] : 'unscheduled';
+    if (!map.has(key)) map.set(key, { label: d ? prettyDateFull(d) : 'Unscheduled', rawDate: d ? d.split('T')[0] : null, events: [] });
+    map.get(key)!.events.push(ev);
   }
-  return grouped;
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.rawDate === null) return -1;
+    if (b.rawDate === null) return 1;
+    return a.rawDate.localeCompare(b.rawDate);
+  });
+}
+
+interface EventSuggestions {
+  venue_ideas: string[];
+  estimated_cost_per_person: string;
+  estimated_duration_minutes: number;
+  suggested_time: string;
+  suggested_day: string;
 }
 
 function TimelineDetail({ event }: { event: EventItem }) {
   const navigate = useNavigate();
+  const cache = useRef<Map<string, EventSuggestions>>(new Map());
+  const [suggestions, setSuggestions] = useState<EventSuggestions | null>(() => cache.current.get(event.id) ?? null);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(!cache.current.has(event.id));
+
+  useEffect(() => {
+    if (cache.current.has(event.id)) {
+      setSuggestions(cache.current.get(event.id)!);
+      setLoadingSuggestions(false);
+      return;
+    }
+    setLoadingSuggestions(true);
+    setSuggestions(null);
+    api.get<EventSuggestions>(`/events/${event.id}/suggestions`)
+      .then(data => {
+        cache.current.set(event.id, data);
+        setSuggestions(data);
+      })
+      .catch(() => setSuggestions(null))
+      .finally(() => setLoadingSuggestions(false));
+  }, [event.id]);
+
   const s = STATUS_LABELS[event.status] || { label: event.status, cls: '' };
   const activity = event.selected_activity;
+
+  const venueValue = activity
+    ? activity.title
+    : suggestions?.venue_ideas.join(', ') ?? null;
+
+  const dateValue = activity
+    ? `${prettyDate(activity.suggested_date)}${activity.suggested_time ? ` at ${activity.suggested_time}` : ''}`
+    : event.preferred_date
+      ? `${prettyDate(event.preferred_date)}${event.preferred_time ? ` at ${event.preferred_time}` : ''} (preferred)`
+      : suggestions
+        ? `${suggestions.suggested_day} · ${suggestions.suggested_time} (suggested)`
+        : null;
+
+  const durationValue = event.duration_minutes
+    ? `${event.duration_minutes} min`
+    : suggestions?.estimated_duration_minutes
+      ? `~${suggestions.estimated_duration_minutes} min (suggested)`
+      : null;
+
+  function detailRow(label: string, value: string | null, placeholder = '—') {
+    const isEmpty = !value;
+    return (
+      <div className="gf-detail-row" key={label}>
+        <span className="gf-detail-row__label">{label}</span>
+        <span className={`gf-detail-row__value${isEmpty ? ' gf-detail-row__value--placeholder' : ''}`}>
+          {isEmpty ? placeholder : value}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="gf-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -104,40 +172,20 @@ function TimelineDetail({ event }: { event: EventItem }) {
       </div>
 
       <div className="gf-detail-rows">
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Activity / Venue</span>
-          <span className={`gf-detail-row__value${activity ? '' : ' gf-detail-row__value--placeholder'}`}>
-            {activity ? activity.title : '—'}
-          </span>
-        </div>
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Date</span>
-          <span className={`gf-detail-row__value${activity ? '' : ' gf-detail-row__value--placeholder'}`}>
-            {activity
-              ? `${prettyDate(activity.suggested_date)}${activity.suggested_time ? ` at ${activity.suggested_time}` : ''}`
-              : '—'}
-          </span>
-        </div>
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Total cost</span>
-          <span className="gf-detail-row__value gf-detail-row__value--placeholder">— (coming soon)</span>
-        </div>
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Per person</span>
-          <span className="gf-detail-row__value gf-detail-row__value--placeholder">— (coming soon)</span>
-        </div>
+        {loadingSuggestions && (
+          <p className="gf-muted" style={{ fontSize: '0.82rem', marginBottom: '4px' }}>
+            Generating suggestions…
+          </p>
+        )}
+        {detailRow('Activity / Venue', venueValue)}
+        {detailRow('Date', dateValue)}
+        {detailRow('Per person', suggestions?.estimated_cost_per_person ?? null)}
+        {detailRow('Duration', durationValue)}
         <div className="gf-detail-row">
           <span className="gf-detail-row__label">Payment status</span>
           <span className="gf-detail-row__value gf-detail-row__value--placeholder">— (coming soon)</span>
         </div>
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Organizer</span>
-          <span className="gf-detail-row__value gf-detail-row__value--placeholder">— (coming soon)</span>
-        </div>
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Duration</span>
-          <span className="gf-detail-row__value gf-detail-row__value--placeholder">— (coming soon)</span>
-        </div>
+        {detailRow('Organizer', getCurrentUserEmail())}
       </div>
 
       {event.description && (
@@ -169,8 +217,14 @@ function TimelineDetail({ event }: { event: EventItem }) {
   );
 }
 
-function TimelineView({ events }: { events: EventItem[] }) {
-  const [selected, setSelected] = useState<EventItem | null>(events[0] ?? null);
+function TimelineView({ events, initialEventId }: { events: EventItem[]; initialEventId?: string | null }) {
+  const [selected, setSelected] = useState<EventItem | null>(() => {
+    if (initialEventId) {
+      const found = events.find(e => e.id === initialEventId);
+      if (found) return found;
+    }
+    return events[0] ?? null;
+  });
   const grouped = groupByDate(events);
 
   if (events.length === 0) {
@@ -186,9 +240,9 @@ function TimelineView({ events }: { events: EventItem[] }) {
     <div className="gf-timeline-layout">
       {/* Left: event list grouped by date */}
       <div className="gf-timeline-list">
-        {Object.entries(grouped).map(([date, evs]) => (
-          <div key={date}>
-            <p className="gf-timeline-group__date">{date}</p>
+        {grouped.map(({ label, events: evs }) => (
+          <div key={label}>
+            <p className="gf-timeline-group__date">{label}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {evs.map(ev => (
                 <button
@@ -254,7 +308,7 @@ export default function Dashboard() {
     setTab(searchParams.get('tab') === 'timeline' ? 'timeline' : 'events');
   }, [searchParams]);
 
-useEffect(() => {
+  useEffect(() => {
     if (searchParams.get('prefsUpdated')) {
       setToast('Preferences updated');
       setSearchParams({}, { replace: true });
@@ -316,7 +370,7 @@ useEffect(() => {
         </>
       )}
 
-      {tab === 'timeline' && <TimelineView events={allEvents} />}
+      {tab === 'timeline' && <TimelineView events={allEvents} initialEventId={searchParams.get('event')} />}
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate } from 'react-router-dom';
+import { Moon, Sun } from 'lucide-react';
 import { getCurrentUserId, setCurrentUserId, api } from './api/client';
 import { supabase } from './lib/supabase';
 import AuthDialog from './components/AuthDialog';
@@ -14,17 +15,41 @@ import EventResponseForm from './pages/EventResponseForm';
 import ActivityOptionsView from './pages/ActivityOptionsView';
 import EventConfirmation from './pages/EventConfirmation';
 import PrototypePage from './pages/prototype/PrototypePage';
-import MemoriesPage from './pages/MemoriesPage';
+import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
+
+function ThemeSwitch({
+  activeTheme,
+  onThemeChange,
+}: {
+  activeTheme: Theme;
+  onThemeChange: (theme: Theme) => void;
+}) {
+  const nextTheme = activeTheme === 'day' ? 'night' : 'day';
+  const Icon = nextTheme === 'day' ? Sun : Moon;
+
+  return (
+    <button
+      aria-label={`Switch to ${nextTheme} mode`}
+      className="gf-theme-toggle"
+      onClick={() => onThemeChange(nextTheme)}
+      title={nextTheme === 'day' ? 'Day mode' : 'Night mode'}
+      type="button"
+    >
+      <Icon aria-hidden="true" size={16} strokeWidth={2} />
+    </button>
+  );
+}
 
 function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const userId = getCurrentUserId();
   const [authOpen, setAuthOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
 
   useEffect(() => {
-    // Remove any leftover theme attribute so the original dark design shows
-    document.documentElement.removeAttribute('data-theme');
-  }, []);
+    applyTheme(theme);
+    persistTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { email?: string } } | null) => {
@@ -57,18 +82,27 @@ function AppShell({ children }: { children: React.ReactNode }) {
           <span>Go Fish</span>
         </Link>
         <nav className="gf-nav">
-          <Link to="/events/new">New</Link>
+          {userId && (
+            <NavLink to="/dashboard" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`}>Home</NavLink>
+          )}
+          {userId && (
+            <NavLink to="/dashboard?tab=timeline" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`}>Timeline</NavLink>
+          )}
+          {userId && (
+            <NavLink to="/events/new" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`}>New</NavLink>
+          )}
         </nav>
         <div className="gf-topbar__actions">
+          {userId && (
+            <Link to="/benchmark">
+              <button className="gf-button gf-button--ghost" type="button">Preferences</button>
+            </Link>
+          )}
+          <ThemeSwitch activeTheme={theme} onThemeChange={setTheme} />
           {userId ? (
-            <>
-              <Link to="/benchmark">
-                <button className="gf-button gf-button--ghost" type="button">Preferences</button>
-              </Link>
-              <button className="gf-button gf-button--secondary" onClick={handleSignOut} type="button">
-                Sign out
-              </button>
-            </>
+            <button className="gf-button gf-button--secondary" onClick={handleSignOut} type="button">
+              Sign out
+            </button>
           ) : (
             <button
               className="gf-button gf-button--secondary"
@@ -113,8 +147,7 @@ export default function App() {
                 <Route path="/events/:eventId/respond" element={<EventResponseForm />} />
                 <Route path="/events/:eventId/options" element={<ActivityOptionsView />} />
                 <Route path="/events/:eventId/confirmation" element={<EventConfirmation />} />
-                <Route path="/memories" element={<MemoriesPage />} />
-                <Route path="*" element={<Dashboard />} />
+                <Route path="*" element={<LandingPage />} />
               </Routes>
             </AppShell>
           }

@@ -1,6 +1,7 @@
 const API_BASE = '/api';
 
 let currentUserId: string | null = localStorage.getItem('gofish_user_id');
+let currentUserEmail: string | null = localStorage.getItem('gofish_user_email');
 
 export function setCurrentUserId(id: string) {
   currentUserId = id;
@@ -9,6 +10,15 @@ export function setCurrentUserId(id: string) {
 
 export function getCurrentUserId(): string | null {
   return currentUserId;
+}
+
+export function setCurrentUserEmail(email: string) {
+  currentUserEmail = email;
+  localStorage.setItem('gofish_user_email', email);
+}
+
+export function getCurrentUserEmail(): string | null {
+  return currentUserEmail;
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
