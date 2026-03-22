@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { api, setCurrentUserId } from '../api/client';
+import { api, setCurrentUserId, setCurrentUserEmail } from '../api/client';
 
 type Mode = 'signin' | 'signup';
 
@@ -48,6 +48,7 @@ export default function AuthPage() {
       if (authError) throw authError;
       const { userId, isNew } = await syncWithBackend(data.user.email!);
       setCurrentUserId(userId);
+      setCurrentUserEmail(data.user.email!);
       navigate(isNew ? `/benchmark?returnTo=${encodeURIComponent(returnTo)}` : returnTo, { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Could not sign in.');
@@ -75,6 +76,7 @@ export default function AuthPage() {
       } else if (data.user) {
         const { userId, isNew } = await syncWithBackend(data.user.email!);
         setCurrentUserId(userId);
+        setCurrentUserEmail(data.user.email!);
         navigate(isNew ? `/benchmark?returnTo=${encodeURIComponent(returnTo)}` : returnTo, { replace: true });
       }
     } catch (err: unknown) {

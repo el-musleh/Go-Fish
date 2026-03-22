@@ -1,14 +1,82 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, MapPin, Calendar, Navigation, Split } from 'lucide-react';
-import { api, getCurrentUserId } from '../api/client';
+import { api, getCurrentUserId, getCurrentUserEmail } from '../api/client';
+
+function formatWindowRemaining(end: string): string {
+  const ms = new Date(end).getTime() - Date.now();
+  if (ms <= 0) return 'Closed';
+  const h = Math.floor(ms / 3600000);
+  const m = Math.floor((ms % 3600000) / 60000);
+  if (h > 0) return `${h}h ${m}m remaining`;
+  return `${m}m remaining`;
+}
+
+interface EventSuggestions {
+  venue_ideas: string[];
+  estimated_cost_per_person: string;
+  estimated_duration_minutes: number;
+  suggested_time: string;
+  suggested_day: string;
+}
+
+function sameSuggestions(a: EventSuggestions | null, b: EventSuggestions | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.estimated_cost_per_person === b.estimated_cost_per_person &&
+    a.estimated_duration_minutes === b.estimated_duration_minutes &&
+    a.suggested_time === b.suggested_time &&
+    a.suggested_day === b.suggested_day &&
+    a.venue_ideas.length === b.venue_ideas.length &&
+    a.venue_ideas.every((idea, index) => idea === b.venue_ideas[index])
+  );
+}
+
+function sameSelectedActivity(
+  a: EventItem['selected_activity'],
+  b: EventItem['selected_activity']
+): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return (
+    a.title === b.title &&
+    a.suggested_date === b.suggested_date &&
+    a.suggested_time === b.suggested_time
+  );
+}
+
+function sameEventLists(a: EventItem[], b: EventItem[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((event, index) => {
+      const next = b[index];
+      return (
+        event.id === next.id &&
+        event.status === next.status &&
+        event.response_window_end === next.response_window_end &&
+        event.respondent_count === next.respondent_count &&
+        event.preferred_date === next.preferred_date &&
+        event.preferred_time === next.preferred_time &&
+        event.duration_minutes === next.duration_minutes &&
+        sameSuggestions(event.ai_suggestions, next.ai_suggestions) &&
+        sameSelectedActivity(event.selected_activity, next.selected_activity)
+      );
+    })
+  );
+}
 
 interface EventItem {
   id: string;
+  inviter_id: string;
   title: string;
   description: string;
   status: string;
   response_window_end: string;
+  preferred_date: string | null;
+  preferred_time: string | null;
+  duration_minutes: number | null;
+  ai_suggestions: EventSuggestions | null;
   respondent_count?: number;
   selected_activity?: { title: string; suggested_date: string; suggested_time: string | null } | null;
 }
@@ -70,24 +138,117 @@ function EventCard({ event, role, onDelete }: { event: EventItem; role: 'creator
 // ── Timeline helpers ────────────────────────────────────────────────────────
 
 function getEventDate(event: EventItem): string | null {
-  return event.selected_activity?.suggested_date ?? null;
+  return event.selected_activity?.suggested_date ?? event.preferred_date ?? null;
 }
 
-function groupByDate(events: EventItem[]): Record<string, EventItem[]> {
-  const grouped: Record<string, EventItem[]> = {};
+interface DateGroup { label: string; rawDate: string | null; events: EventItem[]; }
+
+function groupByDate(events: EventItem[]): DateGroup[] {
+  const map = new Map<string, DateGroup>();
   for (const ev of events) {
     const d = getEventDate(ev);
-    const key = d ? prettyDateFull(d) : 'Unscheduled';
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(ev);
+    const key = d ? d.split('T')[0] : 'unscheduled';
+    if (!map.has(key)) map.set(key, { label: d ? prettyDateFull(d) : 'Unscheduled', rawDate: d ? d.split('T')[0] : null, events: [] });
+    map.get(key)!.events.push(ev);
   }
-  return grouped;
+  return Array.from(map.values()).sort((a, b) => {
+    if (a.rawDate === null) return -1;
+    if (b.rawDate === null) return 1;
+    return a.rawDate.localeCompare(b.rawDate);
+  });
 }
+
+// Module-level cache so suggestions persist across TimelineDetail mounts
+const suggestionsCache = new Map<string, EventSuggestions>();
 
 function TimelineDetail({ event }: { event: EventItem }) {
   const navigate = useNavigate();
+  const windowOpen = new Date(event.response_window_end) > new Date();
+  const isOrganizer = event.inviter_id === getCurrentUserId();
+
+  // Seed from DB-cached suggestions (already in event data) or in-memory cache
+  const [suggestions, setSuggestions] = useState<EventSuggestions | null>(() =>
+    event.ai_suggestions ?? suggestionsCache.get(event.id) ?? null
+  );
+  const [loadingSuggestions, setLoadingSuggestions] = useState(
+    !event.ai_suggestions && !suggestionsCache.has(event.id) && !windowOpen
+  );
+  const [endingWindow, setEndingWindow] = useState(false);
+
+  useEffect(() => {
+    // DB-cached suggestions take priority — no API call needed
+    if (event.ai_suggestions) {
+      setSuggestions(event.ai_suggestions);
+      setLoadingSuggestions(false);
+      return;
+    }
+    // Don't fetch while the response window is still open
+    if (windowOpen) {
+      setSuggestions(null);
+      setLoadingSuggestions(false);
+      return;
+    }
+    // Use in-memory cache to avoid redundant fetches between polls
+    if (suggestionsCache.has(event.id)) {
+      setSuggestions(suggestionsCache.get(event.id)!);
+      setLoadingSuggestions(false);
+      return;
+    }
+    setLoadingSuggestions(true);
+    setSuggestions(null);
+    api.get<EventSuggestions | { pending: boolean }>(`/events/${event.id}/suggestions`)
+      .then(data => {
+        if ('pending' in data) return;
+        suggestionsCache.set(event.id, data as EventSuggestions);
+        setSuggestions(data as EventSuggestions);
+      })
+      .catch(() => setSuggestions(null))
+      .finally(() => setLoadingSuggestions(false));
+  }, [event.id, event.ai_suggestions, event.response_window_end]);
+
+  async function handleEndWindow() {
+    setEndingWindow(true);
+    try {
+      const data = await api.post<EventSuggestions>(`/events/${event.id}/end-window`);
+      suggestionsCache.set(event.id, data);
+      setSuggestions(data);
+    } catch { /* ignore */ } finally {
+      setEndingWindow(false);
+    }
+  }
+
   const s = STATUS_LABELS[event.status] || { label: event.status, cls: '' };
   const activity = event.selected_activity;
+
+  const venueValue = activity
+    ? activity.title
+    : suggestions?.venue_ideas.join(', ') ?? null;
+
+  const dateValue = activity
+    ? `${prettyDate(activity.suggested_date)}${activity.suggested_time ? ` at ${activity.suggested_time}` : ''}`
+    : event.preferred_date
+      ? `${prettyDate(event.preferred_date)}${event.preferred_time ? ` at ${event.preferred_time}` : ''} (preferred)`
+      : suggestions
+        ? `${suggestions.suggested_day} · ${suggestions.suggested_time} (suggested)`
+        : null;
+
+  const durationValue = event.duration_minutes
+    ? `${event.duration_minutes} min`
+    : suggestions?.estimated_duration_minutes
+      ? `~${suggestions.estimated_duration_minutes} min (suggested)`
+      : null;
+
+  function detailRow(label: string, value: string | null, placeholder = '—') {
+    const isEmpty = !value;
+    return (
+      <div className="gf-detail-row" key={label}>
+        <span className="gf-detail-row__label">{label}</span>
+        <span className={`gf-detail-row__value${isEmpty ? ' gf-detail-row__value--placeholder' : ''}`}>
+          {isEmpty ? placeholder : value}
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div className="gf-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -104,40 +265,26 @@ function TimelineDetail({ event }: { event: EventItem }) {
       </div>
 
       <div className="gf-detail-rows">
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Activity / Venue</span>
-          <span className={`gf-detail-row__value${activity ? '' : ' gf-detail-row__value--placeholder'}`}>
-            {activity ? activity.title : '—'}
-          </span>
-        </div>
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Date</span>
-          <span className={`gf-detail-row__value${activity ? '' : ' gf-detail-row__value--placeholder'}`}>
-            {activity
-              ? `${prettyDate(activity.suggested_date)}${activity.suggested_time ? ` at ${activity.suggested_time}` : ''}`
-              : '—'}
-          </span>
-        </div>
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Total cost</span>
-          <span className="gf-detail-row__value gf-detail-row__value--placeholder">— (coming soon)</span>
-        </div>
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Per person</span>
-          <span className="gf-detail-row__value gf-detail-row__value--placeholder">— (coming soon)</span>
-        </div>
+        {detailRow('Response window', formatWindowRemaining(event.response_window_end))}
+        {loadingSuggestions && (
+          <p className="gf-muted" style={{ fontSize: '0.82rem', marginBottom: '4px' }}>
+            Generating suggestions…
+          </p>
+        )}
+        {windowOpen && !suggestions && (
+          <p className="gf-muted" style={{ fontSize: '0.82rem', marginBottom: '4px' }}>
+            Suggestions will appear once the response window closes.
+          </p>
+        )}
+        {detailRow('Activity / Venue', venueValue)}
+        {detailRow('Date', dateValue)}
+        {detailRow('Per person', suggestions?.estimated_cost_per_person ?? null)}
+        {detailRow('Duration', durationValue)}
         <div className="gf-detail-row">
           <span className="gf-detail-row__label">Payment status</span>
           <span className="gf-detail-row__value gf-detail-row__value--placeholder">— (coming soon)</span>
         </div>
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Organizer</span>
-          <span className="gf-detail-row__value gf-detail-row__value--placeholder">— (coming soon)</span>
-        </div>
-        <div className="gf-detail-row">
-          <span className="gf-detail-row__label">Duration</span>
-          <span className="gf-detail-row__value gf-detail-row__value--placeholder">— (coming soon)</span>
-        </div>
+        {detailRow('Organizer', getCurrentUserEmail())}
       </div>
 
       {event.description && (
@@ -155,6 +302,16 @@ function TimelineDetail({ event }: { event: EventItem }) {
         >
           RSVP
         </button>
+        {isOrganizer && windowOpen && (
+          <button
+            type="button"
+            className="gf-button gf-button--secondary"
+            disabled={endingWindow}
+            onClick={handleEndWindow}
+          >
+            {endingWindow ? 'Generating…' : 'End window & generate'}
+          </button>
+        )}
         <button type="button" className="gf-button gf-button--ghost gf-inline-icon" title="Coming soon">
           <Split size={14} /> Split Cost
         </button>
@@ -169,9 +326,28 @@ function TimelineDetail({ event }: { event: EventItem }) {
   );
 }
 
-function TimelineView({ events }: { events: EventItem[] }) {
-  const [selected, setSelected] = useState<EventItem | null>(events[0] ?? null);
-  const grouped = groupByDate(events);
+function TimelineView({ events, initialEventId }: { events: EventItem[]; initialEventId?: string | null }) {
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    if (initialEventId && events.find(e => e.id === initialEventId)) return initialEventId;
+    return events[0]?.id ?? null;
+  });
+  const grouped = useMemo(() => groupByDate(events), [events]);
+  // Derive the selected event from the live events array so it always reflects the latest poll data.
+  const selected = events.find(e => e.id === selectedId) ?? events[0] ?? null;
+
+  useEffect(() => {
+    if (initialEventId && events.some((event) => event.id === initialEventId)) {
+      setSelectedId(initialEventId);
+      return;
+    }
+
+    setSelectedId((current) => {
+      if (current && events.some((event) => event.id === current)) {
+        return current;
+      }
+      return events[0]?.id ?? null;
+    });
+  }, [events, initialEventId]);
 
   if (events.length === 0) {
     return (
@@ -186,15 +362,15 @@ function TimelineView({ events }: { events: EventItem[] }) {
     <div className="gf-timeline-layout">
       {/* Left: event list grouped by date */}
       <div className="gf-timeline-list">
-        {Object.entries(grouped).map(([date, evs]) => (
-          <div key={date}>
-            <p className="gf-timeline-group__date">{date}</p>
+        {grouped.map(({ label, events: evs }) => (
+          <div key={label}>
+            <p className="gf-timeline-group__date">{label}</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {evs.map(ev => (
                 <button
                   key={ev.id}
-                  onClick={() => setSelected(ev)}
-                  className={`gf-timeline-card${selected?.id === ev.id ? ' gf-timeline-card--selected' : ''}`}
+                  onClick={() => setSelectedId(ev.id)}
+                  className={`gf-timeline-card${selectedId === ev.id ? ' gf-timeline-card--selected' : ''}`}
                 >
                   <p className="gf-timeline-card__title">{ev.title}</p>
                   <div className="gf-timeline-card__meta">
@@ -254,7 +430,7 @@ export default function Dashboard() {
     setTab(searchParams.get('tab') === 'timeline' ? 'timeline' : 'events');
   }, [searchParams]);
 
-useEffect(() => {
+  useEffect(() => {
     if (searchParams.get('prefsUpdated')) {
       setToast('Preferences updated');
       setSearchParams({}, { replace: true });
@@ -271,7 +447,10 @@ useEffect(() => {
       .finally(() => setLoading(false));
     const id = setInterval(() => {
       api.get<{ created: EventItem[]; joined: EventItem[] }>('/events')
-        .then(data => { setCreated(data.created); setJoined(data.joined); })
+        .then(data => {
+          setCreated(prev => (sameEventLists(prev, data.created) ? prev : data.created));
+          setJoined(prev => (sameEventLists(prev, data.joined) ? prev : data.joined));
+        })
         .catch(() => {});
     }, 5000);
     return () => clearInterval(id);
@@ -316,7 +495,7 @@ useEffect(() => {
         </>
       )}
 
-      {tab === 'timeline' && <TimelineView events={allEvents} />}
+      {tab === 'timeline' && <TimelineView events={allEvents} initialEventId={searchParams.get('event')} />}
     </div>
   );
 }

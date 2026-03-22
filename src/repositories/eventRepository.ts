@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { Event, EventStatus } from '../models/Event';
+import { Event, EventStatus, EventSuggestions } from '../models/Event';
 
 export async function createEvent(
   pool: Pool,
@@ -57,4 +57,23 @@ export async function getEventsByIds(pool: Pool, ids: string[]): Promise<Event[]
     ids
   );
   return rows;
+}
+
+export async function saveEventSuggestions(
+  pool: Pool,
+  id: string,
+  suggestions: EventSuggestions
+): Promise<void> {
+  await pool.query(`UPDATE event SET ai_suggestions = $1 WHERE id = $2`, [
+    suggestions,
+    id,
+  ]);
+}
+
+export async function closeResponseWindow(pool: Pool, id: string): Promise<Event | null> {
+  const { rows } = await pool.query(
+    `UPDATE event SET response_window_end = NOW() WHERE id = $1 RETURNING *`,
+    [id]
+  );
+  return rows[0] ?? null;
 }
