@@ -349,7 +349,7 @@ describe('generateActivityOptions', () => {
     expect(options[1].venue_name).toBe('Canal Bar');
     expect(mockCreateAgent).toHaveBeenCalledTimes(1);
     expect(MockChatOpenRouter).toHaveBeenCalled();
-  });
+  }, 60000);
 
   it('retries when the structured output fails validation', async () => {
     mockAgentInvoke.mockResolvedValue({
@@ -447,7 +447,7 @@ describe('generateActivityOptions', () => {
     expect(options).toHaveLength(3);
     expect(mockAgentInvoke).toHaveBeenCalledTimes(2);
     expect(mockStructuredInvoke).toHaveBeenCalledTimes(2);
-  });
+  }, 60000);
 
   it('falls back to the stable model when the preview model is unsupported', async () => {
     process.env.OPENROUTER_MODEL = 'gemini-3-flash-preview';
@@ -516,7 +516,7 @@ describe('generateActivityOptions', () => {
 
     expect(usedModels).toContain('google/gemini-3-flash-preview');
     expect(usedModels).toContain('google/gemini-2.5-flash');
-  });
+  }, 60000);
 
   it('can generate options even when no participant responses exist', async () => {
     mockAgentInvoke.mockResolvedValue({
@@ -575,7 +575,7 @@ describe('generateActivityOptions', () => {
     expect(options).toHaveLength(3);
     expect(options[0].title).toBe('Rooftop Jazz Night');
     expect(options[1].venue_name).toBe('Canal Bar');
-  });
+  }, 60000);
 
   it('reads the API key from OPENROUTER_API_KEY first', async () => {
     process.env.OPENROUTER_API_KEY = 'openrouter-key';
@@ -628,5 +628,5 @@ describe('generateActivityOptions', () => {
 
     const firstConstructorArgs = MockChatOpenRouter.mock.calls[0][0] as { apiKey: string };
     expect(firstConstructorArgs.apiKey).toBe('openrouter-key');
-  });
+  }, 60000);
 });

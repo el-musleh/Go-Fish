@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Home, Calendar, Plus, Settings, LogOut, LogIn } from 'lucide-react';
 import { getCurrentUserId, setCurrentUserId, setCurrentUserEmail, api } from './api/client';
 import { supabase } from './lib/supabase';
 import AuthDialog from './components/AuthDialog';
@@ -30,12 +30,13 @@ function ThemeSwitch({
   return (
     <button
       aria-label={`Switch to ${nextTheme} mode`}
-      className="gf-theme-toggle"
+      className="gf-nav-link"
       onClick={() => onThemeChange(nextTheme)}
       title={nextTheme === 'day' ? 'Day mode' : 'Night mode'}
       type="button"
+      style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }}
     >
-      <Icon aria-hidden="true" size={16} strokeWidth={2} />
+      <Icon aria-hidden="true" size={20} strokeWidth={2} />
     </button>
   );
 }
@@ -45,10 +46,14 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const userId = getCurrentUserId();
   const [authOpen, setAuthOpen] = useState(false);
-  const isTimeline = location.pathname === '/dashboard' && location.search.includes('tab=timeline');
-  const isHome = location.pathname === '/dashboard' && !isTimeline;
-  const isPreferences = location.pathname === '/benchmark';
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
+
+  const getNavLinkClass = (path: string, exactQuery?: string) => {
+    const isActive = exactQuery 
+      ? location.pathname === path && location.search.includes(exactQuery)
+      : location.pathname === path && (path !== '/dashboard' || !location.search.includes('tab=timeline'));
+    return `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`;
+  };
 
   useEffect(() => {
     applyTheme(theme);
@@ -89,31 +94,49 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
         <nav className="gf-nav">
           {userId && (
-            <Link to="/dashboard" className={`gf-nav-link${isHome ? ' gf-nav-link--active' : ''}`}>Home</Link>
+            <Link to="/dashboard" className={getNavLinkClass('/dashboard')} title="Home" aria-label="Home">
+              <Home size={20} />
+            </Link>
           )}
           {userId && (
-            <Link to="/dashboard?tab=timeline" className={`gf-nav-link${isTimeline ? ' gf-nav-link--active' : ''}`}>Timeline</Link>
+            <Link to="/dashboard?tab=timeline" className={getNavLinkClass('/dashboard', 'tab=timeline')} title="Timeline" aria-label="Timeline">
+              <Calendar size={20} />
+            </Link>
           )}
           {userId && (
-            <NavLink to="/events/new" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`}>New</NavLink>
+            <NavLink to="/events/new" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`} title="New" aria-label="New">
+              <Plus size={20} />
+            </NavLink>
           )}
         </nav>
         <div className="gf-topbar__actions">
           {userId && (
-            <Link to="/benchmark" className={`gf-nav-link${isPreferences ? ' gf-nav-link--active' : ''}`}>Preferences</Link>
+            <Link to="/benchmark" className={getNavLinkClass('/benchmark')} title="Preferences" aria-label="Preferences">
+              <Settings size={20} />
+            </Link>
           )}
           <ThemeSwitch activeTheme={theme} onThemeChange={setTheme} />
           {userId ? (
-            <button className="gf-button gf-button--secondary" onClick={handleSignOut} type="button">
-              Sign out
+            <button
+              className="gf-nav-link"
+              onClick={handleSignOut}
+              type="button"
+              title="Sign out"
+              aria-label="Sign out"
+              style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }}
+            >
+              <LogOut size={20} />
             </button>
           ) : (
             <button
-              className="gf-button gf-button--secondary"
+              className="gf-nav-link"
               onClick={() => setAuthOpen(true)}
               type="button"
+              title="Sign in"
+              aria-label="Sign in"
+              style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }}
             >
-              Sign in
+              <LogIn size={20} />
             </button>
           )}
         </div>

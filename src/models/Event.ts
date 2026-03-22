@@ -24,5 +24,6 @@ export interface Event {
   duration_minutes: number | null;
   status: EventStatus;
   ai_suggestions: EventSuggestions | null;
+  archived: boolean;
   created_at: Date;
 }

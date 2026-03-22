@@ -1,7 +1,7 @@
 import { BaseMessage } from 'langchain';
 import { createAgent } from 'langchain';
 import { CandidateRef, OverlapSlot, AgentRuntimeState, createAgentTools } from './tools';
-import { createChatOpenRouterModel } from './model';
+import { createChatOpenRouterModel, extractJson } from './model';
 import { FinalizedOptions, finalizedOptionsSchema } from './schemas';
 import { buildAgentSystemPrompt, buildAgentUserPrompt, buildFinalizerPrompt } from './prompt';
 
@@ -185,8 +185,6 @@ export async function runPlanningAgent(
     },
   ]);
   const finalizerText = formatMessageContent(finalizerResult.content);
-  const jsonMatch = finalizerText.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error('Finalizer did not return valid JSON');
-  const finalized = finalizedOptionsSchema.parse(JSON.parse(jsonMatch[0]));
+  const finalized = finalizedOptionsSchema.parse(JSON.parse(extractJson(finalizerText)));
   return validateAndHydrateOptions(finalized, runtime);
 }

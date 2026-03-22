@@ -35,6 +35,19 @@ export function resolveOpenRouterModelName(model?: string): string {
   );
 }
 
+/**
+ * Robustly extracts the first JSON object from a string.
+ * Handles cases where the model might include markdown fences or extra text.
+ */
+export function extractJson(text: string): string {
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start === -1 || end === -1) {
+    throw new Error('No JSON object found in text');
+  }
+  return text.substring(start, end + 1);
+}
+
 export function createChatOpenRouterModel(config: OpenRouterModelConfig = {}): ChatOpenAI {
   return new ChatOpenAI({
     apiKey: resolveOpenRouterApiKey(config.apiKey),
@@ -43,7 +56,7 @@ export function createChatOpenRouterModel(config: OpenRouterModelConfig = {}): C
     temperature: config.temperature ?? 0.2,
     configuration: {
       baseURL: DEEPSEEK_BASE_URL,
-    },
+    }
   });
 }
 

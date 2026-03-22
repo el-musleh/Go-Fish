@@ -7,7 +7,7 @@ import { createInvitationLink, getInvitationLinkByEventId } from '../repositorie
 import { triggerGeneration, scheduleResponseWindow } from '../services/responseWindowScheduler';
 import { sendNotificationEmails } from '../services/emailService';
 import { getActivityOptionsByEventId, getActivityOptionById, markActivityOptionSelected } from '../repositories/activityOptionRepository';
-import { updateEventStatus, saveEventSuggestions, closeResponseWindow } from '../repositories/eventRepository';
+import { updateEventStatus, saveEventSuggestions, closeResponseWindow, archiveEvent } from '../repositories/eventRepository';
 import { getResponsesByEventId, getEventIdsRespondedByUser } from '../repositories/responseRepository';
 import { getUserById } from '../repositories/userRepository';
 import { generateEventSuggestions } from '../services/eventPreviewService';
@@ -66,6 +66,29 @@ async function generateAndSave(pool: Pool, event: { id: string; title: string; d
   return suggestions;
 }
 
+const processedAutoArchive = new Set<string>();
+
+async function autoArchivePastEvents(pool: Pool, events: any[]) {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  for (const event of events) {
+    if (event.archived || processedAutoArchive.has(event.id)) continue;
+
+    const eventDateStr = event.selected_activity?.suggested_date ?? event.preferred_date;
+    if (!eventDateStr) continue;
+
+    const eventDate = new Date(eventDateStr);
+    eventDate.setHours(0, 0, 0, 0);
+
+    if (eventDate < now) {
+      await archiveEvent(pool, event.id);
+      event.archived = true;
+      processedAutoArchive.add(event.id);
+    }
+  }
+}
+
 export function createEventRouter(pool: Pool): Router {
   const router = Router();
 
@@ -78,11 +101,18 @@ export function createEventRouter(pool: Pool): Router {
   router.post('/', async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId as string;
-      const { title, location_city, location_country, location_lat, location_lng, timeout_hours } = req.body;
-      const description: string = typeof req.body.description === 'string' ? req.body.description.trim() : '';
+      const { title, description, location_city, location_country, location_lat, location_lng, timeout_hours } = req.body;
 
+      const missingFields: string[] = [];
       if (!title || typeof title !== 'string' || title.trim().length === 0) {
-        res.status(400).json({ error: 'missing_fields', fields: ['title'] });
+        missingFields.push('title');
+      }
+      if (!description || typeof description !== 'string' || description.trim().length === 0) {
+        missingFields.push('description');
+      }
+
+      if (missingFields.length > 0) {
+        res.status(400).json({ error: 'missing_fields', fields: missingFields });
         return;
       }
 
@@ -128,6 +158,7 @@ export function createEventRouter(pool: Pool): Router {
    */
   router.get('/', async (req: Request, res: Response) => {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       const userId = (req as any).userId as string;
 
       const created = await getEventsByInviterId(pool, userId);
@@ -144,7 +175,8 @@ export function createEventRouter(pool: Pool): Router {
             const sel = opts.find((o) => o.is_selected);
             if (sel) selected_activity = { title: sel.title, suggested_date: sel.suggested_date, suggested_time: sel.suggested_time };
           }
-          return { ...event, respondent_count: responses.length, selected_activity };
+          const inviter = await getUserById(pool, event.inviter_id);
+          return { ...event, respondent_count: responses.length, selected_activity, inviter_email: inviter?.email };
         })
       );
 
@@ -156,9 +188,13 @@ export function createEventRouter(pool: Pool): Router {
             const sel = opts.find((o) => o.is_selected);
             if (sel) selected_activity = { title: sel.title, suggested_date: sel.suggested_date, suggested_time: sel.suggested_time };
           }
-          return { ...event, selected_activity };
+          const inviter = await getUserById(pool, event.inviter_id);
+          return { ...event, selected_activity, inviter_email: inviter?.email };
         })
       );
+
+      await autoArchivePastEvents(pool, createdWithCounts);
+      await autoArchivePastEvents(pool, joinedWithActivity);
 
       res.json({ created: createdWithCounts, joined: joinedWithActivity });
     } catch (error) {
@@ -173,6 +209,7 @@ export function createEventRouter(pool: Pool): Router {
    */
   router.get('/:eventId', async (req: Request, res: Response) => {
     try {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       const event = await getEventById(pool, req.params.eventId);
 
       if (!event) {
@@ -180,7 +217,8 @@ export function createEventRouter(pool: Pool): Router {
         return;
       }
 
-      res.json(event);
+      const inviter = await getUserById(pool, event.inviter_id);
+      res.json({ ...event, inviter_email: inviter?.email });
     } catch (error) {
       console.error('Error fetching event:', error);
       res.status(500).json({ error: 'internal_error', message: 'Failed to fetch event.' });

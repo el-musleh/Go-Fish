@@ -8,6 +8,7 @@ export default function EventCreationForm() {
   const [description, setDescription] = useState('');
   const [locationCity, setLocationCity] = useState('');
   const [timeoutHours, setTimeoutHours] = useState(24);
+  const [timeoutMinutes, setTimeoutMinutes] = useState(0);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -28,7 +29,7 @@ export default function EventCreationForm() {
         location_country: 'DE',
         location_lat: null,
         location_lng: null,
-        timeout_hours: timeoutHours,
+        timeout_hours: timeoutHours + (timeoutMinutes / 60),
       });
       navigate(`/events/${event.id}`);
     } catch {
@@ -58,18 +59,36 @@ export default function EventCreationForm() {
             <span className="gf-field__hint">Optional context for the AI and the group.</span>
             <textarea className="gf-input gf-textarea" placeholder="Keep it flexible, social, and not too expensive." rows={4} value={description} onChange={e => setDescription(e.target.value)} />
           </label>
-          <label className="gf-field">
-            <span className="gf-field__label">Response timeout (hours)</span>
+      <div className="gf-field">
+        <span className="gf-field__label">Response timeout</span>
             <span className="gf-field__hint">How long should people have to respond? Default is 24 hours.</span>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <input
               className="gf-input"
               type="number"
-              min={1}
+              min={0}
               max={168}
               value={timeoutHours}
               onChange={e => setTimeoutHours(Number(e.target.value))}
+              style={{ width: '80px' }}
             />
+            <span className="gf-muted" style={{ fontSize: '0.9rem', fontWeight: 500 }}>hours</span>
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <input
+              className="gf-input"
+              type="number"
+              min={0}
+              max={59}
+              value={timeoutMinutes}
+              onChange={e => setTimeoutMinutes(Number(e.target.value))}
+              style={{ width: '80px' }}
+            />
+            <span className="gf-muted" style={{ fontSize: '0.9rem', fontWeight: 500 }}>minutes</span>
+          </label>
+        </div>
+      </div>
           {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
           <button className="gf-button gf-button--primary" type="submit" disabled={saving}>
             {saving ? 'Working...' : 'Create'}

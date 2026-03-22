@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, getCurrentUserId } from '../api/client';
+import { api, ApiError, getCurrentUserId } from '../api/client';
 import InvitationLinkPanel from './InvitationLinkPanel';
 
 interface EventData { id: string; title: string; description: string; status: string; response_window_end: string; inviter_id: string; location_city?: string; }
@@ -76,14 +76,9 @@ export default function EventDetail() {
     api.get<{ options: ActivityOption[] }>(`/events/${eventId}/options`).then(d => setOptions([...d.options].sort((a, b) => a.rank - b.rank))).catch(() => {});
   }, [eventId, event?.status]);
 
-  useEffect(() => {
-    if (!eventId || !isCreator || event?.status !== 'options_ready') return;
-    navigate(`/events/${eventId}/options`, { replace: true });
-  }, [eventId, event?.status, isCreator, navigate]);
-
   const { remaining, expired } = useCountdown(event?.response_window_end || '');
 
-  async function handleGenerate() {
+  const handleGenerate = useCallback(async () => {
     if (!eventId) return;
     setWorking(true);
     setError('');
@@ -91,12 +86,23 @@ export default function EventDetail() {
       await api.post(`/events/${eventId}/generate`);
       const updated = await api.get<EventData>(`/events/${eventId}`);
       setEvent(updated);
-    } catch {
-      setError('Generation failed. Please try again.');
+    } catch (err) {
+      // If the backend scheduler automatically triggered generation at the exact same time, gracefully handle the 409 Conflict
+      if (err instanceof ApiError && err.status === 409) {
+        api.get<EventData>(`/events/${eventId}`).then(setEvent).catch(() => {});
+      } else {
+        setError('Generation failed. Please try again.');
+      }
     } finally {
       setWorking(false);
     }
-  }
+  }, [eventId]);
+
+  useEffect(() => {
+    if (isCreator && event?.status === 'collecting' && expired && !working) {
+      handleGenerate();
+    }
+  }, [expired, isCreator, event?.status, working, handleGenerate]);
 
   async function copyLink() {
     if (!eventId) return;
@@ -150,7 +156,26 @@ export default function EventDetail() {
         <div className="gf-card">
           <h3 className="gf-card-title">Generating options...</h3>
           <p className="gf-muted">The AI is creating activity suggestions. This usually takes a moment.</p>
-          <p className="gf-muted" style={{ marginTop: 6 }}>You will be taken to the picks automatically as soon as they are ready.</p>
+          <p className="gf-muted" style={{ marginTop: 6 }}>You can safely leave this page. The options will be ready for you to pick later.</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Options Ready
+  if (event.status === 'options_ready') {
+    return (
+      <div className="gf-stack gf-stack--xl">
+        <div>
+          <h2 className="gf-section-title">{event.title}</h2>
+          {event.location_city && <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>&#128205; {event.location_city}</p>}
+        </div>
+        <div className="gf-card gf-text-center" style={{ padding: '40px 20px' }}>
+          <h3 className="gf-card-title">Options are ready</h3>
+          <p className="gf-muted" style={{ marginBottom: '24px' }}>The AI has created activity suggestions for your group.</p>
+          <button type="button" className="gf-button gf-button--primary" onClick={() => navigate(`/events/${event.id}/options`)}>
+            Pick activity
+          </button>
         </div>
       </div>
     );
@@ -208,8 +233,8 @@ export default function EventDetail() {
 
       {isCreator && (
         <div className="gf-actions">
-          <button type="button" className="gf-button gf-button--primary" disabled={working} onClick={handleGenerate}>
-            {working ? 'Working...' : `Generate options${respondents.length > 0 ? ` (${respondents.length} responded)` : ''}`}
+          <button type="button" className="gf-button gf-button--primary" disabled={working || expired} onClick={handleGenerate}>
+            {working || expired ? 'Generating...' : `End window & generate${respondents.length > 0 ? ` (${respondents.length} responded)` : ''}`}
           </button>
         </div>
       )}

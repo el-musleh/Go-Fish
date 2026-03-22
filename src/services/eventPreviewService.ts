@@ -1,4 +1,4 @@
-import { DEFAULT_MODEL, resolveOpenRouterApiKey } from './decisionAgent/model';
+import { DEFAULT_MODEL, resolveOpenRouterApiKey, extractJson, createChatOpenRouterModel } from './decisionAgent/model';
 import { EventSuggestions } from '../models/Event';
 
 export type { EventSuggestions };
@@ -22,9 +22,7 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
 }
 
 function parseResponse(text: string): EventSuggestions {
-  const match = text.match(/\{[\s\S]*\}/);
-  if (!match) throw new Error('No JSON object found in AI response');
-  const parsed = JSON.parse(match[0]);
+  const parsed = JSON.parse(extractJson(text));
   return {
     venue_ideas: Array.isArray(parsed.venue_ideas) ? parsed.venue_ideas : [],
     estimated_cost_per_person: parsed.estimated_cost_per_person ?? '—',
@@ -46,32 +44,11 @@ export async function generateEventSuggestions(event: {
   const cached = cache.get(cacheKey);
   if (cached && cached.expiry > Date.now()) return cached.data;
 
-  const apiKey = resolveOpenRouterApiKey();
+  const model = createChatOpenRouterModel({ temperature: 0.4 });
   const prompt = buildPrompt(event);
 
-  const res = await fetch('https://api.deepseek.com/v1/chat/completions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: DEFAULT_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      response_format: { type: 'json_object' },
-      temperature: 0.4,
-      max_tokens: 512,
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`DeepSeek API error ${res.status}: ${JSON.stringify(err)}`);
-  }
-
-  const data = await res.json() as { choices?: { message?: { content?: string } }[] };
-  const text: string = data?.choices?.[0]?.message?.content ?? '';
-  const result = parseResponse(text);
+  const res = await model.invoke(prompt);
+  const result = parseResponse(res.content as string);
   cache.set(cacheKey, { data: result, expiry: Date.now() + CACHE_TTL_MS });
   return result;
 }

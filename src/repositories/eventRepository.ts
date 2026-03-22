@@ -77,3 +77,11 @@ export async function closeResponseWindow(pool: Pool, id: string): Promise<Event
   );
   return rows[0] ?? null;
 }
+
+export async function archiveEvent(pool: Pool, id: string): Promise<Event | null> {
+  const { rows } = await pool.query(
+    `UPDATE event SET archived = TRUE WHERE id = $1 RETURNING *`,
+    [id]
+  );
+  return rows[0] ?? null;
+}

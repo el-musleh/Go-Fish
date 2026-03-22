@@ -113,7 +113,7 @@ describe('POST /api/events', () => {
     const res = await request(app)
       .post('/api/events')
       .set('x-user-id', 'user-1')
-      .send({ title: 'Game Night', description: 'Board games at my place' });
+      .send({ title: 'Game Night', description: 'Board games at my place', timeout_hours: 1 / 6 });
 
     expect(res.status).toBe(201);
     expect(res.body.id).toBe('evt-1');
