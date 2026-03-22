@@ -1,4 +1,3 @@
-import nodemailer from 'nodemailer';
 import { Pool } from 'pg';
 import { getEventById } from '../repositories/eventRepository';
 import { getActivityOptionsByEventId } from '../repositories/activityOptionRepository';
@@ -9,9 +8,8 @@ import { ActivityOption } from '../models/ActivityOption';
 
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 5_000;
-const DEFAULT_BREVO_SMTP_HOST = 'smtp-relay.brevo.com';
-const DEFAULT_BREVO_SMTP_PORT = 587;
-const DEFAULT_EMAIL_FROM = 'Go Fish <no-reply@example.com>';
+const RESEND_API_URL = 'https://api.resend.com/emails';
+const DEFAULT_EMAIL_FROM = 'Go Fish <noreply@gofish.ink>';
 
 export interface EmailMessage {
   from: string;
@@ -22,125 +20,74 @@ export interface EmailMessage {
   replyTo?: string;
 }
 
-export interface EmailTransport {
-  send(message: EmailMessage): Promise<void>;
+export interface EmailSendResult {
+  provider: 'resend';
+  messageId?: string;
+  rateLimitRemaining?: string | null;
 }
 
-let smtpTransport: nodemailer.Transporter | null = null;
-
-function parseMailbox(value: string): { email: string; name?: string } {
-  const trimmed = value.trim();
-  const match = trimmed.match(/^(.*)<([^>]+)>$/);
-
-  if (!match) {
-    return { email: trimmed };
-  }
-
-  const name = match[1].trim().replace(/^"|"$/g, '');
-  return {
-    email: match[2].trim(),
-    ...(name ? { name } : {}),
-  };
+export interface EmailTransport {
+  send(message: EmailMessage): Promise<EmailSendResult>;
 }
 
 function getEmailFrom(): string {
   return (
-    process.env.EMAIL_FROM?.trim() ||
-    process.env.BREVO_FROM?.trim() ||
     process.env.RESEND_FROM?.trim() ||
+    process.env.EMAIL_FROM?.trim() ||
     DEFAULT_EMAIL_FROM
   );
 }
 
-function getBrevoSmtpTransporter(): nodemailer.Transporter {
-  if (smtpTransport) {
-    return smtpTransport;
-  }
-
-  const user = process.env.BREVO_SMTP_USER?.trim();
-  const pass = process.env.BREVO_SMTP_PASS?.trim();
-
-  if (!user || !pass) {
-    throw new Error('Brevo SMTP fallback is not configured');
-  }
-
-  const host = process.env.BREVO_SMTP_HOST?.trim() || DEFAULT_BREVO_SMTP_HOST;
-  const port = Number(process.env.BREVO_SMTP_PORT || DEFAULT_BREVO_SMTP_PORT);
-  const secure = process.env.BREVO_SMTP_SECURE === 'true' || port === 465;
-
-  smtpTransport = nodemailer.createTransport({
-    host,
-    port,
-    secure,
-    auth: { user, pass },
-  });
-
-  return smtpTransport;
-}
-
-function createBrevoApiTransport(apiKey: string): EmailTransport {
+export function createResendTransport(apiKey: string): EmailTransport {
   return {
-    async send(message: EmailMessage): Promise<void> {
+    async send(message: EmailMessage): Promise<EmailSendResult> {
       const payload: Record<string, unknown> = {
-        sender: parseMailbox(message.from),
-        to: [{ email: message.to }],
+        from: message.from,
+        to: [message.to],
         subject: message.subject,
-        htmlContent: message.html,
-        textContent: message.text,
+        html: message.html,
+        text: message.text,
       };
 
       if (message.replyTo) {
-        payload.replyTo = parseMailbox(message.replyTo);
+        payload.reply_to = message.replyTo;
       }
 
-      const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+      console.log(
+        `[Email] Resend request -> to=${message.to} subject="${message.subject}" from="${message.from}"`
+      );
+
+      const response = await fetch(RESEND_API_URL, {
         method: 'POST',
         headers: {
-          Accept: 'application/json',
+          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
-          'api-key': apiKey,
         },
         body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const body = await response.text();
-        throw new Error(`Brevo API ${response.status}: ${body || response.statusText}`);
+        throw new Error(`Resend API ${response.status}: ${body || response.statusText}`);
       }
-    },
-  };
-}
 
-function createBrevoSmtpTransport(): EmailTransport {
-  return {
-    async send(message: EmailMessage): Promise<void> {
-      await getBrevoSmtpTransporter().sendMail({
-        from: message.from,
-        to: message.to,
-        subject: message.subject,
-        html: message.html,
-        text: message.text,
-        replyTo: message.replyTo,
-      });
+      const data = (await response.json().catch(() => null)) as { id?: string } | null;
+      return {
+        provider: 'resend',
+        messageId: data?.id,
+        rateLimitRemaining: response.headers.get('x-ratelimit-remaining'),
+      };
     },
   };
 }
 
 function getEmailTransport(): EmailTransport {
-  const apiKey = process.env.BREVO_API_KEY?.trim();
+  const apiKey = process.env.RESEND_API_KEY?.trim();
   if (apiKey) {
-    return createBrevoApiTransport(apiKey);
+    return createResendTransport(apiKey);
   }
 
-  const smtpUser = process.env.BREVO_SMTP_USER?.trim();
-  const smtpPass = process.env.BREVO_SMTP_PASS?.trim();
-  if (smtpUser && smtpPass) {
-    return createBrevoSmtpTransport();
-  }
-
-  throw new Error(
-    'No Brevo transport configured. Set BREVO_API_KEY or BREVO_SMTP_USER/BREVO_SMTP_PASS.'
-  );
+  throw new Error('No Resend transport configured. Set RESEND_API_KEY.');
 }
 
 export function buildEmailBody(activity: ActivityOption): string {
@@ -194,6 +141,10 @@ export async function sendNotificationEmails(
   const subject = `Go Fish: ${selected.title}`;
   const from = getEmailFrom();
 
+  console.log(
+    `[Email] Sending finalized event ${eventId} to ${recipientIds.size} recipients from "${from}"`
+  );
+
   for (const userId of recipientIds) {
     const user = await getUserById(pool, userId);
     if (!user) continue;
@@ -219,9 +170,14 @@ export async function sendWithRetry(
   attempt: number = 1
 ): Promise<void> {
   try {
-    await transport.send({ from, to, subject, html, text });
+    console.log(`[Email] Attempt ${attempt}/${MAX_RETRIES} -> ${to} (log=${emailLogId})`);
+    const result = await transport.send({ from, to, subject, html, text });
     await updateEmailLogStatus(pool, emailLogId, 'sent');
-    console.log(`[Email] Sent to ${to}: "${subject}"`);
+    console.log(
+      `[Email] Sent via ${result.provider} to ${to}: "${subject}"` +
+      `${result.messageId ? ` messageId=${result.messageId}` : ''}` +
+      `${result.rateLimitRemaining ? ` rateLimitRemaining=${result.rateLimitRemaining}` : ''}`
+    );
   } catch (error) {
     console.error(`[Email] Failed (attempt ${attempt}/${MAX_RETRIES}) to ${to}:`, error);
     if (attempt < MAX_RETRIES) {
