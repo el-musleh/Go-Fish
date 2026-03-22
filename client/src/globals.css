@@ -644,6 +644,14 @@ button, input, textarea { font: inherit; }
   .gf-topbar__actions { gap: 8px; }
 }
 
+@media (max-width: 480px) {
+  .gf-topbar { padding: 12px 14px; gap: 10px; }
+  .gf-brand { font-size: 1.3rem; }
+  .gf-brand__icon { height: 1.5rem; }
+  .gf-nav-link { padding: 8px 14px; font-size: 0.85rem; }
+  .gf-topbar__actions { gap: 8px; }
+}
+
 /* ── Nav links (for multiple nav items) ── */
 .gf-nav-link {
   padding: 10px 20px;
