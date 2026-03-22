@@ -22,11 +22,17 @@ export function buildAgentUserPrompt(runtime: AgentRuntimeState): string {
   const eventSection = runtime.eventContext
     ? `Event title: ${runtime.eventContext.title}\nEvent description: ${runtime.eventContext.description}\n`
     : '';
+  const availabilityMode =
+    runtime.participantAvailability.length === 0
+      ? 'No participants responded yet. Treat the overlap dates as fallback planning windows for draft suggestions.'
+      : 'Use the overlap dates as the real shared availability.';
 
   return [
     eventSection,
     `Participants with benchmarks: ${runtime.participantSummaries.length}`,
+    `Participants with responses: ${runtime.participantAvailability.length}`,
     `Available overlap dates: ${runtime.overlaps.length}`,
+    availabilityMode,
     'Task:',
     '- inspect the group preferences',
     '- inspect date overlaps',

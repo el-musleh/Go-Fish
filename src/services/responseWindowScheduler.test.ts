@@ -166,13 +166,26 @@ describe('responseWindowScheduler', () => {
       expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'options_ready');
     });
 
-    it('should mark event as awaiting_decision when 0 responses', async () => {
-      (getEventById as any).mockResolvedValue(makeEvent());
+    it('should trigger generation even when 0 responses exist', async () => {
+      const event = makeEvent();
+      (getEventById as any).mockResolvedValue(event);
       (getResponsesByEventId as any).mockResolvedValue([]);
+      (generateActivityOptions as any).mockResolvedValue(mockGeneratedOptions);
+      (updateEventStatus as any).mockResolvedValue(event);
+      (createActivityOption as any).mockResolvedValue({});
 
       await handleWindowExpiry('event-1', deps);
 
-      expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'awaiting_decision');
+      expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'generating');
+      expect(generateActivityOptions).toHaveBeenCalledWith(
+        [],
+        [],
+        'test-key',
+        { title: 'Test Event', description: 'A test event' },
+        undefined
+      );
+      expect(createActivityOption).toHaveBeenCalledTimes(3);
+      expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'options_ready');
     });
 
     it('should skip if event is not in collecting status', async () => {
@@ -270,6 +283,26 @@ describe('responseWindowScheduler', () => {
         { title: 'Test Event', description: 'A test event' },
         undefined
       );
+    });
+
+    it('should generate options with empty benchmarks and availability when nobody responded', async () => {
+      const event = makeEvent();
+      (getEventById as any).mockResolvedValue(event);
+      (getResponsesByEventId as any).mockResolvedValue([]);
+      (generateActivityOptions as any).mockResolvedValue(mockGeneratedOptions);
+      (updateEventStatus as any).mockResolvedValue(event);
+      (createActivityOption as any).mockResolvedValue({});
+
+      const result = await triggerGeneration('event-1', deps);
+
+      expect(generateActivityOptions).toHaveBeenCalledWith(
+        [],
+        [],
+        'test-key',
+        { title: 'Test Event', description: 'A test event' },
+        undefined
+      );
+      expect(result).toEqual(mockGeneratedOptions);
     });
 
     it('should revert to collecting status on generation failure', async () => {

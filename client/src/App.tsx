@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Sun, Moon } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom';
+import { Moon, Sun } from 'lucide-react';
 import { getCurrentUserId, setCurrentUserId, api } from './api/client';
 import { supabase } from './lib/supabase';
 import AuthDialog from './components/AuthDialog';
@@ -16,17 +16,28 @@ import ActivityOptionsView from './pages/ActivityOptionsView';
 import EventConfirmation from './pages/EventConfirmation';
 import PrototypePage from './pages/prototype/PrototypePage';
 import MemoriesPage from './pages/MemoriesPage';
+import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
 
-function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
-  const location = useLocation();
-  const [path, qs] = to.split('?');
-  const isActive = qs
-    ? location.pathname === path && location.search === `?${qs}`
-    : location.pathname === path && !location.search;
+function ThemeSwitch({
+  activeTheme,
+  onThemeChange,
+}: {
+  activeTheme: Theme;
+  onThemeChange: (theme: Theme) => void;
+}) {
+  const nextTheme = activeTheme === 'day' ? 'night' : 'day';
+  const Icon = nextTheme === 'day' ? Sun : Moon;
+
   return (
-    <Link to={to} className={isActive ? 'gf-nav-link gf-nav-link--active' : 'gf-nav-link'}>
-      {children}
-    </Link>
+    <button
+      aria-label={`Switch to ${nextTheme} mode`}
+      className="gf-theme-toggle"
+      onClick={() => onThemeChange(nextTheme)}
+      title={nextTheme === 'day' ? 'Day mode' : 'Night mode'}
+      type="button"
+    >
+      <Icon aria-hidden="true" size={16} strokeWidth={2} />
+    </button>
   );
 }
 
@@ -34,6 +45,12 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const userId = getCurrentUserId();
   const [authOpen, setAuthOpen] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
+
+  useEffect(() => {
+    applyTheme(theme);
+    persistTheme(theme);
+  }, [theme]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { email?: string } } | null) => {
@@ -52,19 +69,6 @@ function AppShell({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const [theme, setTheme] = useState<'dark' | 'light'>(
-    () => (localStorage.getItem('gofish_theme') as 'dark' | 'light') ?? 'dark',
-  );
-
-  useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('gofish_theme', theme);
-  }, [theme]);
-
-  function toggleTheme() {
-    setTheme(t => t === 'dark' ? 'light' : 'dark');
-  }
-
   function handleSignOut() {
     localStorage.removeItem('gofish_user_id');
     navigate('/login');
@@ -76,27 +80,21 @@ function AppShell({ children }: { children: React.ReactNode }) {
       <header className="gf-topbar">
         <Link className="gf-brand" to="/">
           <img src="/logo.png" alt="Go Fish" className="gf-brand__icon" />
+          <span>Go Fish</span>
         </Link>
         <nav className="gf-nav">
-          {userId && <NavItem to="/dashboard">Home</NavItem>}
-          {userId && <NavItem to="/dashboard?tab=timeline">Timeline</NavItem>}
-          {userId && <NavItem to="/events/new">Create</NavItem>}
-          {userId && <NavItem to="/memories">Memories</NavItem>}
+          {userId && <Link to="/dashboard">Home</Link>}
+          {userId && <Link to="/dashboard?tab=timeline">Timeline</Link>}
+          <Link to="/events/new">New</Link>
+          {userId && <Link to="/memories">Memories</Link>}
         </nav>
         <div className="gf-topbar__actions">
-          <button
-            className="gf-button gf-button--ghost gf-button--sm"
-            onClick={toggleTheme}
-            type="button"
-            aria-label="Toggle theme"
-          >
-            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
-          </button>
+          <ThemeSwitch activeTheme={theme} onThemeChange={setTheme} />
           {userId ? (
             <>
-              <button className="gf-button gf-button--ghost" type="button" onClick={() => navigate('/benchmark')}>
-                Preferences
-              </button>
+              <Link to="/benchmark">
+                <button className="gf-button gf-button--ghost" type="button">Preferences</button>
+              </Link>
               <button className="gf-button gf-button--secondary" onClick={handleSignOut} type="button">
                 Sign out
               </button>

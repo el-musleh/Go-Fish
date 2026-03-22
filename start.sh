@@ -105,7 +105,7 @@ step "Environment"
 if [ ! -f .env ]; then
   if [ -f .env.example ]; then
     cp .env.example .env
-    warn ".env created from .env.example — fill in GEMINI_API_KEY and RESEND_API_KEY before using those features."
+    warn ".env created from .env.example — fill in OPENROUTER_API_KEY and RESEND_API_KEY before using those features."
   else
     die ".env file not found and no .env.example to copy from.\n  → Create a .env file (see .env.example in the repo for reference)."
   fi

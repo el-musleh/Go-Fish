@@ -1,7 +1,7 @@
 import { BaseMessage } from 'langchain';
 import { createAgent } from 'langchain';
 import { CandidateRef, OverlapSlot, AgentRuntimeState, createAgentTools } from './tools';
-import { createChatGoogleModel } from './model';
+import { createChatOpenRouterModel } from './model';
 import { FinalizedOptions, finalizedOptionsSchema } from './schemas';
 import { buildAgentSystemPrompt, buildAgentUserPrompt, buildFinalizerPrompt } from './prompt';
 
@@ -164,7 +164,7 @@ export async function runPlanningAgent(
   }
 
   const agent = createAgent({
-    model: createChatGoogleModel({ apiKey, model: modelName, temperature: 0.2 }),
+    model: createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.2 }),
     tools: [...createAgentTools(runtime)],
     systemPrompt: buildAgentSystemPrompt(runtime),
   });
@@ -175,7 +175,7 @@ export async function runPlanningAgent(
 
   const shortlist = extractAgentShortlist(shortlistResult.messages);
 
-  const finalizer = createChatGoogleModel({
+  const finalizer = createChatOpenRouterModel({
     apiKey,
     model: modelName,
     temperature: 0.1,
