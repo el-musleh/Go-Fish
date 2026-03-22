@@ -31,3 +31,11 @@ export function getPostAuthDestination(currentPath: string, isNew: boolean): str
   const resolvedPath = currentPath || '/dashboard';
   return `/benchmark?returnTo=${encodeURIComponent(resolvedPath)}`;
 }
+
+export function shouldBlockDuringAuthBootstrap(pathname: string, isBootstrapping: boolean): boolean {
+  if (!isBootstrapping) {
+    return false;
+  }
+
+  return pathname !== '/' && pathname !== '/login';
+}

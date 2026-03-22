@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Moon, Sun } from 'lucide-react';
-import { getCurrentUserId, setCurrentUserId, setCurrentUserEmail, api } from './api/client';
+import {
+  api,
+  clearCurrentUser,
+  getCurrentUserId,
+  setCurrentUserEmail,
+  setCurrentUserId,
+  subscribeToAuthChange,
+} from './api/client';
 import { supabase } from './lib/supabase';
 import AuthDialog from './components/AuthDialog';
 import AuthPage from './pages/AuthPage';
@@ -16,7 +23,11 @@ import ActivityOptionsView from './pages/ActivityOptionsView';
 import EventConfirmation from './pages/EventConfirmation';
 import PrototypePage from './pages/prototype/PrototypePage';
 import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
-import { getPostAuthDestination, getSessionEmailForSync } from './lib/authSession';
+import {
+  getPostAuthDestination,
+  getSessionEmailForSync,
+  shouldBlockDuringAuthBootstrap,
+} from './lib/authSession';
 
 function ThemeSwitch({
   activeTheme,
@@ -44,8 +55,9 @@ function ThemeSwitch({
 function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const userId = getCurrentUserId();
+  const [userId, setUserId] = useState(() => getCurrentUserId());
   const [authOpen, setAuthOpen] = useState(false);
+  const [authBootstrapping, setAuthBootstrapping] = useState(true);
   const isTimeline = location.pathname === '/dashboard' && location.search.includes('tab=timeline');
   const isHome = location.pathname === '/dashboard' && !isTimeline;
   const isPreferences = location.pathname === '/benchmark';
@@ -62,6 +74,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
     currentPathRef.current = `${location.pathname}${location.search}${location.hash}` || '/dashboard';
   }, [location.pathname, location.search, location.hash]);
 
+  useEffect(() => subscribeToAuthChange(() => setUserId(getCurrentUserId())), []);
+
   useEffect(() => {
     let active = true;
 
@@ -70,6 +84,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
         return syncInFlightRef.current ?? undefined;
       }
 
+      setAuthBootstrapping(true);
       syncInFlightRef.current = (async () => {
         try {
           const { userId: id, isNew } = await api.post<{ userId: string; isNew: boolean }>(
@@ -91,6 +106,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
         } catch {
           // ignore auth bootstrap failures and leave the user on the current screen
         } finally {
+          if (active) {
+            setAuthBootstrapping(false);
+          }
           syncInFlightRef.current = null;
         }
       })();
@@ -99,8 +117,17 @@ function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     const handleAuthEvent = (event: string, session: { user?: { email?: string } } | null) => {
+      if (event === 'SIGNED_OUT') {
+        clearCurrentUser();
+        setAuthBootstrapping(false);
+        return;
+      }
+
       const email = getSessionEmailForSync(event, session, getCurrentUserId());
       if (!email) {
+        if (event === 'INITIAL_SESSION') {
+          setAuthBootstrapping(false);
+        }
         return;
       }
 
@@ -117,7 +144,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
       const email = data.session?.user?.email?.trim();
       if (email && !getCurrentUserId()) {
         void syncSessionEmail(email);
+        return;
       }
+
+      setAuthBootstrapping(false);
     });
 
     return () => {
@@ -127,8 +157,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   }, [navigate]);
 
   function handleSignOut() {
-    localStorage.removeItem('gofish_user_id');
-    localStorage.removeItem('gofish_user_email');
+    clearCurrentUser();
     navigate('/login');
     window.location.reload();
   }
@@ -171,7 +200,11 @@ function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </div>
       </header>
-      <main className="gf-main">{children}</main>
+      <main className="gf-main">
+        {shouldBlockDuringAuthBootstrap(location.pathname, authBootstrapping)
+          ? <p className="gf-muted">Loading…</p>
+          : children}
+      </main>
       <footer className="gf-footer">
         <div className="gf-footer__inner">
           <img src="/logo.png" alt="Go Fish" className="gf-footer__logo" />
