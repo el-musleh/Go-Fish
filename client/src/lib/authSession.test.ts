@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { getPostAuthDestination, getSessionEmailForSync } from './authSession';
+import {
+  getPostAuthDestination,
+  getSessionEmailForSync,
+  shouldBlockDuringAuthBootstrap,
+} from './authSession';
 
 describe('getSessionEmailForSync', () => {
   it('returns the email for SIGNED_IN when no app user is loaded yet', () => {
@@ -36,5 +40,21 @@ describe('getPostAuthDestination', () => {
     expect(getPostAuthDestination('/events/evt-1/respond?foo=bar', true)).toBe(
       '/benchmark?returnTo=%2Fevents%2Fevt-1%2Frespond%3Ffoo%3Dbar'
     );
+  });
+});
+
+describe('shouldBlockDuringAuthBootstrap', () => {
+  it('blocks protected routes while auth is still bootstrapping', () => {
+    expect(shouldBlockDuringAuthBootstrap('/dashboard', true)).toBe(true);
+    expect(shouldBlockDuringAuthBootstrap('/events/evt-1/respond', true)).toBe(true);
+  });
+
+  it('allows public routes during auth bootstrap', () => {
+    expect(shouldBlockDuringAuthBootstrap('/', true)).toBe(false);
+    expect(shouldBlockDuringAuthBootstrap('/login', true)).toBe(false);
+  });
+
+  it('stops blocking once auth bootstrap is done', () => {
+    expect(shouldBlockDuringAuthBootstrap('/dashboard', false)).toBe(false);
   });
 });
