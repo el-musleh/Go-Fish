@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
 import { Sun, Moon } from 'lucide-react';
-import { getCurrentUserId } from './api/client';
+import { getCurrentUserId, setCurrentUserId, api } from './api/client';
+import { supabase } from './lib/supabase';
+import AuthDialog from './components/AuthDialog';
 import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
@@ -31,6 +33,24 @@ function NavItem({ to, children }: { to: string; children: React.ReactNode }) {
 function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const userId = getCurrentUserId();
+  const [authOpen, setAuthOpen] = useState(false);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { email?: string } } | null) => {
+      if (event === 'SIGNED_IN' && session?.user && !getCurrentUserId()) {
+        try {
+          const { userId: id, isNew } = await api.post<{ userId: string; isNew: boolean }>(
+            '/auth/email',
+            { email: session.user.email }
+          );
+          setCurrentUserId(id);
+          setAuthOpen(false);
+          navigate(isNew ? '/benchmark' : '/dashboard', { replace: true });
+        } catch { /* ignore */ }
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [navigate]);
 
   const [theme, setTheme] = useState<'dark' | 'light'>(
     () => (localStorage.getItem('gofish_theme') as 'dark' | 'light') ?? 'dark',
@@ -82,7 +102,11 @@ function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             </>
           ) : (
-            <button className="gf-button gf-button--secondary" type="button" onClick={() => navigate('/login')}>
+            <button
+              className="gf-button gf-button--secondary"
+              onClick={() => setAuthOpen(true)}
+              type="button"
+            >
               Sign in
             </button>
           )}
@@ -96,6 +120,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
           <span className="gf-footer__meta">Social event coordinator · v1.6.0</span>
         </div>
       </footer>
+      <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
     </div>
   );
 }
