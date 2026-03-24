@@ -1,11 +1,19 @@
 const API_BASE = '/api';
+const USER_ID_STORAGE_KEY = 'gofish_user_id';
+const USER_EMAIL_STORAGE_KEY = 'gofish_user_email';
+const AUTH_CHANGE_EVENT = 'gofish:auth-change';
 
-let currentUserId: string | null = localStorage.getItem('gofish_user_id');
-let currentUserEmail: string | null = localStorage.getItem('gofish_user_email');
+let currentUserId: string | null = localStorage.getItem(USER_ID_STORAGE_KEY);
+let currentUserEmail: string | null = localStorage.getItem(USER_EMAIL_STORAGE_KEY);
+
+function notifyAuthChange() {
+  window.dispatchEvent(new Event(AUTH_CHANGE_EVENT));
+}
 
 export function setCurrentUserId(id: string) {
   currentUserId = id;
-  localStorage.setItem('gofish_user_id', id);
+  localStorage.setItem(USER_ID_STORAGE_KEY, id);
+  notifyAuthChange();
 }
 
 export function getCurrentUserId(): string | null {
@@ -14,11 +22,36 @@ export function getCurrentUserId(): string | null {
 
 export function setCurrentUserEmail(email: string) {
   currentUserEmail = email;
-  localStorage.setItem('gofish_user_email', email);
+  localStorage.setItem(USER_EMAIL_STORAGE_KEY, email);
+  notifyAuthChange();
 }
 
 export function getCurrentUserEmail(): string | null {
   return currentUserEmail;
+}
+
+export function clearCurrentUser() {
+  currentUserId = null;
+  currentUserEmail = null;
+  localStorage.removeItem(USER_ID_STORAGE_KEY);
+  localStorage.removeItem(USER_EMAIL_STORAGE_KEY);
+  notifyAuthChange();
+}
+
+export function subscribeToAuthChange(listener: () => void): () => void {
+  const handleAuthChange = () => {
+    currentUserId = localStorage.getItem(USER_ID_STORAGE_KEY);
+    currentUserEmail = localStorage.getItem(USER_EMAIL_STORAGE_KEY);
+    listener();
+  };
+
+  window.addEventListener(AUTH_CHANGE_EVENT, handleAuthChange);
+  window.addEventListener('storage', handleAuthChange);
+
+  return () => {
+    window.removeEventListener(AUTH_CHANGE_EVENT, handleAuthChange);
+    window.removeEventListener('storage', handleAuthChange);
+  };
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {

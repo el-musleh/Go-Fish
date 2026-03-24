@@ -1,7 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { Moon, Sun, Home, Calendar, Plus, Settings, LogOut, LogIn } from 'lucide-react';
-import { getCurrentUserId, setCurrentUserId, setCurrentUserEmail, api } from './api/client';
+import { Calendar, Home, LogIn, LogOut, Moon, Plus, Settings, Sun } from 'lucide-react';
+import {
+  api,
+  clearCurrentUser,
+  getCurrentUserId,
+  setCurrentUserEmail,
+  setCurrentUserId,
+  subscribeToAuthChange,
+} from './api/client';
 import { supabase } from './lib/supabase';
 import AuthDialog from './components/AuthDialog';
 import Dashboard from './pages/Dashboard';
@@ -18,6 +25,11 @@ import TermsOfService from './pages/TermsOfService';
 import NotFound from './pages/NotFound';
 import PrototypePage from './pages/prototype/PrototypePage';
 import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
+import {
+  getPostAuthDestination,
+  getSessionEmailForSync,
+  shouldBlockDuringAuthBootstrap,
+} from './lib/authSession';
 
 function ThemeSwitch({
   activeTheme,
@@ -32,13 +44,12 @@ function ThemeSwitch({
   return (
     <button
       aria-label={`Switch to ${nextTheme} mode`}
-      className="gf-nav-link"
+      className="gf-nav-link gf-nav-link--icon"
       onClick={() => onThemeChange(nextTheme)}
       title={nextTheme === 'day' ? 'Day mode' : 'Night mode'}
       type="button"
-      style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }}
     >
-      <Icon aria-hidden="true" size={20} strokeWidth={2} />
+      <Icon aria-hidden="true" size={18} strokeWidth={2} />
     </button>
   );
 }
@@ -46,23 +57,29 @@ function ThemeSwitch({
 function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const userId = getCurrentUserId();
+  const [userId, setUserId] = useState(() => getCurrentUserId());
   const [authOpen, setAuthOpen] = useState(false);
   const [authReturnTo, setAuthReturnTo] = useState('/dashboard');
+  const [authBootstrapping, setAuthBootstrapping] = useState(true);
+  const isTimeline = location.pathname === '/dashboard' && location.search.includes('tab=timeline');
+  const isHome = location.pathname === '/dashboard' && !isTimeline;
+  const isPreferences = location.pathname === '/benchmark';
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
-
-  const getNavLinkClass = (path: string, exactQuery?: string) => {
-    const isActive = exactQuery 
-      ? location.pathname === path && location.search.includes(exactQuery)
-      : location.pathname === path && (path !== '/dashboard' || !location.search.includes('tab=timeline'));
-    return `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`;
-  };
+  const currentPathRef = useRef('/dashboard');
+  const syncInFlightRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     applyTheme(theme);
     persistTheme(theme);
   }, [theme]);
 
+  useEffect(() => {
+    currentPathRef.current = `${location.pathname}${location.search}${location.hash}` || '/dashboard';
+  }, [location.pathname, location.search, location.hash]);
+
+  useEffect(() => subscribeToAuthChange(() => setUserId(getCurrentUserId())), []);
+
+  // Handle ?auth=1 query param to open auth dialog with optional returnTo
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     if (params.get('auth') === '1') {
@@ -74,28 +91,95 @@ function AppShell({ children }: { children: React.ReactNode }) {
   }, [location.search]);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { email?: string } } | null) => {
-      if (event === 'SIGNED_IN' && session?.user && !getCurrentUserId()) {
+    let active = true;
+
+    async function syncSessionEmail(email: string) {
+      if (!active || syncInFlightRef.current) {
+        return syncInFlightRef.current ?? undefined;
+      }
+
+      setAuthBootstrapping(true);
+      syncInFlightRef.current = (async () => {
         try {
           const { userId: id, isNew } = await api.post<{ userId: string; isNew: boolean }>(
             '/auth/email',
-            { email: session.user.email }
+            { email }
           );
+          if (!active) {
+            return;
+          }
+
           setCurrentUserId(id);
-          if (session.user.email) setCurrentUserEmail(session.user.email);
+          setCurrentUserEmail(email);
           setAuthOpen(false);
-          navigate(isNew ? '/benchmark' : '/dashboard', { replace: true });
-        } catch { /* ignore */ }
+
+          const destination = getPostAuthDestination(currentPathRef.current, isNew);
+          if (destination) {
+            navigate(destination, { replace: true });
+          }
+        } catch {
+          // ignore auth bootstrap failures and leave the user on the current screen
+        } finally {
+          if (active) {
+            setAuthBootstrapping(false);
+          }
+          syncInFlightRef.current = null;
+        }
+      })();
+
+      return syncInFlightRef.current;
+    }
+
+    const handleAuthEvent = (event: string, session: { user?: { email?: string } } | null) => {
+      if (event === 'SIGNED_OUT') {
+        clearCurrentUser();
+        setAuthBootstrapping(false);
+        return;
       }
+
+      const email = getSessionEmailForSync(event, session, getCurrentUserId());
+      if (!email) {
+        if (event === 'INITIAL_SESSION') {
+          setAuthBootstrapping(false);
+        }
+        return;
+      }
+
+      void syncSessionEmail(email);
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthEvent);
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (!active) {
+        return;
+      }
+
+      const email = data.session?.user?.email?.trim();
+      if (email && !getCurrentUserId()) {
+        void syncSessionEmail(email);
+        return;
+      }
+
+      setAuthBootstrapping(false);
     });
-    return () => subscription.unsubscribe();
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
   }, [navigate]);
 
-  function handleSignOut() {
-    localStorage.removeItem('gofish_user_id');
-    localStorage.removeItem('gofish_user_email');
-    navigate('/');
-    window.location.reload();
+  async function handleSignOut() {
+    setAuthOpen(false);
+
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } finally {
+      clearCurrentUser();
+      setAuthBootstrapping(false);
+      navigate('/', { replace: true });
+    }
   }
 
   return (
@@ -107,54 +191,76 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </Link>
         <nav className="gf-nav">
           {userId && (
-            <Link to="/dashboard" className={getNavLinkClass('/dashboard')} title="Home" aria-label="Home">
+            <Link
+              to="/dashboard"
+              className={`gf-nav-link gf-nav-link--icon${isHome ? ' gf-nav-link--active' : ''}`}
+              title="Home"
+              aria-label="Home"
+            >
               <Home size={20} />
             </Link>
           )}
           {userId && (
-            <Link to="/dashboard?tab=timeline" className={getNavLinkClass('/dashboard', 'tab=timeline')} title="Timeline" aria-label="Timeline">
-              <Calendar size={20} />
-            </Link>
-          )}
-          {userId && (
-            <NavLink to="/events/new" className={({ isActive }) => `gf-nav-link${isActive ? ' gf-nav-link--active' : ''}`} title="New" aria-label="New">
+            <NavLink
+              to="/events/new"
+              className={({ isActive }) => `gf-nav-link gf-nav-link--icon${isActive ? ' gf-nav-link--active' : ''}`}
+              title="New event"
+              aria-label="New event"
+            >
               <Plus size={20} />
             </NavLink>
+          )}
+          {userId && (
+            <Link
+              to="/dashboard?tab=timeline"
+              className={`gf-nav-link gf-nav-link--icon${isTimeline ? ' gf-nav-link--active' : ''}`}
+              title="Timeline"
+              aria-label="Timeline"
+            >
+              <Calendar size={20} />
+            </Link>
           )}
         </nav>
         <div className="gf-topbar__actions">
           {userId && (
-            <Link to="/benchmark" className={getNavLinkClass('/benchmark')} title="Preferences" aria-label="Preferences">
+            <Link
+              to="/benchmark"
+              className={`gf-nav-link gf-nav-link--icon${isPreferences ? ' gf-nav-link--active' : ''}`}
+              title="Preferences"
+              aria-label="Preferences"
+            >
               <Settings size={20} />
             </Link>
           )}
           <ThemeSwitch activeTheme={theme} onThemeChange={setTheme} />
           {userId ? (
             <button
-              className="gf-nav-link"
+              className="gf-nav-link gf-nav-link--icon"
               onClick={handleSignOut}
               type="button"
               title="Sign out"
               aria-label="Sign out"
-              style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }}
             >
               <LogOut size={20} />
             </button>
           ) : (
             <button
-              className="gf-nav-link"
+              className="gf-nav-link gf-nav-link--icon"
               onClick={() => setAuthOpen(true)}
               type="button"
               title="Sign in"
               aria-label="Sign in"
-              style={{ background: 'transparent', border: 'none', color: 'inherit', cursor: 'pointer' }}
             >
               <LogIn size={20} />
             </button>
           )}
         </div>
       </header>
-      <main className="gf-main" style={{ flex: 1 }}>{children}</main>
+      <main className="gf-main" style={{ flex: 1 }}>
+        {shouldBlockDuringAuthBootstrap(location.pathname, authBootstrapping)
+          ? <p className="gf-muted">Loading…</p>
+          : children}
+      </main>
       <footer className="gf-footer">
         <div className="gf-footer__inner">
           <img src="/logo.png" alt="Go Fish" className="gf-footer__logo" />
@@ -181,7 +287,6 @@ export default function App() {
             <AppShell>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
-
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/benchmark" element={<TasteBenchmarkForm />} />
                 <Route path="/events/new" element={<EventCreationForm />} />

@@ -89,6 +89,19 @@ async function autoArchivePastEvents(pool: Pool, events: any[]) {
   }
 }
 
+function normalizeActivityOptions<T extends { rank: number }>(options: T[]): T[] {
+  const uniqueOptions: T[] = [];
+  const seenRanks = new Set<number>();
+
+  for (const option of [...options].sort((a, b) => a.rank - b.rank)) {
+    if (seenRanks.has(option.rank) || uniqueOptions.length >= 3) continue;
+    seenRanks.add(option.rank);
+    uniqueOptions.push(option);
+  }
+
+  return uniqueOptions;
+}
+
 export function createEventRouter(pool: Pool): Router {
   const router = Router();
 
@@ -101,18 +114,11 @@ export function createEventRouter(pool: Pool): Router {
   router.post('/', async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId as string;
-      const { title, description, location_city, location_country, location_lat, location_lng, timeout_hours } = req.body;
+      const { title, location_city, location_country, location_lat, location_lng, timeout_hours } = req.body;
+      const description: string = typeof req.body.description === 'string' ? req.body.description.trim() : '';
 
-      const missingFields: string[] = [];
       if (!title || typeof title !== 'string' || title.trim().length === 0) {
-        missingFields.push('title');
-      }
-      if (!description || typeof description !== 'string' || description.trim().length === 0) {
-        missingFields.push('description');
-      }
-
-      if (missingFields.length > 0) {
-        res.status(400).json({ error: 'missing_fields', fields: missingFields });
+        res.status(400).json({ error: 'missing_fields', fields: ['title'] });
         return;
       }
 
@@ -144,7 +150,7 @@ export function createEventRouter(pool: Pool): Router {
 
       res.status(201).json(event);
 
-      // Schedule auto-generation when response window expires (2 min)
+      // Schedule auto-generation when the response window expires.
       scheduleResponseWindow(event, { pool });
     } catch (error) {
       console.error('Error creating event:', error);
@@ -350,17 +356,7 @@ export function createEventRouter(pool: Pool): Router {
       }
 
       const options = await triggerGeneration(event.id, { pool });
-      
-      // Safeguard against glitches: enforce distinct ranks and max 3 options
-      const uniqueOptions: typeof options = [];
-      const seenRanks = new Set();
-      for (const opt of options.sort((a: any, b: any) => a.rank - b.rank)) {
-        if (!seenRanks.has(opt.rank) && uniqueOptions.length < 3) {
-          seenRanks.add(opt.rank);
-          uniqueOptions.push(opt);
-        }
-      }
-      res.json({ options: uniqueOptions });
+      res.json({ options: normalizeActivityOptions(options) });
     } catch (error) {
       console.error('Error triggering generation:', error);
       res.status(503).json({ error: 'generation_failed', message: 'Activity generation is temporarily unavailable. Please try again shortly.' });
@@ -381,18 +377,7 @@ export function createEventRouter(pool: Pool): Router {
       }
 
       const options = await getActivityOptionsByEventId(pool, req.params.eventId);
-      
-      // Safeguard against glitches: enforce distinct ranks and max 3 options
-      const uniqueOptions: typeof options = [];
-      const seenRanks = new Set();
-      for (const opt of options.sort((a: any, b: any) => a.rank - b.rank)) {
-        if (!seenRanks.has(opt.rank) && uniqueOptions.length < 3) {
-          seenRanks.add(opt.rank);
-          uniqueOptions.push(opt);
-        }
-      }
-
-      res.json({ options: uniqueOptions });
+      res.json({ options: normalizeActivityOptions(options) });
     } catch (error) {
       console.error('Error fetching activity options:', error);
       res.status(500).json({ error: 'internal_error', message: 'Failed to fetch activity options.' });

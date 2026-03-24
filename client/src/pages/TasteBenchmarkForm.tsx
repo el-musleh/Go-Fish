@@ -133,8 +133,8 @@ export default function TasteBenchmarkForm() {
                     placeholder="Type & Enter..."
                     autoFocus
                     value={newOptionValue}
-                    onChange={e => setNewOptionValue(e.target.value)}
-                    onKeyDown={e => {
+                    onChange={(e) => setNewOptionValue(e.target.value)}
+                    onKeyDown={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
                         if (newOptionValue.trim() && !answers[q.id]?.includes(newOptionValue.trim())) {
@@ -153,7 +153,14 @@ export default function TasteBenchmarkForm() {
                     }}
                   />
                 ) : (
-                  <button type="button" className="gf-chip-button" onClick={() => { setAddingOptionFor(q.id); setNewOptionValue(''); }}>
+                  <button
+                    type="button"
+                    className="gf-chip-button"
+                    onClick={() => {
+                      setAddingOptionFor(q.id);
+                      setNewOptionValue('');
+                    }}
+                  >
                     <span className="gf-chip" style={{ borderStyle: 'dashed', background: 'transparent' }}>+ Add other</span>
                   </button>
                 )}

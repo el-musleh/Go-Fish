@@ -1,4 +1,4 @@
-import { DEFAULT_MODEL, resolveOpenRouterApiKey, extractJson, createChatOpenRouterModel } from './decisionAgent/model';
+import { createChatOpenRouterModel, resolveOpenRouterApiKey } from './decisionAgent/model';
 import { EventSuggestions } from '../models/Event';
 
 export type { EventSuggestions };
@@ -22,7 +22,9 @@ Return ONLY a valid JSON object with this exact structure (no markdown, no extra
 }
 
 function parseResponse(text: string): EventSuggestions {
-  const parsed = JSON.parse(extractJson(text));
+  const match = text.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error('No JSON object found in AI response');
+  const parsed = JSON.parse(match[0]);
   return {
     venue_ideas: Array.isArray(parsed.venue_ideas) ? parsed.venue_ideas : [],
     estimated_cost_per_person: parsed.estimated_cost_per_person ?? '—',
@@ -30,6 +32,29 @@ function parseResponse(text: string): EventSuggestions {
     suggested_time: parsed.suggested_time ?? '—',
     suggested_day: parsed.suggested_day ?? '—',
   };
+}
+
+function formatMessageContent(content: unknown): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => {
+        if (typeof item === 'string') {
+          return item;
+        }
+        if (item && typeof item === 'object' && 'text' in item) {
+          return String((item as { text: unknown }).text);
+        }
+        return JSON.stringify(item);
+      })
+      .join('\n');
+  }
+  if (content === undefined || content === null) {
+    return '';
+  }
+  return JSON.stringify(content);
 }
 
 const cache = new Map<string, { data: EventSuggestions; expiry: number }>();
@@ -44,11 +69,17 @@ export async function generateEventSuggestions(event: {
   const cached = cache.get(cacheKey);
   if (cached && cached.expiry > Date.now()) return cached.data;
 
-  const model = createChatOpenRouterModel({ temperature: 0.4 });
+  const apiKey = resolveOpenRouterApiKey();
   const prompt = buildPrompt(event);
-
-  const res = await model.invoke(prompt);
-  const result = parseResponse(res.content as string);
-  cache.set(cacheKey, { data: result, expiry: Date.now() + CACHE_TTL_MS });
-  return result;
+  const model = createChatOpenRouterModel({ apiKey, temperature: 0.4 });
+  const response = await model.invoke([
+    {
+      role: 'user',
+      content: `${prompt}\n\nIMPORTANT: Return ONLY a raw JSON object. Do not include markdown fences or commentary.`,
+    },
+  ]);
+  const text = formatMessageContent(response.content);
+  const suggestions = parseResponse(text);
+  cache.set(cacheKey, { data: suggestions, expiry: Date.now() + CACHE_TTL_MS });
+  return suggestions;
 }

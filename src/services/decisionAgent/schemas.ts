@@ -9,7 +9,9 @@ export const finalizedOptionSchema = z.object({
   suggested_time: z.string().regex(/^\d{2}:\d{2}$/),
   rank: z.number().int().min(1).max(3),
   source_kind: sourceKindSchema,
-  source_id: z.preprocess(v => v === '' ? null : v, z.string().min(1).nullable()),
+  source_id: z
+    .union([z.string().min(1), z.literal(''), z.null()])
+    .transform((value) => (value === '' ? null : value)),
   weather_note: z.string().min(1).nullable().optional(),
 });
 

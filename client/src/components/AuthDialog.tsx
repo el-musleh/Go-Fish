@@ -1,7 +1,7 @@
 import { useState, useEffect, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
-import { api, setCurrentUserId } from '../api/client';
+import { api, setCurrentUserEmail, setCurrentUserId } from '../api/client';
 
 interface AuthDialogProps {
   open: boolean;
@@ -72,6 +72,7 @@ export default function AuthDialog({ open, onClose, returnTo = '/dashboard' }: A
       if (authError) throw authError;
       const { userId, isNew } = await syncWithBackend(data.user.email!);
       setCurrentUserId(userId);
+      setCurrentUserEmail(data.user.email!);
       onClose();
       navigate(isNew ? `/benchmark?returnTo=${encodeURIComponent(returnTo)}` : returnTo, { replace: true });
     } catch (err: unknown) {
@@ -100,6 +101,7 @@ export default function AuthDialog({ open, onClose, returnTo = '/dashboard' }: A
       } else if (data.user) {
         const { userId, isNew } = await syncWithBackend(data.user.email!);
         setCurrentUserId(userId);
+        setCurrentUserEmail(data.user.email!);
         onClose();
         navigate(isNew ? `/benchmark?returnTo=${encodeURIComponent(returnTo)}` : returnTo, { replace: true });
       }

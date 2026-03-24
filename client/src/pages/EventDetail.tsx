@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError, getCurrentUserId } from '../api/client';
+import OptionGenerationState from '../components/OptionGenerationState';
 import InvitationLinkPanel from './InvitationLinkPanel';
 
 interface EventData { id: string; title: string; description: string; status: string; response_window_end: string; inviter_id: string; location_city?: string; }
@@ -18,7 +19,7 @@ function formatRemaining(ms: number) {
 }
 
 function useCountdown(target: string) {
-  const [now, setNow] = useState(Date.now);
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!target) return;
     const tick = () => setNow(Date.now());
@@ -99,13 +100,24 @@ export default function EventDetail() {
     }
   }, [eventId]);
 
-  const autoGenerateAttempted = useRef(false);
+  const autoGenerateAttempted = useRef<string | null>(null);
   useEffect(() => {
-    if (isCreator && event?.status === 'collecting' && expired && !working && !autoGenerateAttempted.current) {
-      autoGenerateAttempted.current = true;
-      handleGenerate();
+    if (!eventId) {
+      autoGenerateAttempted.current = null;
+      return;
     }
-  }, [expired, isCreator, event?.status, working, handleGenerate]);
+    if (autoGenerateAttempted.current !== eventId) {
+      autoGenerateAttempted.current = null;
+    }
+  }, [eventId]);
+
+  useEffect(() => {
+    if (!eventId || !isCreator || event?.status !== 'collecting' || !expired || working || autoGenerateAttempted.current === eventId) {
+      return;
+    }
+    autoGenerateAttempted.current = eventId;
+    handleGenerate();
+  }, [event?.status, eventId, expired, handleGenerate, isCreator, working]);
 
   async function copyLink() {
     if (!eventId) return;
@@ -156,13 +168,11 @@ export default function EventDetail() {
     return (
       <div className="gf-stack gf-stack--xl">
         <h2 className="gf-section-title">{event.title}</h2>
-        <div className="gf-card">
-          <h3 className="gf-card-title">Generating options...</h3>
-          <p className="gf-muted">The AI is creating activity suggestions. This usually takes a moment.</p>
-          <p className="gf-muted" style={{ marginTop: 6 }}>
-            {isCreator ? 'You can safely leave this page. The options will be ready for you to pick later.' : 'The options will be ready for the organizer to pick shortly.'}
-          </p>
-        </div>
+        <OptionGenerationState
+          detail={isCreator
+            ? 'You can safely leave this page. The shortlist will be ready for you to review shortly.'
+            : 'The organizer will get the shortlist shortly. You can leave this page and check back later.'}
+        />
       </div>
     );
   }
@@ -205,7 +215,20 @@ export default function EventDetail() {
           </button>
           <div className="gf-stack gf-stack--sm" style={{ alignItems: 'center' }}>
             <span className={`gf-countdown${expired ? ' gf-countdown--expired' : ''}`}>
-              {expired ? 'Expired' : formatRemaining(remaining)}
+              {expired ? 'Generating...' : formatRemaining(remaining)}
+            </span>
+            <span className="gf-countdown__label">{expired ? 'Response window closed' : 'remaining'}</span>
+          </div>
+        </div>
+      ) : (
+        <div className="gf-card gf-text-center" style={{ padding: '32px 20px' }}>
+          <h3 className="gf-card-title">Waiting for the group...</h3>
+          <p className="gf-muted" style={{ marginBottom: '24px' }}>
+            The organizer is still collecting responses. Options will be generated once the time is up.
+          </p>
+          <div className="gf-stack gf-stack--sm" style={{ alignItems: 'center' }}>
+            <span className={`gf-countdown${expired ? ' gf-countdown--expired' : ''}`}>
+              {expired ? 'Generating...' : formatRemaining(remaining)}
             </span>
             <span className="gf-countdown__label">{expired ? 'Response window closed' : 'remaining'}</span>
           </div>
