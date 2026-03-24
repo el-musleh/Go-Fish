@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://moiajtcnyimeqllextxn.supabase.co';
-const supabaseKey = 'sb_publishable_4XUEzFKVrfB62393Jc_aNw_868A81Tx';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
 // Fall back to in-memory storage if localStorage is blocked (private mode, etc.)
 function makeStorage() {
