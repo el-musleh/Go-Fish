@@ -56,9 +56,10 @@ fi
 # ═══════════════════════════════════════════════════════════════════════════
 step "Checking prerequisites"
 
-command -v node  >/dev/null 2>&1 || die "Node.js not found.\n  → Install from https://nodejs.org (v18 or newer required)"
-command -v npm   >/dev/null 2>&1 || die "npm not found.\n  → It comes with Node.js: https://nodejs.org"
+command -v node   >/dev/null 2>&1 || die "Node.js not found.\n  → Install from https://nodejs.org (v18 or newer required)"
+command -v npm    >/dev/null 2>&1 || die "npm not found.\n  → It comes with Node.js: https://nodejs.org"
 command -v docker >/dev/null 2>&1 || die "Docker not found.\n  → Install from https://docs.docker.com/get-docker/"
+command -v curl   >/dev/null 2>&1 || die "curl not found.\n  → Install with: sudo apt install curl  (or brew install curl on macOS)"
 
 # Node version check (require 18+)
 NODE_MAJOR=$(node -e "process.stdout.write(process.versions.node.split('.')[0])")
@@ -92,12 +93,12 @@ pids_on_port() {
 free_port() {
   local port="$1"
   local pids
-  pids=$(pids_on_port "$port")
+  pids=$(pids_on_port "$port") || true
   if [ -n "$pids" ]; then
     warn "Port $port in use (PIDs: $pids) — killing..."
     echo "$pids" | xargs kill 2>/dev/null || true
     sleep 1
-    pids=$(pids_on_port "$port")
+    pids=$(pids_on_port "$port") || true
     if [ -n "$pids" ]; then
       echo "$pids" | xargs kill -9 2>/dev/null || true
       sleep 1

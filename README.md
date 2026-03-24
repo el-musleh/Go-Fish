@@ -69,23 +69,27 @@ Go Fish turns that into one lightweight workflow.
 
 ## Quick Start
 
-1. Copy the environment template.
+1. Copy the environment template and fill in your API keys.
 
 ```bash
 cp .env.example .env
 ```
 
-2. Start the local stack.
+2. Start all services with the one-command launcher.
 
 ```bash
-docker compose up --build -d
+./start.sh
 ```
+
+The script handles everything: installing dependencies, starting the Postgres container, and launching the backend and frontend. Press **Ctrl+C** to stop all services. To stop only the database container independently, run `./start.sh stop`.
 
 3. Open the app.
 
-- Client: `http://localhost:5173`
-- API: `http://localhost:3000`
+- Frontend: `http://localhost:5173`
+- Backend API: `http://localhost:3000`
 - PostgreSQL: `localhost:5433`
+
+**Requirements:** Node.js 18+, npm, Docker (with Compose plugin), curl.
 
 ## Required Environment Variables
 
@@ -108,18 +112,18 @@ Optional enrichment keys:
 
 ## Local Development
 
-Backend:
+The recommended way to run the full stack locally is `./start.sh` (see Quick Start above). It installs dependencies, starts Postgres via Docker, and runs the backend and frontend with live-reload.
+
+To run services individually:
 
 ```bash
-npm ci
+# Backend (port 3000)
+npm install
 npm run dev
-```
 
-Frontend:
-
-```bash
+# Frontend (port 5173) — in a separate terminal
 cd client
-npm ci
+npm install --legacy-peer-deps
 npm run dev
 ```
 
