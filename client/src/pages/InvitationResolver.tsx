@@ -11,7 +11,7 @@ export default function InvitationResolver() {
     if (!linkToken) return;
 
     if (!getCurrentUserId()) {
-      navigate(`/login?returnTo=/invite/${linkToken}`, { replace: true });
+      navigate(`/?auth=1&returnTo=/invite/${linkToken}`, { replace: true });
       return;
     }
 
@@ -31,7 +31,7 @@ export default function InvitationResolver() {
       })
       .catch((err) => {
         if (err instanceof ApiError && err.status === 401) {
-          navigate(`/login?returnTo=/invite/${linkToken}`, { replace: true });
+          navigate(`/?auth=1&returnTo=/invite/${linkToken}`, { replace: true });
         } else if (err instanceof ApiError && err.status === 404) {
           setError('This invitation link is invalid or expired.');
         } else {

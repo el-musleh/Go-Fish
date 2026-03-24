@@ -48,7 +48,7 @@ export default function MemoriesPage() {
 
   useEffect(() => {
     if (!userId) {
-      navigate('/login?returnTo=/memories', { replace: true });
+      navigate('/?auth=1&returnTo=/memories', { replace: true });
       return;
     }
     setMemories(loadMemories(userId));

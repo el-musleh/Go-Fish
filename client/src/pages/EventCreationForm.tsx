@@ -13,7 +13,7 @@ export default function EventCreationForm() {
   const [saving, setSaving] = useState(false);
 
   if (!getCurrentUserId()) {
-    navigate('/login?returnTo=/events/new', { replace: true });
+    navigate('/?auth=1&returnTo=/events/new', { replace: true });
     return null;
   }
 

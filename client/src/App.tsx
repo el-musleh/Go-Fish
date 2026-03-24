@@ -4,7 +4,6 @@ import { Moon, Sun, Home, Calendar, Plus, Settings, LogOut, LogIn } from 'lucide
 import { getCurrentUserId, setCurrentUserId, setCurrentUserEmail, api } from './api/client';
 import { supabase } from './lib/supabase';
 import AuthDialog from './components/AuthDialog';
-import AuthPage from './pages/AuthPage';
 import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
 import TasteBenchmarkForm from './pages/TasteBenchmarkForm';
@@ -16,6 +15,7 @@ import ActivityOptionsView from './pages/ActivityOptionsView';
 import EventConfirmation from './pages/EventConfirmation';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
+import NotFound from './pages/NotFound';
 import PrototypePage from './pages/prototype/PrototypePage';
 import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
 
@@ -48,6 +48,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const userId = getCurrentUserId();
   const [authOpen, setAuthOpen] = useState(false);
+  const [authReturnTo, setAuthReturnTo] = useState('/dashboard');
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
 
   const getNavLinkClass = (path: string, exactQuery?: string) => {
@@ -61,6 +62,16 @@ function AppShell({ children }: { children: React.ReactNode }) {
     applyTheme(theme);
     persistTheme(theme);
   }, [theme]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('auth') === '1') {
+      const returnTo = params.get('returnTo') || '/dashboard';
+      setAuthReturnTo(returnTo);
+      setAuthOpen(true);
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.search]);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: { user?: { email?: string } } | null) => {
@@ -83,7 +94,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   function handleSignOut() {
     localStorage.removeItem('gofish_user_id');
     localStorage.removeItem('gofish_user_email');
-    navigate('/login');
+    navigate('/');
     window.location.reload();
   }
 
@@ -154,7 +165,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
           Read our <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}>Privacy Policy</Link> and <Link to="/terms" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}>Terms of Service</Link>
         </div>
       </footer>
-      <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} />
+      <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} returnTo={authReturnTo} />
     </div>
   );
 }
@@ -170,7 +181,7 @@ export default function App() {
             <AppShell>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<AuthPage />} />
+
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/benchmark" element={<TasteBenchmarkForm />} />
                 <Route path="/events/new" element={<EventCreationForm />} />
@@ -181,7 +192,7 @@ export default function App() {
                 <Route path="/events/:eventId/confirmation" element={<EventConfirmation />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route path="/terms" element={<TermsOfService />} />
-                <Route path="*" element={<LandingPage />} />
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </AppShell>
           }

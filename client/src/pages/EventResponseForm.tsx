@@ -45,7 +45,7 @@ export default function EventResponseForm() {
   const dates = useMemo(() => getNext14Days(), []);
 
   useEffect(() => {
-    if (!getCurrentUserId()) { navigate(`/login?returnTo=/events/${eventId}/respond`, { replace: true }); return; }
+    if (!getCurrentUserId()) { navigate(`/?auth=1&returnTo=/events/${eventId}/respond`, { replace: true }); return; }
     if (!eventId) return;
     api.get<EventData>(`/events/${eventId}`)
       .then(data => {
@@ -71,7 +71,7 @@ export default function EventResponseForm() {
         }
       })
       .catch(err => {
-        if (err instanceof ApiError && err.status === 401) navigate(`/login?returnTo=/events/${eventId}/respond`, { replace: true });
+        if (err instanceof ApiError && err.status === 401) navigate(`/?auth=1&returnTo=/events/${eventId}/respond`, { replace: true });
         else setError('Failed to load event.');
       })
       .finally(() => setLoading(false));

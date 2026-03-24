@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, MapPin, Calendar, Navigation, Trash2, Search } from 'lucide-react';
-import { api, getCurrentUserId, getCurrentUserEmail } from '../api/client';
+import { api, getCurrentUserId } from '../api/client';
 
 function formatWindowRemaining(end: string, status: string, working: boolean): string {
   if (status === 'options_ready' || status === 'finalized') return 'Closed';
@@ -449,7 +449,7 @@ export default function Dashboard() {
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {
-    if (!getCurrentUserId()) { navigate('/login?returnTo=/dashboard', { replace: true }); return; }
+    if (!getCurrentUserId()) { navigate('/?auth=1&returnTo=/dashboard', { replace: true }); return; }
     api.get<{ created: EventItem[]; joined: EventItem[] }>('/events')
       .then(data => { setCreated(data.created); setJoined(data.joined); })
       .catch(() => setError('Could not load the dashboard.'))
@@ -493,7 +493,6 @@ export default function Dashboard() {
 
   const hasAnyActive = activeCreated.length > 0 || activeJoined.length > 0;
   const hasAnyArchived = archivedCreated.length > 0 || archivedJoined.length > 0;
-  const hasAnyTotal = created.length > 0 || joined.length > 0;
 
   return (
     <div className="gf-stack gf-stack--xl">
