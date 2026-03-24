@@ -8,3 +8,4 @@ client/node_modules/
 *.log
 logs/
 .claude/
+/.zencoder/chats/
