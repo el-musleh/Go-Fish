@@ -5,7 +5,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "node node_modules/typescript/bin/tsc",
-    "start": "node dist/index.js",
+    "build:all": "npm run build && npm --prefix client run build",
+    "start": "NODE_ENV=production node dist/index.js",
     "dev": "node node_modules/ts-node/dist/bin.js src/index.ts",
     "test": "node node_modules/vitest/vitest.mjs --run"
   },

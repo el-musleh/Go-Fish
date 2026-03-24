@@ -1,4 +1,6 @@
 import express from 'express';
+import path from 'path';
+import fs from 'fs';
 import { Pool } from 'pg';
 import { createTasteBenchmarkRouter } from './routes/tasteBenchmarkRouter';
 import { createEventRouter } from './routes/eventRouter';
@@ -24,6 +26,15 @@ export function mountRoutes(pool: Pool): void {
   app.use('/api/events', createEventRouter(pool));
   app.use('/api/invite', createInviteRouter(pool));
   app.use('/api/events/:eventId/responses', createResponseRouter(pool));
+
+  // Serve built frontend — must come after all API routes
+  const clientDist = path.join(__dirname, '../client/dist');
+  if (fs.existsSync(clientDist)) {
+    app.use(express.static(clientDist));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(clientDist, 'index.html'));
+    });
+  }
 }
 
 export default app;
