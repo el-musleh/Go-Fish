@@ -280,7 +280,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/prototype" element={<PrototypePage />} />
+        {import.meta.env.DEV && <Route path="/prototype" element={<PrototypePage />} />
         <Route
           path="*"
           element={

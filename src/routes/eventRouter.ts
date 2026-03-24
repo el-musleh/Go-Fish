@@ -66,14 +66,12 @@ async function generateAndSave(pool: Pool, event: { id: string; title: string; d
   return suggestions;
 }
 
-const processedAutoArchive = new Set<string>();
-
 async function autoArchivePastEvents(pool: Pool, events: any[]) {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
 
   for (const event of events) {
-    if (event.archived || processedAutoArchive.has(event.id)) continue;
+    if (event.archived) continue;
 
     const eventDateStr = event.selected_activity?.suggested_date ?? event.preferred_date;
     if (!eventDateStr) continue;
@@ -84,7 +82,6 @@ async function autoArchivePastEvents(pool: Pool, events: any[]) {
     if (eventDate < now) {
       await archiveEvent(pool, event.id);
       event.archived = true;
-      processedAutoArchive.add(event.id);
     }
   }
 }

@@ -21,7 +21,7 @@ const steps = [
 const reasons = [
   { icon: '🗓️', text: 'No more "when are you free?" threads' },
   { icon: '🎯', text: 'Suggestions tuned to the whole group, not just the loudest voice' },
-  { icon: '✨', text: 'Powered by Gemini via OpenRouter for genuinely thoughtful picks' },
+  { icon: '✨', text: 'Powered by AI via OpenRouter for genuinely thoughtful picks' },
 ];
 
 export default function LandingPage() {

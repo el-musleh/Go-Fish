@@ -159,7 +159,7 @@ export default function EventResponseForm() {
   const sortedSelected = Array.from(selectedDates.entries()).sort(([a], [b]) => a.localeCompare(b));
 
   return (
-    <div className="gf-stack gf-stack--xl">
+    <form className="gf-stack gf-stack--xl" onSubmit={handleSubmit}>
       {event && <h2 className="gf-section-title">{event.title}</h2>}
       <h3 className="gf-card-title">When are you free?</h3>
       <div className="gf-date-grid">
@@ -211,9 +211,9 @@ export default function EventResponseForm() {
       )}
 
       {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
-      <button className="gf-button gf-button--primary" disabled={submitting || selectedDates.size === 0} onClick={handleSubmit}>
+      <button type="submit" className="gf-button gf-button--primary" disabled={submitting || selectedDates.size === 0}>
         {submitting ? 'Working...' : `Submit availability${selectedDates.size > 0 ? ` (${selectedDates.size})` : ''}`}
       </button>
-    </div>
+    </form>
   );
 }

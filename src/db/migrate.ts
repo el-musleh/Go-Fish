@@ -2,7 +2,9 @@ import { Pool } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const MIGRATIONS_DIR = path.join(__dirname, '..', '..', 'src', 'db', 'migrations');
+const _distMigrations = path.join(__dirname, 'migrations');
+const _srcMigrations = path.join(__dirname, '..', '..', 'src', 'db', 'migrations');
+const MIGRATIONS_DIR = fs.existsSync(_distMigrations) ? _distMigrations : _srcMigrations;
 
 async function ensureMigrationsTable(pool: Pool): Promise<void> {
   await pool.query(`

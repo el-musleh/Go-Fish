@@ -27,6 +27,11 @@ export function mountRoutes(pool: Pool): void {
   app.use('/api/invite', createInviteRouter(pool));
   app.use('/api/events/:eventId/responses', createResponseRouter(pool));
 
+  // Return 404 for unmatched /api/* routes before falling through to the SPA
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'not_found', message: 'API endpoint not found.' });
+  });
+
   // Serve built frontend — must come after all API routes
   const clientDist = path.join(__dirname, '../client/dist');
   if (fs.existsSync(clientDist)) {

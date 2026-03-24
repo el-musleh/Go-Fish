@@ -13,6 +13,10 @@ export function createAuthRouter(pool: Pool): Router {
         res.status(400).json({ error: 'Email is required.' });
         return;
       }
+      if (email.length > 254) {
+        res.status(400).json({ error: 'Email address is too long.' });
+        return;
+      }
 
       let user = await getUserByEmail(pool, email.trim().toLowerCase());
       if (!user) {

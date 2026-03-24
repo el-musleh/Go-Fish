@@ -48,7 +48,7 @@ export default function EventConfirmation() {
       </div>
 
       <p className="gf-feedback gf-feedback--success gf-text-center">
-        Emails sent to all participants
+        Notification emails will be sent to all participants
       </p>
 
       <div className="gf-actions" style={{ justifyContent: 'center' }}>

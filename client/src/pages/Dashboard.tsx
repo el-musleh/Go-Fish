@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, MapPin, Calendar, Navigation, Trash2, Search } from 'lucide-react';
-import { api, getCurrentUserId } from '../api/client';
+import { api, ApiError, getCurrentUserId } from '../api/client';
 
 function formatWindowRemaining(end: string, status: string, working: boolean): string {
   if (status === 'options_ready' || status === 'finalized') return 'Closed';
@@ -152,8 +152,11 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
     setWorking(true);
     try {
       await api.post(`/events/${event.id}/generate`);
-    } catch {
-      // ignore
+    } catch (err) {
+      // 409 means generation is already in progress (race condition with EventDetail) — not an error
+      if (!(err instanceof ApiError && err.status === 409)) {
+        console.error('Failed to trigger generation:', err);
+      }
     } finally {
       setWorking(false);
     }

@@ -37,5 +37,5 @@ export function shouldBlockDuringAuthBootstrap(pathname: string, isBootstrapping
     return false;
   }
 
-  return pathname !== '/' && pathname !== '/login';
+  return pathname !== '/';
 }

@@ -39,7 +39,7 @@ export function createInviteRouter(pool: Pool): Router {
         res.status(401).json({
           error: 'auth_required',
           message: 'Please log in to respond to this invitation.',
-          redirect: `/api/auth/login?returnTo=/api/invite/${req.params.linkToken}`,
+          redirect: `/?auth=1&returnTo=/invite/${req.params.linkToken}`,
           eventId: event.id,
         });
         return;

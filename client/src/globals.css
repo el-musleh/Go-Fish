@@ -565,7 +565,7 @@ button, input, textarea { font: inherit; }
 }
 
 .gf-generation-state__detail {
-  color: rgba(247, 239, 231, 0.5);
+  color: var(--muted);
   max-width: 36ch;
 }
 
@@ -801,9 +801,6 @@ button, input, textarea { font: inherit; }
 }
 
 /* ── Timeline ───────────────────────────────────────────── */
-.gf-timeline-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; align-items: start; }
-.gf-timeline-list { display: flex; flex-direction: column; gap: 18px; }
-.gf-timeline-group__date { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
 .gf-timeline-layout {
   display: grid;
   grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.45fr);
@@ -838,24 +835,6 @@ button, input, textarea { font: inherit; }
   display: flex;
   flex-direction: column;
   gap: 8px;
-  transition: border-color 180ms ease, background 200ms ease;
-}
-.gf-timeline-card:hover { border-color: var(--line-strong); }
-.gf-timeline-card--selected { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(255, 157, 73, 0.15); }
-.gf-timeline-card__title { font-family: var(--font-serif); font-size: 1.1rem; letter-spacing: -0.03em; margin: 0; }
-.gf-timeline-card__meta { display: flex; gap: 14px; font-size: 0.8rem; color: var(--muted); }
-
-/* ── Detail rows ────────────────────────────────────────── */
-.gf-detail-rows { display: flex; flex-direction: column; }
-.gf-detail-row { display: flex; justify-content: space-between; align-items: baseline; padding: 10px 0; border-bottom: 1px solid var(--line); gap: 16px; }
-.gf-detail-row:last-child { border-bottom: none; }
-.gf-detail-row__label { font-size: 0.85rem; color: var(--muted); flex-shrink: 0; }
-.gf-detail-row__value { font-size: 0.85rem; font-weight: 600; text-align: right; }
-.gf-detail-row__value--placeholder { color: var(--muted); font-style: italic; font-weight: 400; }
-
-/* ── Memories: labels, badges, checklists ───────────────── */
-.gf-label {
-  display: block;
   transition: border-color 180ms ease, background 200ms ease, transform 180ms ease;
 }
 
@@ -884,6 +863,7 @@ button, input, textarea { font: inherit; }
   color: var(--muted);
 }
 
+/* ── Detail rows ────────────────────────────────────────── */
 .gf-detail-rows {
   display: flex;
   flex-direction: column;
@@ -920,6 +900,7 @@ button, input, textarea { font: inherit; }
   font-weight: 400;
 }
 
+/* ── Labels, badges, checklists ─────────────────────────── */
 .gf-label {
   display: block;
   margin-bottom: 6px;
@@ -928,7 +909,6 @@ button, input, textarea { font: inherit; }
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
-  margin-bottom: 6px;
 }
 .gf-setting-badge {
   display: inline-block;
@@ -1011,19 +991,11 @@ button, input, textarea { font: inherit; }
   .gf-brand { font-size: 1.3rem; }
   .gf-brand__icon { height: 1.5rem; }
   .gf-nav-link { padding: 8px 14px; font-size: 0.85rem; }
+  .gf-nav-link--icon { width: 40px; min-width: 40px; height: 40px; padding: 0; }
   .gf-topbar__actions { gap: 8px; }
   .gf-generation-state { grid-template-columns: 1fr; }
   .gf-generation-state__copy { max-width: none; }
   .gf-timeline-layout { grid-template-columns: 1fr; }
-}
-
-@media (max-width: 480px) {
-  .gf-topbar { padding: 12px 14px; gap: 10px; }
-  .gf-brand { font-size: 1.3rem; }
-  .gf-brand__icon { height: 1.5rem; }
-  .gf-nav-link { padding: 8px 14px; font-size: 0.85rem; }
-  .gf-nav-link--icon { width: 40px; min-width: 40px; height: 40px; padding: 0; }
-  .gf-topbar__actions { gap: 8px; }
 }
 
 /* ── Nav links (for multiple nav items) ── */
@@ -1367,3 +1339,11 @@ button, input, textarea { font: inherit; }
   .gf-landing__steps { grid-template-columns: 1fr; }
   .gf-landing__hero { padding: 32px 0 20px; }
 }
+
+/* ── Utility classes ─────────────────────────────────────── */
+.gf-text-center { text-align: center; }
+.gf-row-between { display: flex; justify-content: space-between; align-items: center; }
+.gf-narrow { max-width: 640px; margin-inline: auto; width: 100%; }
+.gf-inline-icon { display: inline-flex; align-items: center; gap: 6px; }
+.gf-button--full { width: 100%; }
+.gf-textarea--fixed { resize: none; }
