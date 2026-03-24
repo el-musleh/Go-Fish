@@ -9,7 +9,7 @@ import { Loader2 } from 'lucide-react';
 
 // Define the validation schema using zod
 const eventSchema = z.object({
-  name: z.string().min(3, 'Event name must be at least 3 characters long.'),
+  title: z.string().min(3, 'Event title must be at least 3 characters long.'),
   description: z.string().optional(),
 });
 
@@ -48,9 +48,9 @@ export default function EventCreationForm() {
         </p>
 
         <ValidatedInput
-          label="Event Name"
-          registration={register('name')}
-          error={errors.name}
+          label="Title"
+          registration={register('title')}
+          error={errors.title}
           placeholder="e.g., Team Lunch, Weekend Hike"
           autoFocus
         />

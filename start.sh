@@ -158,7 +158,18 @@ if [ -d .git ]; then
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 5. Database
+# 5. Frontend type check
+# ═══════════════════════════════════════════════════════════════════════════
+step "Frontend type check"
+
+log "Checking TypeScript..."
+if ! (cd client && node node_modules/typescript/bin/tsc --noEmit 2>&1); then
+  die "Frontend has TypeScript errors — fix them before starting.\n  → Run: cd client && node node_modules/typescript/bin/tsc --noEmit"
+fi
+log "TypeScript check passed"
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 6. Database
 # ═══════════════════════════════════════════════════════════════════════════
 step "Database"
 
@@ -177,7 +188,7 @@ done
 log "Postgres is ready"
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 6. Backend
+# 7. Backend
 # ═══════════════════════════════════════════════════════════════════════════
 step "Backend"
 
@@ -201,7 +212,7 @@ done
 log "Backend is ready"
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 7. Frontend
+# 8. Frontend
 # ═══════════════════════════════════════════════════════════════════════════
 step "Frontend"
 

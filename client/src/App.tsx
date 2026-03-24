@@ -18,7 +18,9 @@ import {
   subscribeToAuthChange,
 } from './api/client';
 import { supabase } from './lib/supabase';
-import AuthDialog from './components/AuthDialog';
+import { Toaster } from './components/Toaster';
+import LoadingSpinner from './components/LoadingSpinner';
+import ConfirmationDialog from './components/ConfirmationDialog';
 import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
 import TasteBenchmarkForm from './pages/TasteBenchmarkForm';
@@ -33,14 +35,12 @@ import TermsOfService from './pages/TermsOfService';
 import NotFound from './pages/NotFound';
 import PrototypePage from './pages/prototype/PrototypePage';
 import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
-import ConfirmationDialog from './components/ConfirmationDialog';
-import LoadingSpinner from './components/LoadingSpinner';
+import AuthDialog from './components/AuthDialog';
 import {
   getPostAuthDestination,
   getSessionEmailForSync,
   shouldBlockDuringAuthBootstrap,
 } from './lib/authSession';
-import { Toaster } from './components/Toaster';
 
 function ThemeSwitch({
   activeTheme,

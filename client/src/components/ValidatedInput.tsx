@@ -1,4 +1,5 @@
-import { FieldError, UseFormRegisterReturn } from 'react-hook-form';
+import { useId } from 'react';
+import { type FieldError, type UseFormRegisterReturn } from 'react-hook-form';
 import { clsx } from 'clsx';
 
 interface ValidatedInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -15,7 +16,15 @@ export default function ValidatedInput({
   hint,
   ...rest
 }: ValidatedInputProps) {
-  const inputId = rest.id || rest.name;
+  const uid = useId();
+  const inputId = rest.id ?? rest.name ?? uid;
+  const hintId = `${inputId}-hint`;
+  const errorId = `${inputId}-error`;
+
+  // Build aria-describedby from whichever helper text is visible
+  const describedBy =
+    [hint && !error ? hintId : null, error ? errorId : null].filter(Boolean).join(' ') || undefined;
+
   return (
     <div className="gf-field">
       <label htmlFor={inputId} className="gf-field__label">
@@ -26,9 +35,20 @@ export default function ValidatedInput({
         className={clsx('gf-input', { 'gf-input--error': !!error })}
         {...registration}
         {...rest}
+        // Accessibility overrides — must come after spread to prevent consumer clobbering
+        aria-invalid={error ? 'true' : undefined}
+        aria-describedby={describedBy}
       />
-      {hint && !error && <p className="gf-field__hint">{hint}</p>}
-      {error && <p className="gf-feedback gf-feedback--error">{error.message}</p>}
+      {hint && !error && (
+        <p id={hintId} className="gf-field__hint">
+          {hint}
+        </p>
+      )}
+      {error && (
+        <p id={errorId} className="gf-feedback gf-feedback--error" role="alert">
+          {error.message}
+        </p>
+      )}
     </div>
   );
 }

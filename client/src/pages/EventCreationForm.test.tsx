@@ -36,7 +36,7 @@ function renderForm() {
   return render(
     <MemoryRouter>
       <EventCreationForm />
-    </MemoryRouter>,
+    </MemoryRouter>
   );
 }
 
@@ -56,21 +56,11 @@ describe('EventCreationForm', () => {
     renderForm();
     await userEvent.click(screen.getByRole('button', { name: /create event/i }));
 
-    expect(screen.getByText('Title is required')).toBeInTheDocument();
-    expect(screen.getByText('Description is required')).toBeInTheDocument();
+    expect(screen.getByText(/event title must be at least 3 characters long/i)).toBeInTheDocument();
     expect(mockPost).not.toHaveBeenCalled();
   });
 
-  it('shows title error when only description is filled', async () => {
-    renderForm();
-    await userEvent.type(screen.getByLabelText(/description/i), 'Some description');
-    await userEvent.click(screen.getByRole('button', { name: /create event/i }));
-
-    expect(screen.getByText('Title is required')).toBeInTheDocument();
-    expect(screen.queryByText('Description is required')).not.toBeInTheDocument();
-  });
-
-  it('navigates to event detail on successful creation', async () => {
+  it('navigates to event respond on successful creation', async () => {
     mockPost.mockResolvedValueOnce({ id: 'evt-123' });
     renderForm();
 
@@ -79,7 +69,7 @@ describe('EventCreationForm', () => {
     await userEvent.click(screen.getByRole('button', { name: /create event/i }));
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/events/evt-123');
+      expect(mockNavigate).toHaveBeenCalledWith('/events/evt-123/respond');
     });
     expect(mockPost).toHaveBeenCalledWith('/events', {
       title: 'Game Night',
@@ -89,7 +79,7 @@ describe('EventCreationForm', () => {
 
   it('displays server field errors from API', async () => {
     mockPost.mockRejectedValueOnce(
-      new MockApiError(400, { error: 'missing_fields', fields: ['title'] }),
+      new MockApiError(400, { error: 'missing_fields', fields: ['title'] })
     );
     renderForm();
 
@@ -97,7 +87,7 @@ describe('EventCreationForm', () => {
     await userEvent.type(screen.getByLabelText(/description/i), 'desc');
     await userEvent.click(screen.getByRole('button', { name: /create event/i }));
 
-    expect(screen.getByText('Title is required')).toBeInTheDocument();
+    expect(screen.getByText(/event title must be at least 3 characters long/i)).toBeInTheDocument();
   });
 
   it('displays generic error on server failure', async () => {
@@ -116,9 +106,11 @@ describe('EventCreationForm', () => {
   it('clears field error when user starts typing', async () => {
     renderForm();
     await userEvent.click(screen.getByRole('button', { name: /create event/i }));
-    expect(screen.getByText('Title is required')).toBeInTheDocument();
+    expect(screen.getByText(/event title must be at least 3 characters long/i)).toBeInTheDocument();
 
     await userEvent.type(screen.getByLabelText(/title/i), 'A');
-    expect(screen.queryByText('Title is required')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/event title must be at least 3 characters long/i)
+    ).not.toBeInTheDocument();
   });
 });

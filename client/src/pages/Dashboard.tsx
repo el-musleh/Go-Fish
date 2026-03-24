@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Users, MapPin, Calendar, Navigation, Trash2, Search, CalendarPlus } from 'lucide-react';
+import { Users, MapPin, Calendar, Navigation, Trash2, Search, CalendarPlus, X } from 'lucide-react';
 import { api, ApiError, getCurrentUserId } from '../api/client';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 import EmptyState from '../components/EmptyState';
@@ -109,18 +109,11 @@ function EventCard({
             {onHide && (
               <button
                 type="button"
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: 0,
-                  color: 'var(--muted)',
-                  fontSize: '1rem',
-                }}
+                className="gf-delete-btn"
                 onClick={(e) => onHide(e, event.id)}
-                aria-label="Hide event"
+                aria-label={`Hide ${event.title}`}
               >
-                ✕
+                <X size={14} aria-hidden="true" />
               </button>
             )}
           </div>
@@ -459,11 +452,22 @@ function TimelineView({
           />
         </div>
         {events.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '24px 16px' }}>
-            <p className="gf-muted">
-              {searchQuery ? 'No matching events found.' : 'No events yet.'}
-            </p>
-          </div>
+          <EmptyState
+            icon={<CalendarPlus size={48} />}
+            title={searchQuery ? 'No matching events' : 'No events yet'}
+            description={
+              searchQuery
+                ? `We couldn't find any events matching "${searchQuery}".`
+                : 'Get started by creating a new event for you and your friends.'
+            }
+            action={
+              !searchQuery && (
+                <Link to="/events/new" className="gf-button gf-button--primary">
+                  Create New Event
+                </Link>
+              )
+            }
+          />
         ) : (
           grouped.map(({ label, events: evs }) => (
             <div key={label}>

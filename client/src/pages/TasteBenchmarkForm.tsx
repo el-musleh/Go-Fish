@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useForm, type Control } from 'react-hook-form';
+import { useForm, useController, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { api } from '../api/client';
@@ -73,7 +73,7 @@ const schemaObject = questions.reduce(
     acc[q.id] = z.array(z.string()).min(1, 'Please select at least one option.');
     return acc;
   },
-  {} as Record<string, z.ZodArray<z.ZodString, 'at_least_one'>>
+  {} as Record<string, z.ZodType<string[], string[]>>
 );
 
 const benchmarkSchema = z.object(schemaObject);
@@ -93,7 +93,7 @@ function QuestionField({
   const [newOptionValue, setNewOptionValue] = useState('');
 
   const toggleOption = (option: string) => {
-    const currentValues = field.value || [];
+    const currentValues = (field.value as string[]) || [];
     const newValues = currentValues.includes(option)
       ? currentValues.filter((o: string) => o !== option)
       : [...currentValues, option];
@@ -108,7 +108,9 @@ function QuestionField({
     setNewOptionValue('');
   };
 
-  const allOptions = Array.from(new Set([...question.options, ...(field.value || [])]));
+  const allOptions = Array.from(
+    new Set([...question.options, ...((field.value as string[]) || [])])
+  );
 
   return (
     <div className={`gf-benchmark-question${error ? ' gf-benchmark-question--error' : ''}`}>
@@ -124,9 +126,11 @@ function QuestionField({
             type="button"
             className="gf-chip-button"
             onClick={() => toggleOption(opt)}
-            aria-pressed={field.value?.includes(opt)}
+            aria-pressed={(field.value as string[])?.includes(opt)}
           >
-            <span className={`gf-chip${field.value?.includes(opt) ? ' gf-chip--active' : ''}`}>
+            <span
+              className={`gf-chip${(field.value as string[])?.includes(opt) ? ' gf-chip--active' : ''}`}
+            >
               {opt}
             </span>
           </button>
@@ -240,7 +244,14 @@ export default function TasteBenchmarkForm() {
         </p>
       </div>
 
-      <div className="gf-benchmark-progress">
+      <div
+        className="gf-benchmark-progress"
+        role="progressbar"
+        aria-label="Questions answered"
+        aria-valuenow={progress}
+        aria-valuemin={0}
+        aria-valuemax={questions.length}
+      >
         <div className="gf-benchmark-progress__fill" style={{ width: `${pct}%` }} />
       </div>
 
@@ -253,9 +264,10 @@ export default function TasteBenchmarkForm() {
           type="submit"
           disabled={isSubmitting}
           className="gf-button gf-button--primary gf-button--full"
+          aria-label={isSubmitting ? 'Saving, please wait' : undefined}
         >
           {isSubmitting ? (
-            <Loader2 size={20} className="animate-spin" />
+            <Loader2 size={20} className="animate-spin" aria-hidden="true" />
           ) : isUpdate ? (
             'Update Preferences'
           ) : (
