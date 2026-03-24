@@ -6,9 +6,23 @@
   "scripts": {
     "dev": "node node_modules/vite/bin/vite.js",
     "build": "node node_modules/typescript/bin/tsc && node node_modules/vite/bin/vite.js build",
-    "preview": "node node_modules/vite/bin/vite.js preview"
+    "preview": "node node_modules/vite/bin/vite.js preview",
+    "lint": "node node_modules/eslint/bin/eslint.js src --max-warnings=0",
+    "lint:fix": "node node_modules/eslint/bin/eslint.js src --fix",
+    "format": "node node_modules/prettier/bin/prettier.cjs --write src",
+    "format:check": "node node_modules/prettier/bin/prettier.cjs --check src"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,tsx}": [
+      "node node_modules/eslint/bin/eslint.js --max-warnings=0",
+      "node node_modules/prettier/bin/prettier.cjs --write"
+    ],
+    "src/**/*.{css,json}": [
+      "node node_modules/prettier/bin/prettier.cjs --write"
+    ]
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.2.2",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -16,20 +30,32 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.4.0",
     "jsdom": "^29.0.1",
+    "lint-staged": "^16.4.0",
+    "prettier": "^3.8.1",
     "tailwindcss": "^4.2.2",
     "typescript": "~5.9.3",
+    "typescript-eslint": "^8.57.2",
     "vite": "^8.0.1",
     "vitest": "^4.1.0"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
     "@radix-ui/react-dialog": "^1.1.15",
     "@supabase/supabase-js": "^2.99.3",
     "clsx": "^2.1.1",
     "lucide-react": "^0.577.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-hook-form": "^7.72.0",
     "react-router-dom": "^7.13.1",
-    "tailwind-merge": "^3.5.0"
+    "sonner": "^2.0.7",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.3.6"
   }
 }

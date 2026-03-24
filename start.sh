@@ -136,7 +136,7 @@ step "Dependencies"
 
 if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock-stamp ]; then
   log "Installing backend dependencies..."
-  npm install
+  npm install --ignore-scripts
   touch node_modules/.package-lock-stamp
 else
   log "Backend dependencies ${DIM}(already installed)${NC}"
@@ -144,9 +144,16 @@ fi
 
 if [ ! -d client/node_modules ] || [ client/package-lock.json -nt client/node_modules/.package-lock-stamp ]; then
   log "Installing frontend dependencies..."
-  (cd client && npm install && touch node_modules/.package-lock-stamp)
+  (cd client && npm install --legacy-peer-deps && touch node_modules/.package-lock-stamp)
 else
   log "Frontend dependencies ${DIM}(already installed)${NC}"
+fi
+
+# ── Git hooks ──────────────────────────────────────────────────────────────
+if [ -d .git ]; then
+  node node_modules/husky/bin.js 2>/dev/null || true
+  chmod +x .husky/pre-commit 2>/dev/null || true
+  log "Git hooks installed"
 fi
 
 # ═══════════════════════════════════════════════════════════════════════════

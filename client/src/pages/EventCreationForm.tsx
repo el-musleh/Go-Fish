@@ -1,100 +1,77 @@
-import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
-import { api, getCurrentUserId } from '../api/client';
+import { api } from '../api/client';
+import { toast } from '../components/Toaster';
+import ValidatedInput from '../components/ValidatedInput';
+import { Loader2 } from 'lucide-react';
+
+// Define the validation schema using zod
+const eventSchema = z.object({
+  name: z.string().min(3, 'Event name must be at least 3 characters long.'),
+  description: z.string().optional(),
+});
+
+type EventFormData = z.infer<typeof eventSchema>;
 
 export default function EventCreationForm() {
   const navigate = useNavigate();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [locationCity, setLocationCity] = useState('');
-  const [timeoutHours, setTimeoutHours] = useState(24);
-  const [timeoutMinutes, setTimeoutMinutes] = useState(0);
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm<EventFormData>({
+    resolver: zodResolver(eventSchema),
+  });
 
-  if (!getCurrentUserId()) {
-    navigate('/?auth=1&returnTo=/events/new', { replace: true });
-    return null;
-  }
+  const onSubmit = async (data: EventFormData) => {
+    const promise = api.post<{ id: string }>('/events', data);
 
-  async function handleSubmit(e: { preventDefault(): void }) {
-    e.preventDefault();
-    setError('');
-    setSaving(true);
-    try {
-      const event = await api.post<{ id: string }>('/events', {
-        title,
-        description,
-        location_city: locationCity,
-        location_country: 'DE',
-        location_lat: null,
-        location_lng: null,
-        timeout_hours: timeoutHours + (timeoutMinutes / 60),
-      });
-      navigate(`/events/${event.id}`);
-    } catch {
-      setError('Could not create the event.');
-    } finally {
-      setSaving(false);
-    }
-  }
+    toast.promise(promise, {
+      loading: 'Creating your event...',
+      success: (result) => {
+        navigate(`/events/${result.id}/respond`);
+        return 'Event created successfully!';
+      },
+      error: 'Failed to create event. Please try again.',
+    });
+  };
 
   return (
-    <div className="gf-stack gf-stack--xl">
-      <h2 className="gf-section-title">Create new event or activity</h2>
-      <div className="gf-card">
-        <form className="gf-form" onSubmit={handleSubmit}>
-          <label className="gf-field">
-            <span className="gf-field__label">Title</span>
-            <span className="gf-field__hint">A short, clear title works best.</span>
-            <input className="gf-input" placeholder="Sunday dinner in Berlin" value={title} onChange={e => setTitle(e.target.value)} />
-          </label>
-          <label className="gf-field">
-            <span className="gf-field__label">Stadt / City</span>
-            <span className="gf-field__hint">Where should the activity take place?</span>
-            <input className="gf-input" placeholder="Berlin" value={locationCity} onChange={e => setLocationCity(e.target.value)} required />
-          </label>
-          <label className="gf-field">
-            <span className="gf-field__label">Description</span>
-            <span className="gf-field__hint">Optional context for the AI and the group.</span>
-            <textarea className="gf-input gf-textarea" placeholder="Keep it flexible, social, and not too expensive." rows={4} value={description} onChange={e => setDescription(e.target.value)} />
-          </label>
-      <div className="gf-field">
-        <span className="gf-field__label">Response timeout</span>
-            <span className="gf-field__hint">How long should people have to respond? Default is 24 hours.</span>
-        <div style={{ display: 'flex', gap: '16px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input
-              className="gf-input"
-              type="number"
-              min={1}
-              max={168}
-              value={timeoutHours}
-              onChange={e => setTimeoutHours(Number(e.target.value))}
-              style={{ width: '80px' }}
-            />
-            <span className="gf-muted" style={{ fontSize: '0.9rem', fontWeight: 500 }}>hours</span>
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <input
-              className="gf-input"
-              type="number"
-              min={0}
-              max={59}
-              value={timeoutMinutes}
-              onChange={e => setTimeoutMinutes(Number(e.target.value))}
-              style={{ width: '80px' }}
-            />
-            <span className="gf-muted" style={{ fontSize: '0.9rem', fontWeight: 500 }}>minutes</span>
-          </label>
-        </div>
-      </div>
-          {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
-          <button className="gf-button gf-button--primary" type="submit" disabled={saving}>
-            {saving ? 'Working...' : 'Create'}
+    <div className="gf-card" style={{ maxWidth: 640, margin: '0 auto' }}>
+      <form onSubmit={handleSubmit(onSubmit)} className="gf-form" noValidate>
+        <h2 className="gf-card-title">Create a New Event</h2>
+        <p className="gf-muted">
+          Start by giving your event a name. You'll be able to add more details and invite friends
+          in the next step.
+        </p>
+
+        <ValidatedInput
+          label="Event Name"
+          registration={register('name')}
+          error={errors.name}
+          placeholder="e.g., Team Lunch, Weekend Hike"
+          autoFocus
+        />
+
+        <ValidatedInput
+          label="Description (Optional)"
+          registration={register('description')}
+          error={errors.description}
+          placeholder="A brief description of the event"
+        />
+
+        <div className="gf-actions">
+          <button type="submit" className="gf-button gf-button--primary" disabled={isSubmitting}>
+            {isSubmitting ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : (
+              'Create Event & Continue'
+            )}
           </button>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 }

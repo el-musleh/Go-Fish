@@ -1,5 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Link,
+  NavLink,
+  useNavigate,
+  useLocation,
+} from 'react-router-dom';
 import { Calendar, Home, LogIn, LogOut, Moon, Plus, Settings, Sun } from 'lucide-react';
 import {
   api,
@@ -25,11 +33,14 @@ import TermsOfService from './pages/TermsOfService';
 import NotFound from './pages/NotFound';
 import PrototypePage from './pages/prototype/PrototypePage';
 import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
+import ConfirmationDialog from './components/ConfirmationDialog';
+import LoadingSpinner from './components/LoadingSpinner';
 import {
   getPostAuthDestination,
   getSessionEmailForSync,
   shouldBlockDuringAuthBootstrap,
 } from './lib/authSession';
+import { Toaster } from './components/Toaster';
 
 function ThemeSwitch({
   activeTheme,
@@ -61,6 +72,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const [authOpen, setAuthOpen] = useState(false);
   const [authReturnTo, setAuthReturnTo] = useState('/dashboard');
   const [authBootstrapping, setAuthBootstrapping] = useState(true);
+  const [isSignOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const isTimeline = location.pathname === '/dashboard' && location.search.includes('tab=timeline');
   const isHome = location.pathname === '/dashboard' && !isTimeline;
   const isPreferences = location.pathname === '/benchmark';
@@ -74,7 +86,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   useEffect(() => {
-    currentPathRef.current = `${location.pathname}${location.search}${location.hash}` || '/dashboard';
+    currentPathRef.current =
+      `${location.pathname}${location.search}${location.hash}` || '/dashboard';
   }, [location.pathname, location.search, location.hash]);
 
   useEffect(() => subscribeToAuthChange(() => setUserId(getCurrentUserId())), []);
@@ -88,7 +101,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
       setAuthOpen(true);
       navigate(location.pathname, { replace: true });
     }
-  }, [location.search, navigate]);
+  }, [location.search, location.pathname, navigate]);
 
   useEffect(() => {
     let active = true;
@@ -148,7 +161,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
       void syncSessionEmail(email);
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(handleAuthEvent);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(handleAuthEvent);
 
     void supabase.auth.getSession().then(({ data }) => {
       if (!active) {
@@ -170,8 +185,8 @@ function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [navigate]);
 
-  async function handleSignOut() {
-    setAuthOpen(false);
+  async function handleConfirmSignOut() {
+    setSignOutConfirmOpen(false);
 
     try {
       await supabase.auth.signOut({ scope: 'local' });
@@ -183,7 +198,10 @@ function AppShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="gf-app" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <div
+      className="gf-app"
+      style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}
+    >
       <header className="gf-topbar">
         <Link className="gf-brand" to={userId ? '/dashboard' : '/'}>
           <img src="/logo.png" alt="Go Fish" className="gf-brand__icon" />
@@ -203,7 +221,9 @@ function AppShell({ children }: { children: React.ReactNode }) {
           {userId && (
             <NavLink
               to="/events/new"
-              className={({ isActive }) => `gf-nav-link gf-nav-link--icon${isActive ? ' gf-nav-link--active' : ''}`}
+              className={({ isActive }) =>
+                `gf-nav-link gf-nav-link--icon${isActive ? ' gf-nav-link--active' : ''}`
+              }
               title="New event"
               aria-label="New event"
             >
@@ -236,7 +256,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
           {userId ? (
             <button
               className="gf-nav-link gf-nav-link--icon"
-              onClick={handleSignOut}
+              onClick={() => setSignOutConfirmOpen(true)}
               type="button"
               title="Sign out"
               aria-label="Sign out"
@@ -257,21 +277,57 @@ function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="gf-main" style={{ flex: 1 }}>
-        {shouldBlockDuringAuthBootstrap(location.pathname, authBootstrapping)
-          ? <p className="gf-muted">Loading…</p>
-          : children}
+        {shouldBlockDuringAuthBootstrap(location.pathname, authBootstrapping) ? (
+          <div className="gf-page-center">
+            <LoadingSpinner size="lg" />
+          </div>
+        ) : (
+          children
+        )}
       </main>
       <footer className="gf-footer">
         <div className="gf-footer__inner">
           <img src="/logo.png" alt="Go Fish" className="gf-footer__logo" />
-          <span className="gf-footer__copy">© {new Date().getFullYear()} Go Fish. All rights reserved.</span>
+          <span className="gf-footer__copy">
+            © {new Date().getFullYear()} Go Fish. All rights reserved.
+          </span>
           <span className="gf-footer__meta">Social event coordinator · v1.6.0</span>
         </div>
-        <div style={{ textAlign: 'center', marginTop: '12px', fontSize: '0.85rem', color: 'var(--muted)' }}>
-          Read our <Link to="/privacy" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}>Privacy Policy</Link> and <Link to="/terms" style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}>Terms of Service</Link>
+        <div
+          style={{
+            textAlign: 'center',
+            marginTop: '12px',
+            fontSize: '0.85rem',
+            color: 'var(--muted)',
+          }}
+        >
+          Read our{' '}
+          <Link
+            to="/privacy"
+            style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+          >
+            Privacy Policy
+          </Link>{' '}
+          and{' '}
+          <Link
+            to="/terms"
+            style={{ color: 'inherit', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+          >
+            Terms of Service
+          </Link>
         </div>
       </footer>
       <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} returnTo={authReturnTo} />
+      <ConfirmationDialog
+        open={isSignOutConfirmOpen}
+        onClose={() => setSignOutConfirmOpen(false)}
+        onConfirm={handleConfirmSignOut}
+        title="Sign Out"
+        description="Are you sure you want to sign out?"
+        confirmText="Sign Out"
+        isDestructive
+      />
+      <Toaster />
     </div>
   );
 }
@@ -280,7 +336,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {import.meta.env.DEV && <Route path="/prototype" element={<PrototypePage />} />
+        {import.meta.env.DEV && <Route path="/prototype" element={<PrototypePage />} />}
         <Route
           path="*"
           element={

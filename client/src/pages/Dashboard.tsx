@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Users, MapPin, Calendar, Navigation, Trash2, Search } from 'lucide-react';
+import { Users, MapPin, Calendar, Navigation, Trash2, Search, CalendarPlus } from 'lucide-react';
 import { api, ApiError, getCurrentUserId } from '../api/client';
+import ConfirmationDialog from '../components/ConfirmationDialog';
+import EmptyState from '../components/EmptyState';
 
 function formatWindowRemaining(end: string, status: string, working: boolean): string {
   if (status === 'options_ready' || status === 'finalized') return 'Closed';
@@ -36,17 +38,29 @@ interface EventItem {
   duration_minutes: number | null;
   ai_suggestions: EventSuggestions | null;
   respondent_count?: number;
-  selected_activity?: { title: string; suggested_date: string; suggested_time: string | null } | null;
+  selected_activity?: {
+    title: string;
+    suggested_date: string;
+    suggested_time: string | null;
+  } | null;
 }
 
 function prettyDate(d: string) {
   const dateStr = d.includes('T') ? d.split('T')[0] : d;
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 function prettyDateFull(d: string) {
   const dateStr = d.includes('T') ? d.split('T')[0] : d;
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
 const STATUS_LABELS: Record<string, { label: string; cls: string }> = {
@@ -61,13 +75,22 @@ function formatOrganizerName(email?: string | null): string {
   return email;
 }
 
-function EventCard({ event, role, onHide }: { event: EventItem; role: 'creator' | 'participant'; onHide?: (e: React.MouseEvent, id: string) => void }) {
+function EventCard({
+  event,
+  role,
+  onHide,
+}: {
+  event: EventItem;
+  role: 'creator' | 'participant';
+  onHide?: (e: React.MouseEvent, id: string) => void;
+}) {
   const s = STATUS_LABELS[event.status] || { label: event.status, cls: '' };
-  const linkTo = event.status === 'options_ready' && role === 'creator'
-    ? `/events/${event.id}/options`
-    : event.status === 'finalized'
-      ? `/events/${event.id}/confirmation`
-      : `/events/${event.id}`;
+  const linkTo =
+    event.status === 'options_ready' && role === 'creator'
+      ? `/events/${event.id}/options`
+      : event.status === 'finalized'
+        ? `/events/${event.id}/confirmation`
+        : `/events/${event.id}`;
 
   return (
     <Link to={linkTo} style={{ textDecoration: 'none', color: 'inherit' }}>
@@ -86,7 +109,14 @@ function EventCard({ event, role, onHide }: { event: EventItem; role: 'creator' 
             {onHide && (
               <button
                 type="button"
-                style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--muted)', fontSize: '1rem' }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: 0,
+                  color: 'var(--muted)',
+                  fontSize: '1rem',
+                }}
                 onClick={(e) => onHide(e, event.id)}
                 aria-label="Hide event"
               >
@@ -97,7 +127,11 @@ function EventCard({ event, role, onHide }: { event: EventItem; role: 'creator' 
         </div>
         {event.status === 'finalized' && event.selected_activity && (
           <p className="gf-muted">
-            🎯 {event.selected_activity.title} · 📅 {prettyDate(event.selected_activity.suggested_date)}{event.selected_activity.suggested_time ? ` at ${event.selected_activity.suggested_time}` : ''}
+            🎯 {event.selected_activity.title} · 📅{' '}
+            {prettyDate(event.selected_activity.suggested_date)}
+            {event.selected_activity.suggested_time
+              ? ` at ${event.selected_activity.suggested_time}`
+              : ''}
           </p>
         )}
         {role === 'creator' && event.respondent_count !== undefined && (
@@ -114,14 +148,23 @@ function getEventDate(event: EventItem): string | null {
   return event.selected_activity?.suggested_date ?? event.preferred_date ?? null;
 }
 
-interface DateGroup { label: string; rawDate: string | null; events: EventItem[]; }
+interface DateGroup {
+  label: string;
+  rawDate: string | null;
+  events: EventItem[];
+}
 
 function groupByDate(events: EventItem[]): DateGroup[] {
   const map = new Map<string, DateGroup>();
   for (const ev of events) {
     const d = getEventDate(ev);
     const key = d ? d.split('T')[0] : 'unscheduled';
-    if (!map.has(key)) map.set(key, { label: d ? prettyDateFull(d) : 'Unscheduled', rawDate: d ? d.split('T')[0] : null, events: [] });
+    if (!map.has(key))
+      map.set(key, {
+        label: d ? prettyDateFull(d) : 'Unscheduled',
+        rawDate: d ? d.split('T')[0] : null,
+        events: [],
+      });
     map.get(key)!.events.push(ev);
   }
   return Array.from(map.values()).sort((a, b) => {
@@ -133,7 +176,7 @@ function groupByDate(events: EventItem[]): DateGroup[] {
 
 function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: string) => void }) {
   const navigate = useNavigate();
-  
+
   // Force re-render every second to update countdown and trigger auto-generation when expired
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -146,6 +189,7 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
 
   const [working, setWorking] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [isConfirmingDelete, setConfirmingDelete] = useState(false);
 
   const handleGenerateOptions = useCallback(async () => {
     if (working || event.status !== 'collecting') return;
@@ -164,20 +208,32 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
 
   const autoGenerateAttempted = useRef(false);
   useEffect(() => {
-    if (isOrganizer && event.status === 'collecting' && !windowOpen && !working && !autoGenerateAttempted.current) {
+    if (
+      isOrganizer &&
+      event.status === 'collecting' &&
+      !windowOpen &&
+      !working &&
+      !autoGenerateAttempted.current
+    ) {
       autoGenerateAttempted.current = true;
       handleGenerateOptions();
     }
   }, [isOrganizer, event.status, windowOpen, working, handleGenerateOptions]);
 
-  async function handleDeleteEvent() {
-    if (!window.confirm('Are you sure you want to delete this event?')) return;
+  function handlePromptDelete() {
+    setConfirmingDelete(true);
+  }
+
+  async function handleConfirmDelete() {
     setDeleting(true);
     try {
       await api.delete(`/events/${event.id}`);
       onDelete(event.id);
+      // No need to close dialog, as the component will unmount
     } catch {
+      // TODO: Show toast error
       setDeleting(false);
+      setConfirmingDelete(false);
     }
   }
 
@@ -187,9 +243,7 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
   const activity = event.selected_activity;
   const suggestions = event.ai_suggestions;
 
-  const venueValue = activity
-    ? activity.title
-    : suggestions?.venue_ideas.join(', ') ?? null;
+  const venueValue = activity ? activity.title : (suggestions?.venue_ideas.join(', ') ?? null);
 
   const dateValue = activity
     ? `${prettyDate(activity.suggested_date)}${activity.suggested_time ? ` at ${activity.suggested_time}` : ''}`
@@ -210,7 +264,9 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
     return (
       <div className="gf-detail-row" key={label}>
         <span className="gf-detail-row__label">{label}</span>
-        <span className={`gf-detail-row__value${isEmpty ? ' gf-detail-row__value--placeholder' : ''}`}>
+        <span
+          className={`gf-detail-row__value${isEmpty ? ' gf-detail-row__value--placeholder' : ''}`}
+        >
           {isEmpty ? placeholder : value}
         </span>
       </div>
@@ -218,12 +274,24 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
   }
 
   return (
-    <div className="gf-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px', opacity: deleting ? 0.5 : 1, pointerEvents: deleting ? 'none' : 'auto' }}>
+    <div
+      className="gf-card"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '20px',
+        opacity: deleting ? 0.5 : 1,
+        pointerEvents: deleting ? 'none' : 'auto',
+      }}
+    >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h3 className="gf-card-title">{event.title}</h3>
           {event.respondent_count !== undefined && (
-            <p className="gf-muted" style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <p
+              className="gf-muted"
+              style={{ marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
               <Users size={13} /> {event.respondent_count} participants
             </p>
           )}
@@ -234,7 +302,10 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
       </div>
 
       <div className="gf-detail-rows">
-        {detailRow('Response window', formatWindowRemaining(event.response_window_end, event.status, working))}
+        {detailRow(
+          'Response window',
+          formatWindowRemaining(event.response_window_end, event.status, working)
+        )}
         {windowOpen && !suggestions && (
           <p className="gf-muted" style={{ fontSize: '0.82rem', marginBottom: '4px' }}>
             Suggestions will appear once the response window closes.
@@ -244,13 +315,16 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
         {detailRow('Date', dateValue)}
         {detailRow('Per person', suggestions?.estimated_cost_per_person ?? null)}
         {detailRow('Duration', durationValue)}
-        {(isOrganizer || event.inviter_email) && detailRow('Organizer', isOrganizer ? 'You' : formatOrganizerName(event.inviter_email))}
+        {(isOrganizer || event.inviter_email) &&
+          detailRow('Organizer', isOrganizer ? 'You' : formatOrganizerName(event.inviter_email))}
       </div>
 
       {event.description && (
         <div>
           <span className="gf-label">Description</span>
-          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--muted)' }}>{event.description}</p>
+          <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--muted)' }}>
+            {event.description}
+          </p>
         </div>
       )}
 
@@ -272,11 +346,7 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
             View confirmation
           </button>
         ) : isGenerating ? (
-          <button
-            type="button"
-            className="gf-button gf-button--primary"
-            disabled
-          >
+          <button type="button" className="gf-button gf-button--primary" disabled>
             Generating options...
           </button>
         ) : (
@@ -298,10 +368,18 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
             {working ? 'Generating…' : 'End window & generate'}
           </button>
         )}
-        <button type="button" className="gf-button gf-button--ghost gf-inline-icon" title="Coming soon">
+        <button
+          type="button"
+          className="gf-button gf-button--ghost gf-inline-icon"
+          title="Coming soon"
+        >
           <Calendar size={14} /> Add to Calendar
         </button>
-        <button type="button" className="gf-button gf-button--ghost gf-inline-icon" title="Coming soon">
+        <button
+          type="button"
+          className="gf-button gf-button--ghost gf-inline-icon"
+          title="Coming soon"
+        >
           <Navigation size={14} /> Map &amp; Navigation
         </button>
         {isOrganizer && (
@@ -309,50 +387,89 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
             type="button"
             className="gf-button gf-button--ghost gf-inline-icon"
             style={{ color: 'var(--error, #e53e3e)' }}
-            onClick={handleDeleteEvent}
+            onClick={handlePromptDelete}
           >
             <Trash2 size={14} /> Delete
           </button>
         )}
       </div>
+
+      <ConfirmationDialog
+        open={isConfirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={handleConfirmDelete}
+        title="Delete Event"
+        description="Are you sure you want to permanently delete this event? This action cannot be undone."
+        confirmText="Delete"
+        isDestructive
+        isLoading={deleting}
+      />
     </div>
   );
 }
 
-function TimelineView({ events, initialEventId, onDelete, searchQuery, setSearchQuery }: { events: EventItem[]; initialEventId?: string | null; onDelete: (id: string) => void; searchQuery: string; setSearchQuery: (q: string) => void }) {
+function TimelineView({
+  events,
+  initialEventId,
+  onDelete,
+  searchQuery,
+  setSearchQuery,
+}: {
+  events: EventItem[];
+  initialEventId?: string | null;
+  onDelete: (id: string) => void;
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(() => {
-    if (initialEventId && events.find(e => e.id === initialEventId)) return initialEventId;
+    if (initialEventId && events.find((e) => e.id === initialEventId)) return initialEventId;
     return events[0]?.id ?? null;
   });
   const grouped = useMemo(() => groupByDate(events), [events]);
   // Derive the selected event from the live events array so it always reflects the latest poll data.
-  const selected = events.find(e => e.id === selectedId) ?? events[0] ?? null;
+  const selected = events.find((e) => e.id === selectedId) ?? events[0] ?? null;
 
   return (
     <div className="gf-timeline-layout">
       {/* Left: event list grouped by date */}
       <div className="gf-timeline-list">
         <div style={{ position: 'relative', marginBottom: '16px' }}>
-          <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)' }} />
+          <Search
+            size={16}
+            style={{
+              position: 'absolute',
+              left: '14px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: 'var(--muted)',
+            }}
+          />
           <input
             type="text"
             placeholder="Search timeline..."
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="gf-input"
-            style={{ paddingLeft: '38px', borderRadius: '999px', fontSize: '0.9rem', width: '100%' }}
+            style={{
+              paddingLeft: '38px',
+              borderRadius: '999px',
+              fontSize: '0.9rem',
+              width: '100%',
+            }}
           />
         </div>
         {events.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '24px 16px' }}>
-            <p className="gf-muted">{searchQuery ? 'No matching events found.' : 'No events yet.'}</p>
+            <p className="gf-muted">
+              {searchQuery ? 'No matching events found.' : 'No events yet.'}
+            </p>
           </div>
         ) : (
           grouped.map(({ label, events: evs }) => (
             <div key={label}>
               <p className="gf-timeline-group__date">{label}</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {evs.map(ev => (
+                {evs.map((ev) => (
                   <button
                     key={ev.id}
                     onClick={() => setSelectedId(ev.id)}
@@ -360,7 +477,10 @@ function TimelineView({ events, initialEventId, onDelete, searchQuery, setSearch
                   >
                     <p className="gf-timeline-card__title">{ev.title}</p>
                     {ev.inviter_id !== getCurrentUserId() && ev.inviter_email && (
-                      <p className="gf-muted" style={{ fontSize: '0.8rem', textAlign: 'left', marginBottom: '4px' }}>
+                      <p
+                        className="gf-muted"
+                        style={{ fontSize: '0.8rem', textAlign: 'left', marginBottom: '4px' }}
+                      >
                         by {formatOrganizerName(ev.inviter_email)}
                       </p>
                     )}
@@ -386,10 +506,13 @@ function TimelineView({ events, initialEventId, onDelete, searchQuery, setSearch
 
       {/* Right: detail panel */}
       <div>
-        {selected
-          ? <TimelineDetail key={selected.id} event={selected} onDelete={onDelete} />
-          : <div className="gf-card"><p className="gf-muted">Select an event to view details.</p></div>
-        }
+        {selected ? (
+          <TimelineDetail key={selected.id} event={selected} onDelete={onDelete} />
+        ) : (
+          <div className="gf-card">
+            <p className="gf-muted">Select an event to view details.</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -405,9 +528,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState('');
-  const [tab, setTab] = useState<'events' | 'timeline'>(() =>
-    searchParams.get('tab') === 'timeline' ? 'timeline' : 'events',
-  );
+  const tab = (searchParams.get('tab') === 'timeline' ? 'timeline' : 'events') as
+    | 'events'
+    | 'timeline';
   const [showArchived, setShowArchived] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [createdLimit, setCreatedLimit] = useState(6);
@@ -417,33 +540,40 @@ export default function Dashboard() {
     try {
       const stored = localStorage.getItem('gofish_hidden_events');
       if (stored) return new Set(JSON.parse(stored));
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
     return new Set();
   });
 
   const handleHideEvent = useCallback((e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setHiddenEventIds(prev => {
+    setHiddenEventIds((prev) => {
       const next = new Set(prev);
       next.add(id);
-      try { localStorage.setItem('gofish_hidden_events', JSON.stringify(Array.from(next))); } catch { /* ignore */ }
+      try {
+        localStorage.setItem('gofish_hidden_events', JSON.stringify(Array.from(next)));
+      } catch {
+        /* ignore */
+      }
       return next;
     });
   }, []);
 
   function handleDeleteEvent(eventId: string) {
-    setCreated(prev => prev.filter(e => e.id !== eventId));
-    setJoined(prev => prev.filter(e => e.id !== eventId));
+    setCreated((prev) => prev.filter((e) => e.id !== eventId));
+    setJoined((prev) => prev.filter((e) => e.id !== eventId));
   }
 
   useEffect(() => {
-    setTab(searchParams.get('tab') === 'timeline' ? 'timeline' : 'events');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSearchQuery('');
   }, [searchParams]);
 
   useEffect(() => {
     if (searchParams.get('prefsUpdated')) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setToast('Preferences updated');
       setSearchParams({}, { replace: true });
       const t = setTimeout(() => setToast(''), 4000);
@@ -452,21 +582,55 @@ export default function Dashboard() {
   }, [searchParams, setSearchParams]);
 
   useEffect(() => {
-    if (!getCurrentUserId()) { navigate('/?auth=1&returnTo=/dashboard', { replace: true }); return; }
-    api.get<{ created: EventItem[]; joined: EventItem[] }>('/events')
-      .then(data => { setCreated(data.created); setJoined(data.joined); })
+    if (!getCurrentUserId()) {
+      navigate('/?auth=1&returnTo=/dashboard', { replace: true });
+      return;
+    }
+    api
+      .get<{ created: EventItem[]; joined: EventItem[] }>('/events')
+      .then((data) => {
+        setCreated(data.created);
+        setJoined(data.joined);
+      })
       .catch(() => setError('Could not load the dashboard.'))
       .finally(() => setLoading(false));
     const id = setInterval(() => {
-      api.get<{ created: EventItem[]; joined: EventItem[] }>('/events')
-        .then(data => {
-          setCreated(prev =>
-            prev.length === data.created.length && prev.every((e, i) => e.id === data.created[i].id && e.status === data.created[i].status && JSON.stringify(e.ai_suggestions) === JSON.stringify(data.created[i].ai_suggestions) && e.inviter_email === data.created[i].inviter_email && e.archived === data.created[i].archived && e.respondent_count === data.created[i].respondent_count && JSON.stringify(e.selected_activity) === JSON.stringify(data.created[i].selected_activity))
-              ? prev : data.created
+      api
+        .get<{ created: EventItem[]; joined: EventItem[] }>('/events')
+        .then((data) => {
+          setCreated((prev) =>
+            prev.length === data.created.length &&
+            prev.every(
+              (e, i) =>
+                e.id === data.created[i].id &&
+                e.status === data.created[i].status &&
+                JSON.stringify(e.ai_suggestions) ===
+                  JSON.stringify(data.created[i].ai_suggestions) &&
+                e.inviter_email === data.created[i].inviter_email &&
+                e.archived === data.created[i].archived &&
+                e.respondent_count === data.created[i].respondent_count &&
+                JSON.stringify(e.selected_activity) ===
+                  JSON.stringify(data.created[i].selected_activity)
+            )
+              ? prev
+              : data.created
           );
-          setJoined(prev =>
-            prev.length === data.joined.length && prev.every((e, i) => e.id === data.joined[i].id && e.status === data.joined[i].status && JSON.stringify(e.ai_suggestions) === JSON.stringify(data.joined[i].ai_suggestions) && e.inviter_email === data.joined[i].inviter_email && e.archived === data.joined[i].archived && e.respondent_count === data.joined[i].respondent_count && JSON.stringify(e.selected_activity) === JSON.stringify(data.joined[i].selected_activity))
-              ? prev : data.joined
+          setJoined((prev) =>
+            prev.length === data.joined.length &&
+            prev.every(
+              (e, i) =>
+                e.id === data.joined[i].id &&
+                e.status === data.joined[i].status &&
+                JSON.stringify(e.ai_suggestions) ===
+                  JSON.stringify(data.joined[i].ai_suggestions) &&
+                e.inviter_email === data.joined[i].inviter_email &&
+                e.archived === data.joined[i].archived &&
+                e.respondent_count === data.joined[i].respondent_count &&
+                JSON.stringify(e.selected_activity) ===
+                  JSON.stringify(data.joined[i].selected_activity)
+            )
+              ? prev
+              : data.joined
           );
         })
         .catch(() => {});
@@ -474,25 +638,39 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, [navigate]);
 
-  const matchesSearch = useCallback((e: EventItem) => {
-    if (!searchQuery.trim()) return true;
-    const q = searchQuery.toLowerCase();
-    return (e.title?.toLowerCase() || '').includes(q) || (e.description?.toLowerCase().includes(q) ?? false);
-  }, [searchQuery]);
+  const matchesSearch = useCallback(
+    (e: EventItem) => {
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      return (
+        (e.title?.toLowerCase() || '').includes(q) ||
+        (e.description?.toLowerCase().includes(q) ?? false)
+      );
+    },
+    [searchQuery]
+  );
 
   if (loading) return <p className="gf-muted">Loading…</p>;
 
-  const activeCreated = created.filter(e => !e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id));
-  const archivedCreated = created.filter(e => e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id));
-  const activeJoined = joined.filter(e => !e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id));
-  const archivedJoined = joined.filter(e => e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id));
+  const activeCreated = created.filter(
+    (e) => !e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id)
+  );
+  const archivedCreated = created.filter(
+    (e) => e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id)
+  );
+  const activeJoined = joined.filter(
+    (e) => !e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id)
+  );
+  const archivedJoined = joined.filter(
+    (e) => e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id)
+  );
 
   const allArchived = [
-    ...archivedCreated.map(e => ({ e, role: 'creator' as const })),
-    ...archivedJoined.map(e => ({ e, role: 'participant' as const }))
+    ...archivedCreated.map((e) => ({ e, role: 'creator' as const })),
+    ...archivedJoined.map((e) => ({ e, role: 'participant' as const })),
   ];
 
-  const timelineEvents = [...created, ...joined].filter(e => !e.archived && matchesSearch(e));
+  const timelineEvents = [...created, ...joined].filter((e) => !e.archived && matchesSearch(e));
 
   const hasAnyActive = activeCreated.length > 0 || activeJoined.length > 0;
   const hasAnyArchived = archivedCreated.length > 0 || archivedJoined.length > 0;
@@ -508,13 +686,15 @@ export default function Dashboard() {
             <section className="gf-stack">
               <h2 className="gf-section-title">My Events</h2>
               <div className="gf-grid gf-grid--two">
-                {activeCreated.slice(0, createdLimit).map(e => <EventCard key={e.id} event={e} role="creator" onHide={handleHideEvent} />)}
+                {activeCreated.slice(0, createdLimit).map((e) => (
+                  <EventCard key={e.id} event={e} role="creator" onHide={handleHideEvent} />
+                ))}
               </div>
               {activeCreated.length > createdLimit && (
                 <button
                   type="button"
                   className="gf-button gf-button--ghost"
-                  onClick={() => setCreatedLimit(prev => prev + 6)}
+                  onClick={() => setCreatedLimit((prev) => prev + 6)}
                   style={{ alignSelf: 'center', marginTop: '8px' }}
                 >
                   Show more
@@ -527,13 +707,15 @@ export default function Dashboard() {
             <section className="gf-stack">
               <h2 className="gf-section-title">Joined Events</h2>
               <div className="gf-grid gf-grid--two">
-                {activeJoined.slice(0, joinedLimit).map(e => <EventCard key={e.id} event={e} role="participant" onHide={handleHideEvent} />)}
+                {activeJoined.slice(0, joinedLimit).map((e) => (
+                  <EventCard key={e.id} event={e} role="participant" onHide={handleHideEvent} />
+                ))}
               </div>
               {activeJoined.length > joinedLimit && (
                 <button
                   type="button"
                   className="gf-button gf-button--ghost"
-                  onClick={() => setJoinedLimit(prev => prev + 4)}
+                  onClick={() => setJoinedLimit((prev) => prev + 4)}
                   style={{ alignSelf: 'center', marginTop: '8px' }}
                 >
                   Show more
@@ -543,16 +725,32 @@ export default function Dashboard() {
           )}
 
           {!hasAnyActive && !hasAnyArchived && (
-            <div className="gf-card">
-              <h3 className="gf-card-title">{searchQuery ? 'No matching events' : 'No groups yet'}</h3>
-              <p className="gf-muted">{searchQuery ? 'Try adjusting your search.' : 'Create an event to get started.'}</p>
-            </div>
+            <EmptyState
+              icon={<CalendarPlus size={48} />}
+              title={searchQuery ? 'No matching events' : 'No events yet'}
+              description={
+                searchQuery
+                  ? 'Try adjusting your search query.'
+                  : 'Get started by creating a new event for you and your friends.'
+              }
+              action={
+                !searchQuery && (
+                  <Link to="/events/new" className="gf-button gf-button--primary">
+                    Create New Event
+                  </Link>
+                )
+              }
+            />
           )}
 
           {hasAnyArchived && (
             <section className="gf-stack" style={{ marginTop: '24px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 className="gf-section-title" style={{ color: 'var(--muted)' }}>Past Events</h2>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+              >
+                <h2 className="gf-section-title" style={{ color: 'var(--muted)' }}>
+                  Past Events
+                </h2>
                 <button
                   type="button"
                   className="gf-button gf-button--ghost gf-button--sm"
@@ -564,13 +762,15 @@ export default function Dashboard() {
               {showArchived && (
                 <>
                   <div className="gf-grid gf-grid--two" style={{ opacity: 0.7 }}>
-                    {allArchived.slice(0, archivedLimit).map(({ e, role }) => <EventCard key={e.id} event={e} role={role} onHide={handleHideEvent} />)}
+                    {allArchived.slice(0, archivedLimit).map(({ e, role }) => (
+                      <EventCard key={e.id} event={e} role={role} onHide={handleHideEvent} />
+                    ))}
                   </div>
                   {allArchived.length > archivedLimit && (
                     <button
                       type="button"
                       className="gf-button gf-button--ghost"
-                      onClick={() => setArchivedLimit(prev => prev + 4)}
+                      onClick={() => setArchivedLimit((prev) => prev + 4)}
                       style={{ alignSelf: 'center', marginTop: '8px' }}
                     >
                       Show more
@@ -583,7 +783,15 @@ export default function Dashboard() {
         </>
       )}
 
-      {tab === 'timeline' && <TimelineView events={timelineEvents} initialEventId={searchParams.get('event')} onDelete={handleDeleteEvent} searchQuery={searchQuery} setSearchQuery={setSearchQuery} />}
+      {tab === 'timeline' && (
+        <TimelineView
+          events={timelineEvents}
+          initialEventId={searchParams.get('event')}
+          onDelete={handleDeleteEvent}
+          searchQuery={searchQuery}
+          setSearchQuery={setSearchQuery}
+        />
+      )}
     </div>
   );
 }

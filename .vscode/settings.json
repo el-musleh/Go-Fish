@@ -1,5 +1,12 @@
 {
     "kiroAgent.configureMCP": "Disabled",
     "typescript.autoClosingTags": false,
-    "DockerRun.DisableDockerrc": true
+    "DockerRun.DisableDockerrc": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "explicit"
+    },
+    "eslint.workingDirectories": ["client"],
+    "eslint.validate": ["typescript", "typescriptreact"]
 }

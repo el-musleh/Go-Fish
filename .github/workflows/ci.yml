@@ -1,12 +1,8 @@
 name: CI
 
 on:
-  pull_request:
-    branches:
-      - main
   push:
-    branches:
-      - main
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -18,7 +14,7 @@ concurrency:
 
 jobs:
   backend:
-    name: Backend build and test
+    name: Backend — build, test, audit
     runs-on: ubuntu-latest
 
     steps:
@@ -41,8 +37,11 @@ jobs:
       - name: Test backend
         run: npm test
 
+      - name: Security audit
+        run: npm audit --audit-level=high
+
   frontend:
-    name: Frontend build
+    name: Frontend — lint, build, audit
     runs-on: ubuntu-latest
 
     steps:
@@ -58,8 +57,24 @@ jobs:
 
       - name: Install frontend dependencies
         working-directory: client
-        run: npm ci
+        run: npm ci --legacy-peer-deps
+
+      - name: Lint
+        working-directory: client
+        run: node node_modules/eslint/bin/eslint.js src --max-warnings=0
+
+      - name: Format check
+        working-directory: client
+        run: node node_modules/prettier/bin/prettier.cjs --check src
+
+      - name: Type check
+        working-directory: client
+        run: node node_modules/typescript/bin/tsc --noEmit
 
       - name: Build frontend
         working-directory: client
         run: npm run build
+
+      - name: Security audit
+        working-directory: client
+        run: npm audit --audit-level=high
