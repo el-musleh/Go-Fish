@@ -79,22 +79,38 @@ docker info >/dev/null 2>&1 || die "Docker daemon is not running.\n  → Start D
 log "${DIM}node $(node --version) · npm $(npm --version) · $($DOCKER_COMPOSE version --short 2>/dev/null || echo compose)${NC}"
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 2. Port conflict check
+# 2. Port conflict check (auto-kill stale processes)
 # ═══════════════════════════════════════════════════════════════════════════
-port_in_use() {
+pids_on_port() {
   if command -v lsof >/dev/null 2>&1; then
-    lsof -iTCP:"$1" -sTCP:LISTEN -t >/dev/null 2>&1
+    lsof -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null
   elif command -v ss >/dev/null 2>&1; then
-    ss -tlnp | grep -q ":$1 "
-  else
-    return 1  # can't check; proceed optimistically
+    ss -tlnp 2>/dev/null | awk -F'pid=' "/:[  ]*$1 /"'{split($2,a,","); print a[1]}'
+  fi
+}
+
+free_port() {
+  local port="$1"
+  local pids
+  pids=$(pids_on_port "$port")
+  if [ -n "$pids" ]; then
+    warn "Port $port in use (PIDs: $pids) — killing..."
+    echo "$pids" | xargs kill 2>/dev/null || true
+    sleep 1
+    pids=$(pids_on_port "$port")
+    if [ -n "$pids" ]; then
+      echo "$pids" | xargs kill -9 2>/dev/null || true
+      sleep 1
+    fi
+    if [ -n "$(pids_on_port "$port")" ]; then
+      die "Could not free port $port. Try: sudo kill -9 \$(lsof -iTCP:$port -sTCP:LISTEN -t)"
+    fi
+    log "Port $port is now free"
   fi
 }
 
 for port in 3000 5173 5433; do
-  if port_in_use "$port"; then
-    die "Port $port is already in use. Free it and try again.\n  → Find what's using it: lsof -iTCP:$port -sTCP:LISTEN"
-  fi
+  free_port "$port"
 done
 
 # ═══════════════════════════════════════════════════════════════════════════
