@@ -85,7 +85,7 @@ pids_on_port() {
   if command -v lsof >/dev/null 2>&1; then
     lsof -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null
   elif command -v ss >/dev/null 2>&1; then
-    ss -tlnp 2>/dev/null | awk -F'pid=' "/:[  ]*$1 /"'{split($2,a,","); print a[1]}'
+    ss -tlnp 2>/dev/null | awk -v port="$1" -F 'pid=' '$0 ~ ":" port " " {split($2, a, ","); print a[1]}'
   fi
 }
 

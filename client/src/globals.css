@@ -780,7 +780,6 @@ button, input, textarea { font: inherit; }
 
 .gf-option-card--featured .gf-card-title { font-size: 2rem; }
 
-<<<<<<< HEAD
 /* ── Tabs ───────────────────────────────────────────────── */
 .gf-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
 .gf-tab {
@@ -805,7 +804,6 @@ button, input, textarea { font: inherit; }
 .gf-timeline-layout { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; align-items: start; }
 .gf-timeline-list { display: flex; flex-direction: column; gap: 18px; }
 .gf-timeline-group__date { font-size: 0.72rem; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
-=======
 .gf-timeline-layout {
   display: grid;
   grid-template-columns: minmax(280px, 0.95fr) minmax(0, 1.45fr);
@@ -828,7 +826,6 @@ button, input, textarea { font: inherit; }
   letter-spacing: 0.08em;
 }
 
->>>>>>> origin/main
 .gf-timeline-card {
   width: 100%;
   text-align: left;
@@ -841,7 +838,6 @@ button, input, textarea { font: inherit; }
   display: flex;
   flex-direction: column;
   gap: 8px;
-<<<<<<< HEAD
   transition: border-color 180ms ease, background 200ms ease;
 }
 .gf-timeline-card:hover { border-color: var(--line-strong); }
@@ -860,7 +856,6 @@ button, input, textarea { font: inherit; }
 /* ── Memories: labels, badges, checklists ───────────────── */
 .gf-label {
   display: block;
-=======
   transition: border-color 180ms ease, background 200ms ease, transform 180ms ease;
 }
 
@@ -928,13 +923,11 @@ button, input, textarea { font: inherit; }
 .gf-label {
   display: block;
   margin-bottom: 6px;
->>>>>>> origin/main
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--muted);
-<<<<<<< HEAD
   margin-bottom: 6px;
 }
 .gf-setting-badge {
@@ -948,8 +941,6 @@ button, input, textarea { font: inherit; }
 .gf-checklist { display: flex; flex-direction: column; gap: 8px; list-style: none; padding: 0; margin: 0; }
 .gf-checklist li { display: flex; align-items: flex-start; gap: 10px; font-size: 0.88rem; }
 .gf-checklist input[type="checkbox"] { margin-top: 2px; accent-color: var(--accent); flex-shrink: 0; }
-=======
-}
 
 @keyframes gf-breathe {
   0%, 100% { transform: translate(-50%, -50%) scale(0.92); opacity: 0.72; }
@@ -999,7 +990,6 @@ button, input, textarea { font: inherit; }
   0%, 100% { transform: translateY(0); opacity: 0.5; }
   50% { transform: translateY(-10px); opacity: 1; }
 }
->>>>>>> origin/main
 
 @keyframes gf-rise {
   from { opacity: 0; transform: translateY(10px); }
@@ -1012,7 +1002,6 @@ button, input, textarea { font: inherit; }
   .gf-nav { justify-content: flex-start; flex-wrap: wrap; }
   .gf-topbar__actions { justify-content: flex-start; }
   .gf-grid--three, .gf-grid--two { grid-template-columns: 1fr; }
-<<<<<<< HEAD
   .gf-timeline-layout { grid-template-columns: 1fr; }
   .gf-panel-layout { grid-template-columns: 1fr; }
 }
@@ -1023,11 +1012,9 @@ button, input, textarea { font: inherit; }
   .gf-brand__icon { height: 1.5rem; }
   .gf-nav-link { padding: 8px 14px; font-size: 0.85rem; }
   .gf-topbar__actions { gap: 8px; }
-=======
   .gf-generation-state { grid-template-columns: 1fr; }
   .gf-generation-state__copy { max-width: none; }
   .gf-timeline-layout { grid-template-columns: 1fr; }
->>>>>>> origin/main
 }
 
 @media (max-width: 480px) {
@@ -1064,15 +1051,12 @@ button, input, textarea { font: inherit; }
   background: linear-gradient(135deg, var(--accent-strong), var(--accent));
   border-color: transparent;
   box-shadow: 0 8px 20px rgba(var(--accent-rgb), 0.2);
-<<<<<<< HEAD
-=======
 }
 .gf-nav-link--icon {
   width: 44px;
   min-width: 44px;
   height: 44px;
   padding: 0;
->>>>>>> origin/main
 }
 
 /* ── Button variants ── */

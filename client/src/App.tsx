@@ -88,7 +88,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
       setAuthOpen(true);
       navigate(location.pathname, { replace: true });
     }
-  }, [location.search]);
+  }, [location.search, navigate]);
 
   useEffect(() => {
     let active = true;

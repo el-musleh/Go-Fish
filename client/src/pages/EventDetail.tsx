@@ -233,19 +233,6 @@ export default function EventDetail() {
             <span className="gf-countdown__label">{expired ? 'Response window closed' : 'remaining'}</span>
           </div>
         </div>
-      ) : (
-        <div className="gf-card gf-text-center" style={{ padding: '32px 20px' }}>
-          <h3 className="gf-card-title">Waiting for the group...</h3>
-          <p className="gf-muted" style={{ marginBottom: '24px' }}>
-            The organizer is still collecting responses. Options will be generated once the time is up!
-          </p>
-          <div className="gf-stack gf-stack--sm" style={{ alignItems: 'center' }}>
-            <span className={`gf-countdown${expired ? ' gf-countdown--expired' : ''}`}>
-              {expired ? 'Generating...' : formatRemaining(remaining)}
-            </span>
-            <span className="gf-countdown__label">{expired ? 'Response window closed' : 'remaining'}</span>
-          </div>
-        </div>
       )}
 
       {isCreator && (

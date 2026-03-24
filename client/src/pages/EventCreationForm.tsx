@@ -67,7 +67,7 @@ export default function EventCreationForm() {
             <input
               className="gf-input"
               type="number"
-              min={0}
+              min={1}
               max={168}
               value={timeoutHours}
               onChange={e => setTimeoutHours(Number(e.target.value))}

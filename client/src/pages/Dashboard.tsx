@@ -458,11 +458,11 @@ export default function Dashboard() {
       api.get<{ created: EventItem[]; joined: EventItem[] }>('/events')
         .then(data => {
           setCreated(prev =>
-            prev.length === data.created.length && prev.every((e, i) => e.id === data.created[i].id && e.status === data.created[i].status && JSON.stringify(e.ai_suggestions) === JSON.stringify(data.created[i].ai_suggestions) && e.inviter_email === data.created[i].inviter_email && e.archived === data.created[i].archived)
+            prev.length === data.created.length && prev.every((e, i) => e.id === data.created[i].id && e.status === data.created[i].status && JSON.stringify(e.ai_suggestions) === JSON.stringify(data.created[i].ai_suggestions) && e.inviter_email === data.created[i].inviter_email && e.archived === data.created[i].archived && e.respondent_count === data.created[i].respondent_count && JSON.stringify(e.selected_activity) === JSON.stringify(data.created[i].selected_activity))
               ? prev : data.created
           );
           setJoined(prev =>
-            prev.length === data.joined.length && prev.every((e, i) => e.id === data.joined[i].id && e.status === data.joined[i].status && JSON.stringify(e.ai_suggestions) === JSON.stringify(data.joined[i].ai_suggestions) && e.inviter_email === data.joined[i].inviter_email && e.archived === data.joined[i].archived)
+            prev.length === data.joined.length && prev.every((e, i) => e.id === data.joined[i].id && e.status === data.joined[i].status && JSON.stringify(e.ai_suggestions) === JSON.stringify(data.joined[i].ai_suggestions) && e.inviter_email === data.joined[i].inviter_email && e.archived === data.joined[i].archived && e.respondent_count === data.joined[i].respondent_count && JSON.stringify(e.selected_activity) === JSON.stringify(data.joined[i].selected_activity))
               ? prev : data.joined
           );
         })
