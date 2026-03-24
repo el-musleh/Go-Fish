@@ -1,0 +1,14 @@
+{
+  "general": {
+    "plan": {
+      "directory": ""
+    },
+    "defaultApprovalMode": "default"
+  },
+  "ui": {
+    "useAlternateBuffer": true
+  },
+  "security": {
+    "enablePermanentToolApproval": true
+  }
+}
