@@ -1,4 +1,4 @@
-import { tool } from 'langchain';
+import { tool } from '@langchain/core/tools';
 import { TasteBenchmark } from '../../models/TasteBenchmark';
 import { DateTimeWindow } from '../../models/Response';
 import { RealWorldContext } from '../realWorldData/types';

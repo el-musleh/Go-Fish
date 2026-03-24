@@ -1,6 +1,6 @@
 import { AgentRuntimeState } from './tools';
 
-export function buildAgentSystemPrompt(runtime: AgentRuntimeState): string {
+export function createAgentPrompt(runtime: AgentRuntimeState): string {
   const hasRealWorldCandidates =
     runtime.eventCandidates.length > 0 || runtime.venueCandidates.length > 0;
 

@@ -1,9 +1,9 @@
-import { BaseMessage } from 'langchain';
-import { createAgent } from 'langchain';
+import { BaseMessage, HumanMessage } from '@langchain/core/messages';
+import { createReactAgent } from '@langchain/langgraph/prebuilt';
 import { CandidateRef, OverlapSlot, AgentRuntimeState, createAgentTools } from './tools';
 import { createChatOpenRouterModel, extractJson } from './model';
 import { FinalizedOptions, finalizedOptionsSchema } from './schemas';
-import { buildAgentSystemPrompt, buildAgentUserPrompt, buildFinalizerPrompt } from './prompt';
+import { createAgentPrompt, buildAgentUserPrompt, buildFinalizerPrompt } from './prompt';
 
 export interface GeneratedOption {
   title: string;
@@ -44,7 +44,7 @@ function formatMessageContent(content: unknown): string {
 function extractAgentShortlist(messages: BaseMessage[]): string {
   const assistantMessage = [...messages]
     .reverse()
-    .find((message) => message.getType() === 'ai');
+    .find((message) => message.constructor.name === 'AIMessage');
 
   if (!assistantMessage) {
     throw new Error('Agent did not produce an assistant response');
@@ -163,14 +163,14 @@ export async function runPlanningAgent(
     throw new Error('No valid overlapping time windows are available');
   }
 
-  const agent = createAgent({
-    model: createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.2 }),
+  const agentApp = createReactAgent({
+    llm: createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.2 }),
     tools: [...createAgentTools(runtime)],
-    systemPrompt: buildAgentSystemPrompt(runtime),
+    messageModifier: createAgentPrompt(runtime),
   });
 
-  const shortlistResult = await agent.invoke({
-    messages: [{ role: 'user', content: buildAgentUserPrompt(runtime) }],
+  const shortlistResult = await agentApp.invoke({
+    messages: [new HumanMessage(buildAgentUserPrompt(runtime))],
   });
 
   const shortlist = extractAgentShortlist(shortlistResult.messages);
@@ -179,10 +179,9 @@ export async function runPlanningAgent(
   // compatibility with models that don't support JSON schema response_format.
   const finalizer = createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.1 });
   const finalizerResult = await finalizer.invoke([
-    {
-      role: 'user',
+    new HumanMessage({
       content: buildFinalizerPrompt(runtime, shortlist) + '\n\nIMPORTANT: Return ONLY a raw JSON object — no markdown fences, no commentary.',
-    },
+    }),
   ]);
   const finalizerText = formatMessageContent(finalizerResult.content);
   const finalized = finalizedOptionsSchema.parse(JSON.parse(extractJson(finalizerText)));

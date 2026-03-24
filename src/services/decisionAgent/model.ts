@@ -1,9 +1,7 @@
-import { ChatOpenAI } from '@langchain/openai';
+import { ChatOpenRouter } from "@langchain/openrouter";
 
 export const DEFAULT_MODEL = 'deepseek-chat';
 export const FALLBACK_MODEL = 'deepseek-reasoner';
-
-const DEEPSEEK_BASE_URL = 'https://api.deepseek.com/v1';
 
 export interface OpenRouterModelConfig {
   apiKey?: string;
@@ -48,15 +46,12 @@ export function extractJson(text: string): string {
   return text.substring(start, end + 1);
 }
 
-export function createChatOpenRouterModel(config: OpenRouterModelConfig = {}): ChatOpenAI {
-  return new ChatOpenAI({
+export function createChatOpenRouterModel(config: OpenRouterModelConfig = {}): ChatOpenRouter {
+  return new ChatOpenRouter({
     apiKey: resolveOpenRouterApiKey(config.apiKey),
     model: resolveOpenRouterModelName(config.model),
     maxRetries: 0,
     temperature: config.temperature ?? 0.2,
-    configuration: {
-      baseURL: DEEPSEEK_BASE_URL,
-    }
   });
 }
 
