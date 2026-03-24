@@ -61,7 +61,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
   // Prefer the Supabase JWT for verified auth; fall back to x-user-id for local
   // dev environments where Supabase is not configured on the backend.
-  const { data: { session } } = await supabase.auth.getSession();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
   if (session?.access_token) {
     headers['Authorization'] = `Bearer ${session.access_token}`;
   } else if (currentUserId) {
@@ -102,6 +104,25 @@ export const api = {
       body: data ? JSON.stringify(data) : undefined,
     }),
 
-  delete: <T>(path: string) =>
-    request<T>(path, { method: 'DELETE' }),
+  patch: <T>(path: string, data?: unknown) =>
+    request<T>(path, {
+      method: 'PATCH',
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 };
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string | null;
+  auth_provider: 'google' | 'email';
+  created_at: string;
+}
+
+export interface StorageInfo {
+  eventsCreated: number;
+  responsesSubmitted: number;
+  hasTasteBenchmark: boolean;
+}

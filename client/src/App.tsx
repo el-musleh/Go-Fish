@@ -8,7 +8,16 @@ import {
   useNavigate,
   useLocation,
 } from 'react-router-dom';
-import { Calendar, Home, LogIn, LogOut, Moon, Plus, Settings, Sun } from 'lucide-react';
+import {
+  Calendar,
+  Home,
+  LogIn,
+  LogOut,
+  Moon,
+  Plus,
+  Settings as SettingsIcon,
+  Sun,
+} from 'lucide-react';
 import {
   api,
   clearCurrentUser,
@@ -23,7 +32,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import ConfirmationDialog from './components/ConfirmationDialog';
 import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
-import TasteBenchmarkForm from './pages/TasteBenchmarkForm';
+import Settings from './pages/Settings';
 import EventCreationForm from './pages/EventCreationForm';
 import EventDetail from './pages/EventDetail';
 import InvitationResolver from './pages/InvitationResolver';
@@ -75,7 +84,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const [isSignOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const isTimeline = location.pathname === '/dashboard' && location.search.includes('tab=timeline');
   const isHome = location.pathname === '/dashboard' && !isTimeline;
-  const isPreferences = location.pathname === '/benchmark';
+  const isSettings = location.pathname === '/settings' || location.pathname === '/benchmark';
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
   const currentPathRef = useRef('/dashboard');
   const syncInFlightRef = useRef<Promise<void> | null>(null);
@@ -264,12 +273,12 @@ function AppShell({ children }: { children: React.ReactNode }) {
         <div className="gf-topbar__actions">
           {userId && (
             <Link
-              to="/benchmark"
-              className={`gf-nav-link gf-nav-link--icon${isPreferences ? ' gf-nav-link--active' : ''}`}
-              title="Preferences"
-              aria-label="Preferences"
+              to="/settings"
+              className={`gf-nav-link gf-nav-link--icon${isSettings ? ' gf-nav-link--active' : ''}`}
+              title="Settings"
+              aria-label="Settings"
             >
-              <Settings size={20} />
+              <SettingsIcon size={20} />
             </Link>
           )}
           <ThemeSwitch activeTheme={theme} onThemeChange={setTheme} />
@@ -364,7 +373,8 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/benchmark" element={<TasteBenchmarkForm />} />
+                <Route path="/settings" element={<Settings />} />
+                <Route path="/benchmark" element={<Settings />} />
                 <Route path="/events/new" element={<EventCreationForm />} />
                 <Route path="/events/:eventId" element={<EventDetail />} />
                 <Route path="/invite/:linkToken" element={<InvitationResolver />} />
