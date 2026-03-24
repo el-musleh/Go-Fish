@@ -1,9 +1,5 @@
 {
     "kiroAgent.configureMCP": "Disabled",
     "typescript.autoClosingTags": false,
-    "DockerRun.DisableDockerrc": true,
-    "DockerRun.Containers": [
-        "706a790acf68",
-        "dc5a900c3a60"
-    ]
+    "DockerRun.DisableDockerrc": true
 }
