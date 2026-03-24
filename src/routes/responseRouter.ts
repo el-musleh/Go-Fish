@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import { requireAuth } from '../middleware/auth';
+import { createRequireAuth } from '../middleware/auth';
 import { tasteBenchmarkGate } from '../middleware/tasteBenchmarkGate';
 import { getEventById } from '../repositories/eventRepository';
 import {
@@ -11,6 +11,7 @@ import {
 
 export function createResponseRouter(pool: Pool): Router {
   const router = Router({ mergeParams: true });
+  const requireAuth = createRequireAuth(pool);
 
   /**
    * POST /api/events/:eventId/responses

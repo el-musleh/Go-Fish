@@ -6,6 +6,8 @@ services:
     environment:
       DATABASE_URL: postgres://gofish:gofish@db:5432/gofish
       NODE_ENV: production
+      SUPABASE_URL: ${SUPABASE_URL}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}

@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import { requireAuth } from '../middleware/auth';
+import { createRequireAuth } from '../middleware/auth';
 import {
   createTasteBenchmark,
   getTasteBenchmarkByUserId,
@@ -11,6 +11,7 @@ const REQUIRED_QUESTIONS = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9'
 
 export function createTasteBenchmarkRouter(pool: Pool): Router {
   const router = Router();
+  const requireAuth = createRequireAuth(pool);
 
   router.use(requireAuth);
 

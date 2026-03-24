@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import { requireAuth } from '../middleware/auth';
+import { createRequireAuth } from '../middleware/auth';
 import { createEvent, deleteEvent, getEventById, getEventsByInviterId, getEventsByIds } from '../repositories/eventRepository';
 import { createInvitationLink, getInvitationLinkByEventId } from '../repositories/invitationLinkRepository';
 import { triggerGeneration, scheduleResponseWindow } from '../services/responseWindowScheduler';
@@ -101,6 +101,7 @@ function normalizeActivityOptions<T extends { rank: number }>(options: T[]): T[]
 
 export function createEventRouter(pool: Pool): Router {
   const router = Router();
+  const requireAuth = createRequireAuth(pool);
 
   router.use(requireAuth);
 

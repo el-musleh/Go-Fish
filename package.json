@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@langchain/langgraph": "^1.2.5",
+    "@supabase/supabase-js": "^2.45.0",
     "@langchain/openrouter": "^0.1.7",
     "dotenv": "^17.3.1",
     "express": "^4.21.0",

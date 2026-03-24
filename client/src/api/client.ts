@@ -1,3 +1,5 @@
+import { supabase } from '../lib/supabase';
+
 const API_BASE = '/api';
 const USER_ID_STORAGE_KEY = 'gofish_user_id';
 const USER_EMAIL_STORAGE_KEY = 'gofish_user_email';
@@ -56,7 +58,13 @@ export function subscribeToAuthChange(listener: () => void): () => void {
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (currentUserId) {
+
+  // Prefer the Supabase JWT for verified auth; fall back to x-user-id for local
+  // dev environments where Supabase is not configured on the backend.
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session?.access_token) {
+    headers['Authorization'] = `Bearer ${session.access_token}`;
+  } else if (currentUserId) {
     headers['x-user-id'] = currentUserId;
   }
 
