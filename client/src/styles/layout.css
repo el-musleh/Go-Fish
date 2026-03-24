@@ -65,16 +65,6 @@
   min-height: 560px;
 }
 
-.gf-landing {
-  display: flex;
-  flex-direction: column;
-  gap: 80px;
-  padding-bottom: 40px;
-  width: 100%;
-  padding-inline: 24px;
-  margin-inline: auto;
-}
-
 /* ── Settings Layout ─────────────────────────────────────── */
 .gf-settings-layout {
   display: grid;
@@ -141,6 +131,18 @@
   }
 }
 
+/* ── Landing page ── */
+.gf-landing {
+  display: flex;
+  flex-direction: column;
+  gap: 80px;
+  padding-bottom: 40px;
+  width: 100%;
+  padding-inline: 24px;
+  margin-inline: auto;
+  max-width: 1280px;
+}
+
 .gf-landing__hero {
   display: flex;
   flex-direction: column;
@@ -150,10 +152,41 @@
   gap: 20px;
 }
 
+.gf-landing__eyebrow {
+  margin: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.gf-landing__headline {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-weight: 400;
+  font-size: clamp(2.6rem, 6vw, 4.4rem);
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+  color: var(--accent-warm);
+}
+
+.gf-landing__sub {
+  margin: 0;
+  max-width: 560px;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
 .gf-landing__section {
   display: flex;
   flex-direction: column;
   gap: 28px;
+}
+
+.gf-landing__section-title {
+  text-align: center;
 }
 
 .gf-landing__steps {
@@ -162,10 +195,46 @@
   gap: 20px;
 }
 
+.gf-landing__step {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gf-landing__step-number {
+  font-family: var(--font-serif);
+  font-size: 2.8rem;
+  color: var(--accent);
+  opacity: 0.55;
+  line-height: 1;
+  letter-spacing: -0.04em;
+}
+
+.gf-landing__step-body {
+  margin: 0;
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
 .gf-landing__reasons {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.gf-landing__reason {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.gf-landing__reason-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  width: 2.5rem;
+  text-align: center;
 }
 
 .gf-landing__final {
@@ -179,6 +248,14 @@
   border-radius: var(--radius);
   background: var(--bg-panel);
   backdrop-filter: blur(18px);
+}
+
+.gf-landing__final-copy {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  letter-spacing: -0.03em;
+  color: var(--accent-warm);
 }
 
 @media (max-width: 1080px) {

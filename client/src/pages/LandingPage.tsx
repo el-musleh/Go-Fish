@@ -21,7 +21,7 @@ const steps = [
 const reasons = [
   { icon: '🗓️', text: 'No more "when are you free?" threads' },
   { icon: '🎯', text: 'Suggestions tuned to the whole group, not just the loudest voice' },
-  { icon: '✨', text: 'Powered by AI via OpenRouter for genuinely thoughtful picks' },
+  { icon: '✨', text: 'Powered by Gemini via OpenRouter for genuinely thoughtful picks' },
 ];
 
 export default function LandingPage() {
@@ -30,12 +30,13 @@ export default function LandingPage() {
       <section className="gf-landing__hero">
         <p className="gf-landing__eyebrow">Group activity finder</p>
         <h1 className="gf-landing__headline">
-          Help your crew decide<br />what to do&nbsp;together
+          Help your crew decide
+          <br />
+          what to do&nbsp;together
         </h1>
         <p className="gf-landing__sub">
-          Go Fish collects everyone's availability and preferences, then uses AI
-          to suggest activities your whole group will love — no endless group
-          chats required.
+          Go Fish collects everyone's availability and preferences, then uses AI to suggest
+          activities your whole group will love — no endless group chats required.
         </p>
         <div className="gf-landing__cta-row">
           <Link to="/?auth=1" className="gf-button gf-button--primary gf-landing__cta">

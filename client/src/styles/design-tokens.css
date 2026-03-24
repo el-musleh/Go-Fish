@@ -1,6 +1,6 @@
 :root,
 :root[data-theme='night'] {
-  --font-sans: 'Manrope', sans-serif;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-serif: 'Instrument Serif', serif;
   --accent-rgb: 255, 157, 73;
   --danger-rgb: 255, 154, 129;
