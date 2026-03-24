@@ -234,7 +234,7 @@ export default function TasteBenchmarkForm() {
     );
 
   return (
-    <div className="gf-stack gf-stack--xl gf-narrow">
+    <div className="gf-stack gf-stack--xl">
       <div>
         <h1 className="gf-section-title">{isUpdate ? 'Update Preferences' : 'Taste Benchmark'}</h1>
         <p className="gf-muted">

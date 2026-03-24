@@ -10,7 +10,7 @@ export async function createTasteBenchmark(
      VALUES ($1, $2)
      ON CONFLICT (user_id) DO UPDATE SET answers = $2, created_at = NOW()
      RETURNING *`,
-    [data.user_id, JSON.stringify(data.answers)]
+    [data.user_id, data.answers]
   );
   return rows[0];
 }

@@ -112,7 +112,17 @@ export function createEventRouter(pool: Pool): Router {
   router.post('/', async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId as string;
-      const { title, location_city, location_country, location_lat, location_lng, timeout_hours } = req.body;
+      const { 
+        title, 
+        location_city, 
+        location_country, 
+        location_lat, 
+        location_lng, 
+        timeout_hours,
+        preferred_date,
+        preferred_time,
+        duration_minutes
+      } = req.body;
       const description: string = typeof req.body.description === 'string' ? req.body.description.trim() : '';
 
       if (!title || typeof title !== 'string' || title.trim().length === 0) {
@@ -144,6 +154,9 @@ export function createEventRouter(pool: Pool): Router {
         location_country: location_country ?? null,
         location_lat: lat,
         location_lng: lng,
+        preferred_date: preferred_date ?? null,
+        preferred_time: preferred_time ?? null,
+        duration_minutes: duration_minutes ?? null,
       });
 
       res.status(201).json(event);

@@ -15,9 +15,11 @@ export default function InvitationResolver() {
       return;
     }
 
-    api.get<{ eventId: string }>(`/invite/${linkToken}`)
+    api
+      .get<{ eventId: string }>(`/invite/${linkToken}`)
       .then((data) => {
-        api.get('/taste-benchmark')
+        api
+          .get('/taste-benchmark')
           .then(() => {
             navigate(`/events/${data.eventId}/respond`, { replace: true });
           })
@@ -40,14 +42,15 @@ export default function InvitationResolver() {
       });
   }, [linkToken, navigate]);
 
-  if (error) return (
-    <div className="gf-page-center">
-      <div className="gf-card" style={{ textAlign: 'center', maxWidth: 400 }}>
-        <div style={{ fontSize: '2rem', marginBottom: 12 }}>😕</div>
-        <p className="gf-feedback gf-feedback--error">{error}</p>
+  if (error)
+    return (
+      <div className="gf-page-center">
+        <div className="gf-card" style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: '2rem', marginBottom: 12 }}>😕</div>
+          <p className="gf-feedback gf-feedback--error">{error}</p>
+        </div>
       </div>
-    </div>
-  );
+    );
 
   return (
     <div className="gf-page-center">

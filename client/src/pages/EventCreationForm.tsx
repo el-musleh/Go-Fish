@@ -39,7 +39,7 @@ export default function EventCreationForm() {
   };
 
   return (
-    <div className="gf-card" style={{ maxWidth: 640, margin: '0 auto' }}>
+    <div className="gf-card">
       <form onSubmit={handleSubmit(onSubmit)} className="gf-form" noValidate>
         <h2 className="gf-card-title">Create a New Event</h2>
         <p className="gf-muted">

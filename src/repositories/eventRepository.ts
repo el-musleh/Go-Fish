@@ -9,12 +9,31 @@ export async function createEvent(
     location_country?: string | null;
     location_lat?: number | null;
     location_lng?: number | null;
+    preferred_date?: string | null;
+    preferred_time?: string | null;
+    duration_minutes?: number | null;
   }
 ): Promise<Event> {
   const { rows } = await pool.query(
-    `INSERT INTO event (inviter_id, title, description, response_window_end, location_city, location_country, location_lat, location_lng)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-    [data.inviter_id, data.title, data.description, data.response_window_end, data.location_city ?? null, data.location_country ?? null, data.location_lat ?? null, data.location_lng ?? null]
+    `INSERT INTO event (
+      inviter_id, title, description, response_window_end, 
+      location_city, location_country, location_lat, location_lng,
+      preferred_date, preferred_time, duration_minutes
+    )
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+    [
+      data.inviter_id, 
+      data.title, 
+      data.description, 
+      data.response_window_end, 
+      data.location_city ?? null, 
+      data.location_country ?? null, 
+      data.location_lat ?? null, 
+      data.location_lng ?? null,
+      data.preferred_date ?? null,
+      data.preferred_time ?? null,
+      data.duration_minutes ?? null
+    ]
   );
   return rows[0];
 }

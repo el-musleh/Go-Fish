@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 export default function NotFound() {
   return (
     <div className="gf-page-center">
-      <div className="gf-card" style={{ textAlign: 'center', maxWidth: 400 }}>
+      <div className="gf-card" style={{ textAlign: 'center' }}>
         <p style={{ fontSize: '3rem', marginBottom: 8 }}>404</p>
         <h1 className="gf-card-title">Page not found</h1>
         <p className="gf-muted" style={{ marginBottom: 24 }}>

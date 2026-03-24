@@ -185,6 +185,26 @@ function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [navigate]);
 
+  useEffect(() => {
+    if (authBootstrapping) return;
+
+    const publicPaths = ['/', '/privacy', '/terms'];
+    const isPublicPath =
+      publicPaths.includes(location.pathname) ||
+      location.pathname.startsWith('/invite/') ||
+      (location.pathname.startsWith('/events/') &&
+        !location.pathname.endsWith('/new') &&
+        !location.pathname.endsWith('/respond') &&
+        !location.pathname.endsWith('/options') &&
+        !location.pathname.endsWith('/confirmation'));
+
+    if (!userId && !isPublicPath) {
+      navigate(`/?auth=1&returnTo=${encodeURIComponent(location.pathname + location.search)}`, {
+        replace: true,
+      });
+    }
+  }, [userId, authBootstrapping, location.pathname, location.search, navigate]);
+
   async function handleConfirmSignOut() {
     setSignOutConfirmOpen(false);
 

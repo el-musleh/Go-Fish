@@ -8,7 +8,7 @@ export async function createResponse(
   const { rows } = await pool.query(
     `INSERT INTO response (event_id, invitee_id, available_dates)
      VALUES ($1, $2, $3) RETURNING *`,
-    [data.event_id, data.invitee_id, JSON.stringify(data.available_dates)]
+    [data.event_id, data.invitee_id, data.available_dates]
   );
   return rows[0];
 }

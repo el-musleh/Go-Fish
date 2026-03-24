@@ -38,6 +38,10 @@ vi.mock('../repositories/activityOptionRepository', () => ({
   markActivityOptionSelected: vi.fn(),
 }));
 
+vi.mock('../repositories/userRepository', () => ({
+  getUserById: vi.fn(),
+}));
+
 import {
   createEvent,
   getEventById,
@@ -52,8 +56,11 @@ import { scheduleResponseWindow, triggerGeneration } from '../services/responseW
 import { getActivityOptionsByEventId, getActivityOptionById, markActivityOptionSelected } from '../repositories/activityOptionRepository';
 import { generateEventSuggestions } from '../services/eventPreviewService';
 import { getEventIdsRespondedByUser, getResponsesByEventId } from '../repositories/responseRepository';
+import { getUserById } from '../repositories/userRepository';
 
-const mockPool = {} as any;
+const mockPool = {
+  query: vi.fn(),
+} as any;
 
 function buildApp() {
   const app = express();
@@ -122,6 +129,9 @@ describe('POST /api/events', () => {
       expect.objectContaining({
         title: 'A title',
         description: '',
+        preferred_date: null,
+        preferred_time: null,
+        duration_minutes: null,
       })
     );
   });
@@ -154,7 +164,7 @@ describe('POST /api/events', () => {
     const res = await request(app)
       .post('/api/events')
       .set('x-user-id', 'user-1')
-      .send({ title: 'Game Night', description: 'Board games at my place', timeout_hours: 1 / 6 });
+      .send({ title: 'Game Night', description: 'Board games at my place' });
 
     expect(res.status).toBe(201);
     expect(res.body.id).toBe('evt-1');
@@ -165,6 +175,9 @@ describe('POST /api/events', () => {
       inviter_id: 'user-1',
       title: 'Game Night',
       description: 'Board games at my place',
+      preferred_date: null,
+      preferred_time: null,
+      duration_minutes: null,
     }));
 
     // Verify the response_window_end is ~24 hours from now.
@@ -228,6 +241,7 @@ describe('event suggestions routes', () => {
         suggested_day: 'Friday',
       },
     });
+    (getUserById as any).mockResolvedValue({ id: 'user-1', email: 'user@example.com' });
 
     const app = buildApp();
     const res = await request(app)
@@ -330,6 +344,7 @@ describe('GET /api/events/:eventId', () => {
       created_at: new Date(),
     };
     (getEventById as any).mockResolvedValue(mockEvent);
+    (getUserById as any).mockResolvedValue({ id: 'user-1', email: 'user@example.com' });
 
     const app = buildApp();
     const res = await request(app)
@@ -340,6 +355,7 @@ describe('GET /api/events/:eventId', () => {
     expect(res.body.id).toBe('evt-1');
     expect(res.body.title).toBe('Game Night');
     expect(getEventById).toHaveBeenCalledWith(mockPool, 'evt-1');
+    expect(getUserById).toHaveBeenCalledWith(mockPool, 'user-1');
   });
 });
 
@@ -354,6 +370,7 @@ describe('GET /api/events', () => {
     ]);
     (getEventIdsRespondedByUser as any).mockResolvedValue(['evt-1']);
     (getResponsesByEventId as any).mockResolvedValue([]);
+    (getUserById as any).mockResolvedValue({ id: 'user-1', email: 'user@example.com' });
 
     const app = buildApp();
     const res = await request(app)
