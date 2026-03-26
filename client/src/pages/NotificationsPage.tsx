@@ -107,8 +107,6 @@ export default function NotificationsPage() {
     }
   };
 
-  const total = notifications.length;
-
   return (
     <div className="gf-stack gf-stack--xl" style={{ padding: '20px 0 60px' }}>
       <button type="button" className="gf-back-btn" onClick={() => navigate(-1)}>
@@ -118,9 +116,7 @@ export default function NotificationsPage() {
 
       <div>
         <h1 className="gf-section-title">Notifications</h1>
-        <p className="gf-muted">
-          {total === 0 ? 'No notifications' : `${total} notification${total === 1 ? '' : 's'}`}
-        </p>
+        <p className="gf-muted">Stay updated with your event activity</p>
       </div>
 
       <div className="gf-card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
