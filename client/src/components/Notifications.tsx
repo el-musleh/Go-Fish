@@ -87,7 +87,7 @@ export default function Notifications() {
 
   const handleShowAll = () => {
     setIsOpen(false);
-    navigate('/settings?tab=notifications');
+    navigate('/notifications');
   };
 
   function formatTime(dateStr: string): string {

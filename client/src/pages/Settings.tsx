@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { useForm, useController, type Control } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -7,11 +7,6 @@ import {
   api,
   type UserProfile,
   type StorageInfo,
-  type Notification,
-  getNotifications,
-  markNotificationRead,
-  markAllNotificationsRead,
-  deleteNotification,
   getNotificationPreferences,
   updateNotificationPreferences,
   type NotificationPreferences,
@@ -20,7 +15,6 @@ import { toast } from '../components/Toaster';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ValidatedInput from '../components/ValidatedInput';
 import Onboarding from '../components/Onboarding';
-import ConfirmationDialog from '../components/ConfirmationDialog';
 import {
   Loader2,
   User,
@@ -45,7 +39,6 @@ import {
   LogOut,
   Keyboard,
   Sparkles,
-  Trash2,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { type Theme } from '../lib/theme';
@@ -663,44 +656,15 @@ function AppearanceSection({
   );
 }
 
-/* ── Notifications Section ──────────────────────────────── */
+/* ── Email & Notifications Section ───────────────────────── */
 
-function NotificationsSection() {
-  const navigate = useNavigate();
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
+function EmailNotificationsSection() {
   const [emailPrefs, setEmailPrefs] = useState<NotificationPreferences>({
     email_on_event_confirmed: true,
     email_on_new_rsvp: false,
     email_on_options_ready: false,
   });
   const [savingEmail, setSavingEmail] = useState(false);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [notificationToDelete, setNotificationToDelete] = useState<Notification | null>(null);
-
-  const fetchNotifications = useCallback(
-    async (pageNum: number) => {
-      setLoading(true);
-      try {
-        const data = await getNotifications(pageNum, 10);
-        setNotifications(
-          pageNum === 1 ? data.notifications : [...notifications, ...data.notifications]
-        );
-        setTotal(data.total);
-        setHasMore(data.hasMore);
-      } catch (error) {
-        console.error('Failed to fetch notifications:', error);
-        toast.error('Failed to load notifications');
-      } finally {
-        setLoading(false);
-      }
-    },
-    [notifications]
-  );
 
   const fetchEmailPreferences = useCallback(async () => {
     try {
@@ -712,58 +676,8 @@ function NotificationsSection() {
   }, []);
 
   useEffect(() => {
-    fetchNotifications(1);
     fetchEmailPreferences();
-  }, [fetchNotifications, fetchEmailPreferences]);
-
-  const handleNotificationClick = async (notification: Notification) => {
-    if (!notification.read) {
-      try {
-        await markNotificationRead(notification.id);
-        setNotifications((prev) =>
-          prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
-        );
-      } catch (error) {
-        console.error('Failed to mark as read:', error);
-      }
-    }
-    if (notification.link) {
-      navigate(notification.link);
-    }
-  };
-
-  const handleMarkAllRead = async () => {
-    try {
-      await markAllNotificationsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-      toast.success('All notifications marked as read');
-    } catch (error) {
-      console.error('Failed to mark all as read:', error);
-      toast.error('Failed to mark all as read');
-    }
-  };
-
-  const handleDeleteClick = (notification: Notification) => {
-    setNotificationToDelete(notification);
-    setConfirmDelete(true);
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!notificationToDelete) return;
-    setDeletingId(notificationToDelete.id);
-    setConfirmDelete(false);
-    try {
-      await deleteNotification(notificationToDelete.id);
-      setNotifications((prev) => prev.filter((n) => n.id !== notificationToDelete.id));
-      toast.success('Notification deleted');
-    } catch (error) {
-      console.error('Failed to delete notification:', error);
-      toast.error('Failed to delete notification');
-    } finally {
-      setDeletingId(null);
-      setNotificationToDelete(null);
-    }
-  };
+  }, [fetchEmailPreferences]);
 
   const handleEmailPrefChange = async (key: keyof NotificationPreferences) => {
     const newPrefs = { ...emailPrefs, [key]: !emailPrefs[key] };
@@ -781,153 +695,8 @@ function NotificationsSection() {
     }
   };
 
-  const formatTime = (dateStr: string): string => {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const mins = Math.floor(diff / 60000);
-    const hours = Math.floor(diff / 3600000);
-    const days = Math.floor(diff / 86400000);
-
-    if (mins < 1) return 'Just now';
-    if (mins < 60) return `${mins}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    if (days < 7) return `${days}d ago`;
-    return date.toLocaleDateString();
-  };
-
-  const getNotificationIcon = (type: Notification['type']): string => {
-    switch (type) {
-      case 'rsvp_received':
-        return '👥';
-      case 'event_finalized':
-        return '✅';
-      case 'event_invited':
-        return '📬';
-      case 'options_ready':
-        return '✨';
-      default:
-        return '🔔';
-    }
-  };
-
-  const unreadCount = notifications.filter((n) => !n.read && !n.expired).length;
-
   return (
     <div className="gf-stack gf-stack--xl">
-      {/* Notification History */}
-      <section className="gf-stack">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h2 className="gf-card-title">Notifications</h2>
-            <p className="gf-muted">
-              {total === 0
-                ? 'No notifications yet'
-                : `${total} notification${total === 1 ? '' : 's'}`}
-            </p>
-          </div>
-          {unreadCount > 0 && (
-            <button
-              type="button"
-              className="gf-button gf-button--ghost"
-              onClick={handleMarkAllRead}
-            >
-              Mark all read
-            </button>
-          )}
-        </div>
-
-        <div className="gf-card" style={{ marginTop: '12px' }}>
-          {loading && notifications.length === 0 ? (
-            <div style={{ padding: '40px', textAlign: 'center' }}>
-              <LoadingSpinner size="md" />
-            </div>
-          ) : notifications.length === 0 ? (
-            <div style={{ padding: '40px', textAlign: 'center' }}>
-              <Bell size={48} className="gf-muted" style={{ margin: '0 auto 16px' }} />
-              <p className="gf-muted">You're all caught up!</p>
-            </div>
-          ) : (
-            <>
-              <div className="gf-stack gf-stack--sm">
-                {notifications.map((notification) => (
-                  <div
-                    key={notification.id}
-                    className={`gf-settings-notification${!notification.read ? ' gf-settings-notification--unread' : ''}${notification.expired ? ' gf-settings-notification--expired' : ''}`}
-                    onClick={() => !notification.expired && handleNotificationClick(notification)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if ((e.key === 'Enter' || e.key === ' ') && !notification.expired) {
-                        handleNotificationClick(notification);
-                      }
-                    }}
-                  >
-                    <div className="gf-settings-notification__icon">
-                      {getNotificationIcon(notification.type)}
-                    </div>
-                    <div className="gf-settings-notification__content">
-                      <p className="gf-settings-notification__title">{notification.title}</p>
-                      {notification.description && (
-                        <p className="gf-settings-notification__desc">{notification.description}</p>
-                      )}
-                      <p className="gf-settings-notification__time">
-                        {formatTime(notification.created_at)}
-                      </p>
-                      {notification.expired && (
-                        <p className="gf-settings-notification__expired">Event no longer exists</p>
-                      )}
-                    </div>
-                    {!notification.expired && (
-                      <button
-                        type="button"
-                        className="gf-settings-notification__delete"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteClick(notification);
-                        }}
-                        aria-label="Delete notification"
-                        disabled={deletingId === notification.id}
-                      >
-                        {deletingId === notification.id ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Trash2 size={14} />
-                        )}
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {hasMore && (
-                <div style={{ marginTop: '16px', textAlign: 'center' }}>
-                  <button
-                    type="button"
-                    className="gf-button gf-button--ghost"
-                    onClick={() => {
-                      const nextPage = page + 1;
-                      setPage(nextPage);
-                      fetchNotifications(nextPage);
-                    }}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 size={14} className="animate-spin" /> Loading...
-                      </>
-                    ) : (
-                      'Load more'
-                    )}
-                  </button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* Email Preferences */}
       <section className="gf-stack">
         <h2 className="gf-card-title">Email & Notifications</h2>
         <p className="gf-muted">Control when you receive email updates from Go Fish.</p>
@@ -963,17 +732,6 @@ function NotificationsSection() {
           )}
         </div>
       </section>
-
-      <ConfirmationDialog
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Notification"
-        description="Are you sure you want to delete this notification? This action cannot be undone."
-        confirmText="Delete"
-        isDestructive
-        isLoading={!!deletingId}
-      />
     </div>
   );
 }
@@ -1570,7 +1328,7 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
           {activeTab === 'infrastructure' && (
             <InfrastructureSection profile={profile} onUpdate={handleUpdateInfrastructure} />
           )}
-          {activeTab === 'notifications' && <NotificationsSection />}
+          {activeTab === 'notifications' && <EmailNotificationsSection />}
           {activeTab === 'accessibility' && (
             <AccessibilitySection
               preferences={preferences.accessibility}

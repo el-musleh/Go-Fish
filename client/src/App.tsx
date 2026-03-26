@@ -9,7 +9,7 @@ import {
   useNavigate,
   useLocation,
 } from 'react-router-dom';
-import { Plus, Settings as SettingsIcon, LayoutGrid } from 'lucide-react';
+import { Plus, Settings as SettingsIcon, LayoutGrid, Bell } from 'lucide-react';
 import {
   api,
   clearCurrentUser,
@@ -24,6 +24,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import ConfirmationDialog from './components/ConfirmationDialog';
 import Dashboard from './pages/Dashboard';
 import LandingPage from './pages/LandingPage';
+import NotificationsPage from './pages/NotificationsPage';
 import Settings from './pages/Settings';
 import EventCreationForm from './pages/EventCreationForm';
 import EventDetail from './pages/EventDetail';
@@ -74,6 +75,7 @@ function AppShell({
   const navigate = useNavigate();
   const location = useLocation();
   const isDashboard = location.pathname === '/dashboard';
+  const isNotifications = location.pathname === '/notifications';
   const isSettings = location.pathname === '/settings' || location.pathname === '/benchmark';
   const [showShortcuts, setShowShortcuts] = useState(false);
 
@@ -128,6 +130,16 @@ function AppShell({
               aria-label="Dashboard"
             >
               <LayoutGrid size={20} />
+            </Link>
+          )}
+          {userId && (
+            <Link
+              to="/notifications"
+              className={`gf-nav-link gf-nav-link--icon${isNotifications ? ' gf-nav-link--active' : ''}`}
+              title="Notifications"
+              aria-label="Notifications"
+            >
+              <Bell size={20} />
             </Link>
           )}
           {userId && (
@@ -389,6 +401,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/notifications" element={<NotificationsPage />} />
                 <Route
                   path="/settings"
                   element={
