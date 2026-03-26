@@ -50,3 +50,25 @@ export async function getEventIdsRespondedByUser(pool: Pool, userId: string): Pr
   );
   return rows.map((r: { event_id: string }) => r.event_id);
 }
+
+/**
+ * Batch-fetch responses for multiple events in a single query.
+ * Returns a Map from eventId → Response[] for O(1) lookup per event.
+ */
+export async function getResponsesForEvents(
+  pool: Pool,
+  eventIds: string[]
+): Promise<Map<string, Response[]>> {
+  if (eventIds.length === 0) return new Map();
+  const { rows } = await pool.query(
+    `SELECT * FROM response WHERE event_id = ANY($1) ORDER BY event_id, created_at ASC`,
+    [eventIds]
+  );
+  const map = new Map<string, Response[]>();
+  for (const row of rows) {
+    const list = map.get(row.event_id) ?? [];
+    list.push(row);
+    map.set(row.event_id, list);
+  }
+  return map;
+}

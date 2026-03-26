@@ -55,10 +55,23 @@ export async function updateEventStatus(
   return rows[0] ?? null;
 }
 
-export async function getEventsByInviterId(pool: Pool, inviterId: string): Promise<Event[]> {
+export async function getEventsByInviterId(
+  pool: Pool,
+  inviterId: string,
+  limit = 50,
+  before?: Date
+): Promise<Event[]> {
+  if (before) {
+    const { rows } = await pool.query(
+      `SELECT * FROM event WHERE inviter_id = $1 AND created_at < $2
+       ORDER BY created_at DESC LIMIT $3`,
+      [inviterId, before, limit]
+    );
+    return rows;
+  }
   const { rows } = await pool.query(
-    `SELECT * FROM event WHERE inviter_id = $1 ORDER BY created_at DESC`,
-    [inviterId]
+    `SELECT * FROM event WHERE inviter_id = $1 ORDER BY created_at DESC LIMIT $2`,
+    [inviterId, limit]
   );
   return rows;
 }
@@ -103,4 +116,38 @@ export async function archiveEvent(pool: Pool, id: string): Promise<Event | null
     [id]
   );
   return rows[0] ?? null;
+}
+
+/**
+ * Atomically transition an event from one status to another.
+ * Returns the updated event, or null if the event was not in the expected
+ * `fromStatus` (e.g. already transitioned by a concurrent request).
+ */
+export async function transitionEventStatus(
+  pool: Pool,
+  id: string,
+  fromStatus: EventStatus,
+  toStatus: EventStatus
+): Promise<Event | null> {
+  const { rows } = await pool.query(
+    `UPDATE event SET status = $1 WHERE id = $2 AND status = $3 RETURNING *`,
+    [toStatus, id, fromStatus]
+  );
+  return rows[0] ?? null;
+}
+
+/**
+ * Batch-archive all events in the given id list whose response window has
+ * expired, in a single UPDATE instead of N individual queries.
+ */
+export async function archiveExpiredEvents(
+  pool: Pool,
+  eventIds: string[]
+): Promise<void> {
+  if (eventIds.length === 0) return;
+  await pool.query(
+    `UPDATE event SET archived = TRUE
+     WHERE id = ANY($1) AND response_window_end < NOW() AND archived = FALSE`,
+    [eventIds]
+  );
 }

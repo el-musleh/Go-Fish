@@ -30,17 +30,28 @@ export async function updateEmailLogStatus(
   id: string,
   status: EmailStatus
 ): Promise<EmailLog | null> {
+  // Only increment retry_count on failure, not on success
   const { rows } = await pool.query(
-    `UPDATE email_log SET status = $1, retry_count = retry_count + 1, last_attempt = NOW()
+    `UPDATE email_log
+     SET status = $1,
+         retry_count = CASE WHEN $1 = 'sent' THEN retry_count ELSE retry_count + 1 END,
+         last_attempt = NOW()
      WHERE id = $2 RETURNING *`,
     [status, id]
   );
   return rows[0] ?? null;
 }
 
-export async function getPendingEmailLogs(pool: Pool): Promise<EmailLog[]> {
+export async function getPendingEmailLogs(
+  pool: Pool,
+  limit = 100
+): Promise<EmailLog[]> {
   const { rows } = await pool.query(
-    `SELECT * FROM email_log WHERE status = 'pending' AND retry_count < 3 ORDER BY created_at ASC`
+    `SELECT * FROM email_log
+     WHERE status = 'pending' AND retry_count < 3
+     ORDER BY created_at ASC
+     LIMIT $1`,
+    [limit]
   );
   return rows;
 }
