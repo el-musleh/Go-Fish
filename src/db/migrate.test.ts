@@ -4,7 +4,14 @@ import * as fs from 'fs';
 // Mock pg
 vi.mock('pg', () => {
   const mockQuery = vi.fn();
-  const MockPool = vi.fn().mockImplementation(() => ({ query: mockQuery }));
+  const mockClient = {
+    query: mockQuery,
+    release: vi.fn(),
+  };
+  const MockPool = vi.fn().mockImplementation(() => ({
+    query: mockQuery,
+    connect: vi.fn().mockResolvedValue(mockClient),
+  }));
   return { Pool: MockPool };
 });
 
@@ -12,6 +19,7 @@ vi.mock('pg', () => {
 vi.mock('fs', () => ({
   readdirSync: vi.fn(),
   readFileSync: vi.fn(),
+  existsSync: vi.fn(),
 }));
 
 import { runMigrations } from './migrate';
@@ -19,12 +27,20 @@ import { Pool } from 'pg';
 
 describe('runMigrations', () => {
   let mockQuery: ReturnType<typeof vi.fn>;
+  let mockClient: any;
   let pool: any;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockQuery = vi.fn();
-    pool = { query: mockQuery };
+    mockClient = {
+      query: mockQuery,
+      release: vi.fn(),
+    };
+    pool = {
+      query: mockQuery,
+      connect: vi.fn().mockResolvedValue(mockClient),
+    };
   });
 
   it('creates schema_migrations table and applies pending migrations', async () => {
@@ -41,6 +57,7 @@ describe('runMigrations', () => {
     // COMMIT
     mockQuery.mockResolvedValueOnce({});
 
+    vi.mocked(fs.existsSync).mockReturnValue(true);
     vi.mocked(fs.readdirSync).mockReturnValue(['001_initial_schema.sql'] as any);
     vi.mocked(fs.readFileSync).mockReturnValue('CREATE TABLE test();');
 

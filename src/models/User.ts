@@ -4,5 +4,6 @@ export interface User {
   name: string | null;
   auth_provider: 'google' | 'email';
   has_taste_benchmark: boolean;
+  ai_api_key: string | null;
   created_at: Date;
 }

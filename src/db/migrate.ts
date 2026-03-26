@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -42,20 +42,23 @@ export async function runMigrations(pool: Pool): Promise<string[]> {
     const filePath = path.join(MIGRATIONS_DIR, file);
     const sql = fs.readFileSync(filePath, 'utf-8');
 
-    await pool.query('BEGIN');
+    const client: PoolClient = await pool.connect();
     try {
-      await pool.query(sql);
-      await pool.query(
+      await client.query('BEGIN');
+      await client.query(sql);
+      await client.query(
         'INSERT INTO schema_migrations (filename) VALUES ($1)',
         [file]
       );
-      await pool.query('COMMIT');
+      await client.query('COMMIT');
       ran.push(file);
       console.log(`Migration applied: ${file}`);
     } catch (error) {
-      await pool.query('ROLLBACK');
+      await client.query('ROLLBACK');
       console.error(`Migration failed: ${file}`, error);
       throw error;
+    } finally {
+      client.release();
     }
   }
 
