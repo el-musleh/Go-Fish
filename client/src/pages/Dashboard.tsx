@@ -11,7 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
-  Maximize2,
+  ExternalLink,
 } from 'lucide-react';
 import { api, ApiError, getCurrentUserId } from '../api/client';
 import ConfirmationDialog from '../components/ConfirmationDialog';
@@ -1027,27 +1027,16 @@ function TimelineView({
       {!isMobile && (
         <div className={animating ? 'gf-timeline-detail--animating' : ''}>
           {selected ? (
-            <div style={{ position: 'relative' }}>
+            <div className="gf-timeline-detail-wrapper">
+              <TimelineDetail key={selected.id} event={selected} onDelete={onDelete} />
               <button
                 type="button"
                 onClick={() => navigate(`/events/${selected.id}`)}
-                className="gf-button gf-button--ghost"
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  right: 0,
-                  padding: '6px 10px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px',
-                  fontSize: '0.8rem',
-                }}
-                title="Expand"
+                className="gf-timeline-detail-expand"
               >
-                <Maximize2 size={14} />
-                Expand
+                <ExternalLink size={14} />
+                View full event
               </button>
-              <TimelineDetail key={selected.id} event={selected} onDelete={onDelete} />
             </div>
           ) : (
             <div className="gf-card">

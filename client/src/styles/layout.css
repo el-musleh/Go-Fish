@@ -958,6 +958,35 @@
   gap: 20px;
 }
 
+.gf-timeline-detail-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gf-timeline-detail-expand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 180ms ease;
+  text-decoration: none;
+}
+
+.gf-timeline-detail-expand:hover {
+  background: var(--field-surface);
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
 .gf-timeline-detail-header {
   display: flex;
   justify-content: space-between;
