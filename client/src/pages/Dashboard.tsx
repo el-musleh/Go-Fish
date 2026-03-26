@@ -438,6 +438,9 @@ function TimelineView({
     <div className="gf-timeline-layout">
       {/* Left: event list grouped by date */}
       <div className="gf-timeline-list">
+        <h2 className="gf-section-title" style={{ marginBottom: '16px' }}>
+          Timeline
+        </h2>
         <div style={{ position: 'relative', marginBottom: '16px' }}>
           <Search
             size={16}
@@ -451,7 +454,7 @@ function TimelineView({
           />
           <input
             type="text"
-            placeholder="Search timeline..."
+            placeholder="Search events..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="gf-input"
