@@ -6,17 +6,21 @@ import { z } from 'zod';
 import { api, ApiError, getCurrentUserId } from '../api/client';
 import { toast } from '../components/Toaster';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Loader2 } from 'lucide-react';
+import StepIndicator from '../components/StepIndicator';
+import { Loader2, Calendar as CalendarIcon, Info, Clock } from 'lucide-react';
 
 interface EventData {
   id: string;
   title: string;
   description: string;
   status: string;
+  inviter_id: string;
   response_window_end: string;
   preferred_date: string | null;
   preferred_time: string | null;
 }
+
+const STEPS = [{ label: 'Create' }, { label: 'Invite' }, { label: 'Pick' }, { label: 'Confirm' }];
 
 const dateAvailabilitySchema = z.object({
   date: z.string(),
@@ -205,108 +209,176 @@ export default function EventResponseForm() {
 
   const sortedSelected = [...fields].sort((a, b) => a.date.localeCompare(b.date));
 
+  const isInviter = event?.inviter_id === getCurrentUserId();
+
   return (
-    <form className="gf-stack gf-stack--xl" onSubmit={handleSubmit(onSubmit)} noValidate>
-      {event && <h2 className="gf-section-title">{event.title}</h2>}
-      <h3 className="gf-card-title">When are you free?</h3>
-      <div className="gf-date-grid">
-        {dates.map((d) => (
-          <button
-            key={d.value}
-            type="button"
-            onClick={() => toggleDate(d.value)}
-            className={`gf-date-card${selectedDateValues.has(d.value) ? ' gf-date-card--active' : ''}`}
-            aria-pressed={selectedDateValues.has(d.value)}
-          >
-            <span className="gf-date-card__label">{d.label}</span>
-            <span className="gf-date-card__day">{d.day}</span>
-            <span className="gf-date-card__month">{d.month}</span>
-          </button>
-        ))}
-      </div>
+    <div className="gf-stack gf-stack--xl">
+      {isInviter && <StepIndicator steps={STEPS} currentStep={1} />}
 
-      {sortedSelected.length > 0 && (
-        <div className="gf-time-windows">
-          <h3 className="gf-card-title">Set your time window</h3>
-          {sortedSelected.map((field, index) => {
-            const dateInfo = dates.find((d) => d.value === field.date);
-            const startSlot = timeToSlot(field.start_time);
-            const endSlot = timeToSlot(field.end_time);
+      <form className="gf-stack gf-stack--xl" onSubmit={handleSubmit(onSubmit)} noValidate>
+        {event && (
+          <div className="gf-stack gf-stack--sm">
+            <h2 className="gf-section-title">{event.title}</h2>
+            {event.description && (
+              <p className="gf-muted" style={{ fontSize: '1.1rem' }}>
+                {event.description}
+              </p>
+            )}
+          </div>
+        )}
 
-            return (
-              <div key={field.customId} className="gf-time-window">
-                <span className="gf-time-window__label">
-                  {dateInfo?.label} {dateInfo?.day} {dateInfo?.month}
-                </span>
-                <div
-                  className="gf-dual-range"
-                  style={
-                    {
-                      '--start-pct': `${(startSlot / 36) * 100}%`,
-                      '--end-pct': `${(endSlot / 36) * 100}%`,
-                    } as React.CSSProperties
-                  }
+        <div className="gf-card">
+          <div className="gf-stack gf-stack--xl">
+            <div className="gf-stack gf-stack--sm">
+              <h3
+                className="gf-card-title"
+                style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
+              >
+                <CalendarIcon size={24} className="gf-accent" /> When are you free?
+              </h3>
+              <p className="gf-muted">
+                Select all dates that work for you. We'll find the best overlap.
+              </p>
+            </div>
+
+            <div className="gf-date-grid">
+              {dates.map((d) => (
+                <button
+                  key={d.value}
+                  type="button"
+                  onClick={() => toggleDate(d.value)}
+                  className={`gf-date-card${selectedDateValues.has(d.value) ? ' gf-date-card--active' : ''}`}
+                  aria-pressed={selectedDateValues.has(d.value)}
                 >
-                  <div className="gf-dual-range__track" />
-                  <div className="gf-dual-range__fill" />
-                  <Controller
-                    name={`available_dates.${index}.start_time`}
-                    control={control}
-                    render={({ field: { onChange, value } }) => (
-                      <input
-                        type="range"
-                        className="gf-dual-range__input"
-                        min={0}
-                        max={35}
-                        value={timeToSlot(value)}
-                        onChange={(e) =>
-                          onChange(slotToTime(Math.min(Number(e.target.value), endSlot - 1)))
-                        }
-                      />
-                    )}
-                  />
-                  <Controller
-                    name={`available_dates.${index}.end_time`}
-                    control={control}
-                    render={({ field: { onChange, value } }) => (
-                      <input
-                        type="range"
-                        className="gf-dual-range__input"
-                        min={1}
-                        max={36}
-                        value={timeToSlot(value)}
-                        onChange={(e) =>
-                          onChange(slotToTime(Math.max(Number(e.target.value), startSlot + 1)))
-                        }
-                      />
-                    )}
-                  />
+                  <span className="gf-date-card__label">{d.label}</span>
+                  <span className="gf-date-card__day">{d.day}</span>
+                  <span className="gf-date-card__month">{d.month}</span>
+                </button>
+              ))}
+            </div>
+
+            {sortedSelected.length > 0 && (
+              <div className="gf-time-windows gf-stack gf-stack--xl" style={{ marginTop: '12px' }}>
+                <div className="gf-stack gf-stack--sm">
+                  <h3
+                    className="gf-card-title"
+                    style={{ display: 'flex', alignItems: 'center', gap: '10px' }}
+                  >
+                    <Clock size={24} className="gf-accent" /> Set your time windows
+                  </h3>
+                  <p className="gf-muted">
+                    Adjust the sliders to specify when you're available on each day.
+                  </p>
                 </div>
-                <div className="gf-dual-range__labels">
-                  <span>{field.start_time}</span>
-                  <span>{field.end_time}</span>
+
+                <div className="gf-stack" style={{ gap: '16px' }}>
+                  {sortedSelected.map((field, index) => {
+                    const dateInfo = dates.find((d) => d.value === field.date);
+                    const startSlot = timeToSlot(field.start_time);
+                    const endSlot = timeToSlot(field.end_time);
+
+                    return (
+                      <div key={field.customId} className="gf-time-window">
+                        <span className="gf-time-window__label">
+                          {dateInfo?.label} {dateInfo?.day} {dateInfo?.month}
+                        </span>
+                        <div
+                          className="gf-dual-range"
+                          style={
+                            {
+                              '--start-pct': `${(startSlot / 36) * 100}%`,
+                              '--end-pct': `${(endSlot / 36) * 100}%`,
+                            } as React.CSSProperties
+                          }
+                        >
+                          <div className="gf-dual-range__track" />
+                          <div className="gf-dual-range__fill" />
+                          <Controller
+                            name={`available_dates.${index}.start_time`}
+                            control={control}
+                            render={({ field: { onChange, value } }) => (
+                              <input
+                                type="range"
+                                className="gf-dual-range__input"
+                                min={0}
+                                max={35}
+                                value={timeToSlot(value)}
+                                onChange={(e) =>
+                                  onChange(
+                                    slotToTime(Math.min(Number(e.target.value), endSlot - 1))
+                                  )
+                                }
+                              />
+                            )}
+                          />
+                          <Controller
+                            name={`available_dates.${index}.end_time`}
+                            control={control}
+                            render={({ field: { onChange, value } }) => (
+                              <input
+                                type="range"
+                                className="gf-dual-range__input"
+                                min={1}
+                                max={36}
+                                value={timeToSlot(value)}
+                                onChange={(e) =>
+                                  onChange(
+                                    slotToTime(Math.max(Number(e.target.value), startSlot + 1))
+                                  )
+                                }
+                              />
+                            )}
+                          />
+                        </div>
+                        <div className="gf-dual-range__labels">
+                          <span>{field.start_time}</span>
+                          <span>{field.end_time}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            );
-          })}
+            )}
+
+            {errors.available_dates && (
+              <p className="gf-feedback gf-feedback--error">{errors.available_dates.message}</p>
+            )}
+
+            <button
+              type="submit"
+              className="gf-button gf-button--primary"
+              disabled={isSubmitting || availableDates.length === 0}
+            >
+              {isSubmitting ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                `Submit availability (${availableDates.length})`
+              )}
+            </button>
+          </div>
+        </div>
+      </form>
+
+      {!isInviter && (
+        <div
+          className="gf-card"
+          style={{
+            padding: '20px',
+            background: 'rgba(var(--accent-rgb), 0.05)',
+            borderColor: 'rgba(var(--accent-rgb), 0.2)',
+          }}
+        >
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <Info size={20} className="gf-accent" style={{ flexShrink: 0, marginTop: '2px' }} />
+            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text)', lineHeight: '1.5' }}>
+              <strong>What happens next?</strong> Once everyone has responded or the window closes,
+              our AI will find the best activity and time that works for everyone based on your
+              group's tastes!
+            </p>
+          </div>
         </div>
       )}
-
-      {errors.available_dates && (
-        <p className="gf-feedback gf-feedback--error">{errors.available_dates.message}</p>
-      )}
-
-      <button
-        type="submit"
-        className="gf-button gf-button--primary"
-        disabled={isSubmitting || availableDates.length === 0}
-      >
-        {isSubmitting ? (
-          <Loader2 size={20} className="animate-spin" />
-        ) : (
-          `Submit availability (${availableDates.length})`
-        )}
-      </button>
-    </form>
+    </div>
   );
 }

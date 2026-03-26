@@ -1,3 +1,4 @@
+import { Analytics } from '@vercel/analytics/react';
 import { useState, useEffect, useRef } from 'react';
 import {
   BrowserRouter,
@@ -8,16 +9,7 @@ import {
   useNavigate,
   useLocation,
 } from 'react-router-dom';
-import {
-  Calendar,
-  Home,
-  LogIn,
-  LogOut,
-  Moon,
-  Plus,
-  Settings as SettingsIcon,
-  Sun,
-} from 'lucide-react';
+import { LogIn, LogOut, Moon, Plus, Settings as SettingsIcon, Sun } from 'lucide-react';
 import {
   api,
   clearCurrentUser,
@@ -82,8 +74,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
   const [authReturnTo, setAuthReturnTo] = useState('/dashboard');
   const [authBootstrapping, setAuthBootstrapping] = useState(true);
   const [isSignOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
-  const isTimeline = location.pathname === '/dashboard' && location.search.includes('tab=timeline');
-  const isHome = location.pathname === '/dashboard' && !isTimeline;
+  const isDashboard = location.pathname === '/dashboard';
   const isSettings = location.pathname === '/settings' || location.pathname === '/benchmark';
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
   const currentPathRef = useRef('/dashboard');
@@ -240,11 +231,11 @@ function AppShell({ children }: { children: React.ReactNode }) {
           {userId && (
             <Link
               to="/dashboard"
-              className={`gf-nav-link gf-nav-link--icon${isHome ? ' gf-nav-link--active' : ''}`}
-              title="Home"
-              aria-label="Home"
+              className={`gf-nav-link gf-nav-link--icon${isDashboard ? ' gf-nav-link--active' : ''}`}
+              title="Dashboard"
+              aria-label="Dashboard"
             >
-              <Home size={20} />
+              <LayoutGrid size={20} />
             </Link>
           )}
           {userId && (
@@ -258,16 +249,6 @@ function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Plus size={20} />
             </NavLink>
-          )}
-          {userId && (
-            <Link
-              to="/dashboard?tab=timeline"
-              className={`gf-nav-link gf-nav-link--icon${isTimeline ? ' gf-nav-link--active' : ''}`}
-              title="Timeline"
-              aria-label="Timeline"
-            >
-              <Calendar size={20} />
-            </Link>
           )}
         </nav>
         <div className="gf-topbar__actions">
@@ -364,6 +345,7 @@ function AppShell({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
+      <Analytics />
       <Routes>
         {import.meta.env.DEV && <Route path="/prototype" element={<PrototypePage />} />}
         <Route

@@ -1,9 +1,21 @@
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Users, MapPin, Calendar, Navigation, Trash2, Search, CalendarPlus, X } from 'lucide-react';
+import {
+  Users,
+  MapPin,
+  Calendar,
+  Navigation,
+  Trash2,
+  Search,
+  CalendarPlus,
+  X,
+  LayoutGrid,
+  Clock,
+} from 'lucide-react';
 import { api, ApiError, getCurrentUserId } from '../api/client';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 import EmptyState from '../components/EmptyState';
+import { SkeletonCard } from '../components/SkeletonLoader';
 
 function formatWindowRemaining(end: string, status: string, working: boolean): string {
   if (status === 'options_ready' || status === 'finalized') return 'Closed';
@@ -654,7 +666,23 @@ export default function Dashboard() {
     [searchQuery]
   );
 
-  if (loading) return <p className="gf-muted">Loading…</p>;
+  if (loading) {
+    return (
+      <div className="gf-stack gf-stack--xl">
+        <div className="gf-tabs" style={{ marginBottom: '8px' }}>
+          <div className="gf-skeleton--button" style={{ width: '100px' }} />
+          <div className="gf-skeleton--button" style={{ width: '100px' }} />
+        </div>
+        <section className="gf-stack">
+          <div className="gf-skeleton--heading" style={{ width: '200px' }} />
+          <div className="gf-grid gf-grid--two">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   const activeCreated = created.filter(
     (e) => !e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id)
@@ -683,6 +711,27 @@ export default function Dashboard() {
     <div className="gf-stack gf-stack--xl">
       {toast && <p className="gf-feedback gf-feedback--success">✓ {toast}</p>}
       {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
+
+      <div className="gf-tabs" style={{ marginBottom: '8px' }}>
+        <button
+          type="button"
+          className={`gf-tab ${tab === 'events' ? 'gf-tab--active' : ''}`}
+          onClick={() => setSearchParams({ tab: 'events' })}
+        >
+          <span className="gf-inline-icon">
+            <LayoutGrid size={16} /> Grid
+          </span>
+        </button>
+        <button
+          type="button"
+          className={`gf-tab ${tab === 'timeline' ? 'gf-tab--active' : ''}`}
+          onClick={() => setSearchParams({ tab: 'timeline' })}
+        >
+          <span className="gf-inline-icon">
+            <Clock size={16} /> Timeline
+          </span>
+        </button>
+      </div>
 
       {tab === 'events' && (
         <>
