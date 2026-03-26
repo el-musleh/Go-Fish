@@ -153,8 +153,39 @@ function getEventDate(event: EventItem): string | null {
   return event.selected_activity?.suggested_date ?? event.preferred_date ?? null;
 }
 
+function getFriendlyDateLabel(dateStr: string): { label: string; sublabel: string } {
+  const d = new Date(dateStr + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const nextWeek = new Date(today);
+  nextWeek.setDate(nextWeek.getDate() + 7);
+
+  if (d < today) {
+    return { label: 'Past', sublabel: prettyDateFull(dateStr) };
+  }
+  if (d.getTime() === today.getTime()) {
+    return { label: 'Today', sublabel: prettyDateFull(dateStr) };
+  }
+  if (d.getTime() === tomorrow.getTime()) {
+    return { label: 'Tomorrow', sublabel: prettyDateFull(dateStr) };
+  }
+  if (d < nextWeek) {
+    return {
+      label: d.toLocaleDateString('en-US', { weekday: 'long' }),
+      sublabel: prettyDateFull(dateStr),
+    };
+  }
+  return {
+    label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+    sublabel: prettyDateFull(dateStr),
+  };
+}
+
 interface DateGroup {
   label: string;
+  sublabel: string;
   rawDate: string | null;
   events: EventItem[];
 }
@@ -164,12 +195,15 @@ function groupByDate(events: EventItem[]): DateGroup[] {
   for (const ev of events) {
     const d = getEventDate(ev);
     const key = d ? d.split('T')[0] : 'unscheduled';
-    if (!map.has(key))
+    if (!map.has(key)) {
+      const friendly = d ? getFriendlyDateLabel(d) : { label: 'Unscheduled', sublabel: '' };
       map.set(key, {
-        label: d ? prettyDateFull(d) : 'Unscheduled',
+        label: friendly.label,
+        sublabel: friendly.sublabel,
         rawDate: d ? d.split('T')[0] : null,
         events: [],
       });
+    }
     map.get(key)!.events.push(ev);
   }
   return Array.from(map.values()).sort((a, b) => {
@@ -413,6 +447,8 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
   );
 }
 
+type StatusFilter = 'all' | 'collecting' | 'options_ready' | 'finalized';
+
 function TimelineView({
   events,
   initialEventId,
@@ -430,18 +466,64 @@ function TimelineView({
     if (initialEventId && events.find((e) => e.id === initialEventId)) return initialEventId;
     return events[0]?.id ?? null;
   });
-  const grouped = useMemo(() => groupByDate(events), [events]);
-  // Derive the selected event from the live events array so it always reflects the latest poll data.
-  const selected = events.find((e) => e.id === selectedId) ?? events[0] ?? null;
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [animating, setAnimating] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(() => new Date());
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => {
+    setLastUpdated(new Date());
+  }, [events.length]);
+
+  const filteredEvents = useMemo(() => {
+    if (statusFilter === 'all') return events;
+    return events.filter((e) => e.status === statusFilter);
+  }, [events, statusFilter]);
+
+  const grouped = useMemo(() => groupByDate(filteredEvents), [filteredEvents]);
+  const selected = events.find((e) => e.id === selectedId) ?? filteredEvents[0] ?? null;
+
+  const handleSelect = (id: string) => {
+    setAnimating(true);
+    setSelectedId(id);
+    setTimeout(() => setAnimating(false), 150);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!filteredEvents.length) return;
+      const currentIndex = filteredEvents.findIndex((ev) => ev.id === selectedId);
+      if (e.key === 'ArrowDown' && currentIndex < filteredEvents.length - 1) {
+        e.preventDefault();
+        handleSelect(filteredEvents[currentIndex + 1].id);
+      } else if (e.key === 'ArrowUp' && currentIndex > 0) {
+        e.preventDefault();
+        handleSelect(filteredEvents[currentIndex - 1].id);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [filteredEvents, selectedId]);
+
+  const filterButtons: { value: StatusFilter; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'collecting', label: 'Collecting' },
+    { value: 'options_ready', label: 'Ready' },
+    { value: 'finalized', label: 'Confirmed' },
+  ];
 
   return (
     <div className="gf-timeline-layout">
       {/* Left: event list grouped by date */}
       <div className="gf-timeline-list">
-        <h2 className="gf-section-title" style={{ marginBottom: '16px' }}>
+        <h2 className="gf-section-title" style={{ marginBottom: '4px' }}>
           Timeline
         </h2>
-        <div style={{ position: 'relative', marginBottom: '16px' }}>
+        <p className="gf-muted" style={{ fontSize: '0.85rem', marginBottom: '16px' }}>
+          View and manage your events at a glance
+        </p>
+        <div style={{ position: 'relative', marginBottom: '12px' }}>
           <Search
             size={16}
             style={{
@@ -466,7 +548,19 @@ function TimelineView({
             }}
           />
         </div>
-        {events.length === 0 ? (
+        <div className="gf-timeline-filters" style={{ marginBottom: '16px' }}>
+          {filterButtons.map((btn) => (
+            <button
+              key={btn.value}
+              type="button"
+              className={`gf-timeline-filter-btn${statusFilter === btn.value ? ' gf-timeline-filter-btn--active' : ''}`}
+              onClick={() => setStatusFilter(btn.value)}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
+        {filteredEvents.length === 0 ? (
           <EmptyState
             icon={<CalendarPlus size={48} />}
             title={searchQuery ? 'No matching events' : 'No events yet'}
@@ -484,47 +578,75 @@ function TimelineView({
             }
           />
         ) : (
-          grouped.map(({ label, events: evs }) => (
-            <div key={label}>
-              <p className="gf-timeline-group__date">{label}</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {evs.map((ev) => (
-                  <button
-                    key={ev.id}
-                    onClick={() => setSelectedId(ev.id)}
-                    className={`gf-timeline-card${selected?.id === ev.id ? ' gf-timeline-card--selected' : ''}`}
-                  >
-                    <p className="gf-timeline-card__title">{ev.title}</p>
-                    {ev.inviter_id !== getCurrentUserId() && ev.inviter_email && (
-                      <p
-                        className="gf-muted"
-                        style={{ fontSize: '0.8rem', textAlign: 'left', marginBottom: '4px' }}
+          <div ref={listRef}>
+            {grouped.map(({ label, sublabel, events: evs }) => (
+              <div key={label} style={{ marginBottom: '16px' }}>
+                <div className="gf-timeline-group__date" title={sublabel}>
+                  {label}
+                  <span className="gf-timeline-group__sublabel">{sublabel}</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {evs.map((ev) => {
+                    const s = STATUS_LABELS[ev.status] || { label: ev.status, cls: '' };
+                    return (
+                      <button
+                        key={ev.id}
+                        onClick={() => handleSelect(ev.id)}
+                        className={`gf-timeline-card${selected?.id === ev.id ? ' gf-timeline-card--selected' : ''}`}
                       >
-                        by {formatOrganizerName(ev.inviter_email)}
-                      </p>
-                    )}
-                    <div className="gf-timeline-card__meta">
-                      {ev.respondent_count !== undefined && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Users size={11} /> {ev.respondent_count}
-                        </span>
-                      )}
-                      {ev.selected_activity && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <MapPin size={11} /> {ev.selected_activity.title}
-                        </span>
-                      )}
-                    </div>
-                  </button>
-                ))}
+                        <div
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'flex-start',
+                            marginBottom: '4px',
+                          }}
+                        >
+                          <p className="gf-timeline-card__title" style={{ margin: 0 }}>
+                            {ev.title}
+                          </p>
+                          <span
+                            className={`gf-status-chip ${s.cls}`}
+                            style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+                          >
+                            {s.label}
+                          </span>
+                        </div>
+                        {ev.inviter_id !== getCurrentUserId() && ev.inviter_email && (
+                          <p
+                            className="gf-muted"
+                            style={{ fontSize: '0.75rem', marginBottom: '4px' }}
+                          >
+                            by {formatOrganizerName(ev.inviter_email)}
+                          </p>
+                        )}
+                        <div className="gf-timeline-card__meta">
+                          {ev.respondent_count !== undefined && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <Users size={11} /> {ev.respondent_count}
+                            </span>
+                          )}
+                          {ev.selected_activity && (
+                            <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <MapPin size={11} /> {ev.selected_activity.title}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))
+            ))}
+          </div>
         )}
+        <p className="gf-timeline-updated">
+          Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </p>
       </div>
 
       {/* Right: detail panel */}
-      <div>
+      <div className={animating ? 'gf-timeline-detail--animating' : ''}>
         {selected ? (
           <TimelineDetail key={selected.id} event={selected} onDelete={onDelete} />
         ) : (

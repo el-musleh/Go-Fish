@@ -1141,6 +1141,70 @@
   color: var(--muted);
 }
 
+.gf-timeline-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.gf-timeline-filter-btn {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.gf-timeline-filter-btn:hover {
+  border-color: var(--line-strong);
+  color: var(--text);
+}
+
+.gf-timeline-filter-btn--active {
+  background: var(--accent);
+  color: var(--text-on-accent);
+  border-color: var(--accent);
+}
+
+.gf-timeline-group__sublabel {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 2px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.gf-timeline-detail--animating {
+  animation: gf-slide-in 150ms ease;
+}
+
+.gf-timeline-updated {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0.7;
+  text-align: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+@keyframes gf-slide-in {
+  from {
+    opacity: 0.5;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* ── Detail rows ────────────────────────────────────────── */
 .gf-detail-rows {
   display: flex;
