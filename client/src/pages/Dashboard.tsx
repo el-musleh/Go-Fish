@@ -11,11 +11,13 @@ import {
   X,
   LayoutGrid,
   Clock,
+  ChevronDown,
 } from 'lucide-react';
 import { api, ApiError, getCurrentUserId } from '../api/client';
 import ConfirmationDialog from '../components/ConfirmationDialog';
 import EmptyState from '../components/EmptyState';
 import { SkeletonCard } from '../components/SkeletonLoader';
+import { getCalendarOptions, type CalendarEvent } from '../lib/calendar';
 
 function formatWindowRemaining(end: string, status: string, working: boolean): string {
   if (status === 'options_ready' || status === 'finalized') return 'Closed';
@@ -229,6 +231,36 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
   const [working, setWorking] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [isConfirmingDelete, setConfirmingDelete] = useState(false);
+  const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
+  const calendarDropdownRef = useRef<HTMLDivElement>(null);
+
+  const selectedActivity = event.selected_activity;
+  const suggestedDate = selectedActivity?.suggested_date || event.preferred_date;
+  const suggestedTime = selectedActivity?.suggested_time || event.preferred_time;
+  const canAddToCalendar = !!suggestedDate && event.status === 'finalized';
+
+  const calendarEvent: CalendarEvent | null = canAddToCalendar
+    ? {
+        title: event.title,
+        description: event.description || undefined,
+        startDate: new Date(`${suggestedDate}T${suggestedTime || '12:00'}:00`),
+        endDate: new Date(`${suggestedDate}T${suggestedTime || '14:00'}:00`),
+      }
+    : null;
+
+  const calendarOptions = calendarEvent ? getCalendarOptions(calendarEvent, event.title) : [];
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (calendarDropdownRef.current && !calendarDropdownRef.current.contains(e.target as Node)) {
+        setShowCalendarDropdown(false);
+      }
+    }
+    if (showCalendarDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showCalendarDropdown]);
 
   const handleGenerateOptions = useCallback(async () => {
     if (working || event.status !== 'collecting') return;
@@ -407,13 +439,78 @@ function TimelineDetail({ event, onDelete }: { event: EventItem; onDelete: (id: 
             {working ? 'Generating…' : 'End window & generate'}
           </button>
         )}
-        <button
-          type="button"
-          className="gf-button gf-button--ghost gf-inline-icon"
-          title="Coming soon"
-        >
-          <Calendar size={14} /> Add to Calendar
-        </button>
+        {canAddToCalendar ? (
+          <div style={{ position: 'relative' }} ref={calendarDropdownRef}>
+            <button
+              type="button"
+              className="gf-button gf-button--ghost gf-inline-icon"
+              onClick={() => setShowCalendarDropdown(!showCalendarDropdown)}
+            >
+              <Calendar size={14} /> Add to Calendar <ChevronDown size={12} />
+            </button>
+            {showCalendarDropdown && (
+              <div
+                style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: 0,
+                  marginBottom: '4px',
+                  background: 'var(--bg-panel)',
+                  border: '1px solid var(--line)',
+                  borderRadius: '12px',
+                  padding: '6px',
+                  minWidth: '180px',
+                  boxShadow: 'var(--shadow)',
+                  zIndex: 10,
+                }}
+              >
+                {calendarOptions.map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => {
+                      opt.action();
+                      setShowCalendarDropdown(false);
+                    }}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      width: '100%',
+                      padding: '10px 12px',
+                      border: 'none',
+                      borderRadius: '8px',
+                      background: 'transparent',
+                      color: 'var(--text)',
+                      fontSize: '0.9rem',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.currentTarget.style.background = 'rgba(var(--accent-rgb), 0.08)')
+                    }
+                    onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    <span style={{ width: '20px', textAlign: 'center', fontWeight: 700 }}>
+                      {opt.icon}
+                    </span>
+                    {opt.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            type="button"
+            className="gf-button gf-button--ghost gf-inline-icon"
+            disabled
+            style={{ opacity: 0.5 }}
+            title="Available after event is confirmed"
+          >
+            <Calendar size={14} /> Add to Calendar
+          </button>
+        )}
         <button
           type="button"
           className="gf-button gf-button--ghost gf-inline-icon"
@@ -468,12 +565,12 @@ function TimelineView({
   });
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [animating, setAnimating] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState(() => new Date());
+  const [lastUpdatedTimestamp, setLastUpdatedTimestamp] = useState(() => Date.now());
   const listRef = useRef<HTMLDivElement>(null);
 
-  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => {
-    setLastUpdated(new Date());
+    const timer = setTimeout(() => setLastUpdatedTimestamp(Date.now()), 100);
+    return () => clearTimeout(timer);
   }, [events.length]);
 
   const filteredEvents = useMemo(() => {
@@ -641,7 +738,11 @@ function TimelineView({
           </div>
         )}
         <p className="gf-timeline-updated">
-          Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          Updated{' '}
+          {new Date(lastUpdatedTimestamp).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
         </p>
       </div>
 

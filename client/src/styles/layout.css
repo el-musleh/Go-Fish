@@ -395,3 +395,328 @@
 .gf-textarea--fixed {
   resize: none;
 }
+
+/* ── Keyboard Shortcuts Modal ───────────────────────────── */
+.gf-shortcuts-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--dialog-overlay);
+  backdrop-filter: blur(8px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  animation: gf-fade-in 200ms ease;
+}
+
+.gf-shortcuts-modal {
+  width: min(400px, 100%);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-panel);
+  backdrop-filter: blur(24px);
+  box-shadow: var(--shadow);
+  animation: gf-dialog-show 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.gf-shortcuts-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.gf-shortcuts-title {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  color: var(--accent-warm);
+}
+
+.gf-shortcuts-close {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all 180ms ease;
+}
+
+.gf-shortcuts-close:hover {
+  background: rgba(var(--accent-rgb), 0.08);
+  color: var(--text);
+}
+
+.gf-shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.gf-shortcuts-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.gf-shortcuts-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 40px;
+  padding: 6px 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  box-shadow: 0 2px 0 var(--line);
+}
+
+.gf-shortcuts-desc {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+/* ── Notifications ─────────────────────────────────────── */
+.gf-notifications-btn {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all 180ms ease;
+}
+
+.gf-notifications-btn:hover {
+  background: rgba(var(--accent-rgb), 0.08);
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.gf-notifications-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  background: var(--danger, #e53e3e);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 700;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.gf-notifications-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 320px;
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(24px);
+  box-shadow: var(--shadow);
+  z-index: 100;
+  animation: gf-dropdown-show 200ms ease;
+}
+
+.gf-notifications-header {
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.gf-notifications-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.gf-notifications-clear {
+  font-size: 0.8rem;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.gf-notifications-clear:hover {
+  background: rgba(var(--accent-rgb), 0.1);
+}
+
+.gf-notifications-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.gf-notification-item {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  transition: background 150ms ease;
+}
+
+.gf-notification-item:last-child {
+  border-bottom: none;
+}
+
+.gf-notification-item:hover {
+  background: rgba(var(--accent-rgb), 0.04);
+}
+
+.gf-notification-item--unread {
+  background: rgba(var(--accent-rgb), 0.06);
+}
+
+.gf-notification-title {
+  margin: 0 0 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.gf-notification-desc {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.gf-notification-time {
+  font-size: 0.75rem;
+  color: var(--muted);
+  opacity: 0.7;
+  margin-top: 4px;
+}
+
+.gf-notifications-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.gf-notifications-empty-icon {
+  font-size: 2rem;
+  margin-bottom: 8px;
+  opacity: 0.5;
+}
+
+@keyframes gf-dropdown-show {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Onboarding ────────────────────────────────────────── */
+.gf-onboarding-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--dialog-overlay);
+  backdrop-filter: blur(12px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  animation: gf-fade-in 300ms ease;
+}
+
+.gf-onboarding-modal {
+  width: min(500px, 100%);
+  padding: 32px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(24px);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  animation: gf-dialog-show 350ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.gf-onboarding-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+}
+
+.gf-onboarding-title {
+  margin: 0 0 12px;
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  font-weight: 400;
+  letter-spacing: -0.03em;
+  color: var(--accent-warm);
+}
+
+.gf-onboarding-desc {
+  margin: 0 0 24px;
+  font-size: 1rem;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.gf-onboarding-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 28px;
+  text-align: left;
+}
+
+.gf-onboarding-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.gf-onboarding-step-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(var(--accent-rgb), 0.15);
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.gf-onboarding-step-text {
+  padding-top: 4px;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.gf-onboarding-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}

@@ -9,7 +9,7 @@ import {
   useNavigate,
   useLocation,
 } from 'react-router-dom';
-import { Plus, Settings as SettingsIcon, LayoutGrid } from 'lucide-react';
+import { Plus, Settings as SettingsIcon, LayoutGrid, HelpCircle } from 'lucide-react';
 import {
   api,
   clearCurrentUser,
@@ -43,6 +43,9 @@ import {
   type Theme,
 } from './lib/theme';
 import AuthDialog from './components/AuthDialog';
+import Notifications from './components/Notifications';
+import Onboarding from './components/Onboarding';
+import { KeyboardShortcutsHelp } from './hooks/useKeyboardShortcuts';
 import {
   getPostAuthDestination,
   getSessionEmailForSync,
@@ -68,9 +71,43 @@ function AppShell({
   isSignOutConfirmOpen: boolean;
   setSignOutConfirmOpen: (o: boolean) => void;
 }) {
+  const navigate = useNavigate();
   const location = useLocation();
   const isDashboard = location.pathname === '/dashboard';
   const isSettings = location.pathname === '/settings' || location.pathname === '/benchmark';
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  const handleFocusSearch = () => {
+    const searchInput = document.querySelector('input[placeholder*="Search"]') as HTMLInputElement;
+    if (searchInput) {
+      searchInput.focus();
+    }
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+
+      if (e.key === '?') {
+        e.preventDefault();
+        setShowShortcuts((prev) => !prev);
+      }
+      if (e.key === 'Escape') {
+        setShowShortcuts(false);
+      }
+      if (e.key === 'n' && !e.metaKey && !e.ctrlKey && userId) {
+        e.preventDefault();
+        navigate('/events/new');
+      }
+      if (e.key === 's' && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        handleFocusSearch();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   return (
     <div
@@ -99,7 +136,7 @@ function AppShell({
               className={({ isActive }) =>
                 `gf-nav-link gf-nav-link--icon${isActive ? ' gf-nav-link--active' : ''}`
               }
-              title="New event"
+              title="New event (N)"
               aria-label="New event"
             >
               <Plus size={20} />
@@ -107,6 +144,16 @@ function AppShell({
           )}
         </nav>
         <div className="gf-topbar__actions">
+          {userId && <Notifications />}
+          <button
+            type="button"
+            className="gf-nav-link gf-nav-link--icon"
+            onClick={() => setShowShortcuts(true)}
+            title="Keyboard shortcuts (?)"
+            aria-label="Keyboard shortcuts"
+          >
+            <HelpCircle size={18} />
+          </button>
           {userId ? (
             <Link
               to="/settings"
@@ -184,6 +231,7 @@ function AppShell({
         confirmText="Sign Out"
         isDestructive
       />
+      {showShortcuts && <KeyboardShortcutsHelp onClose={() => setShowShortcuts(false)} />}
     </div>
   );
 }
@@ -292,6 +340,10 @@ export default function App() {
   const [authBootstrapping, setAuthBootstrapping] = useState(true);
   const [isSignOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    if (!getCurrentUserId()) return false;
+    return localStorage.getItem('gofish_onboarding_seen') !== 'true';
+  });
 
   useEffect(() => {
     applyTheme(theme);
@@ -314,8 +366,14 @@ export default function App() {
 
   useEffect(() => subscribeToAuthChange(() => setUserId(getCurrentUserId())), []);
 
+  const handleOnboardingComplete = () => {
+    localStorage.setItem('gofish_onboarding_seen', 'true');
+    setShowOnboarding(false);
+  };
+
   return (
     <BrowserRouter>
+      {showOnboarding && userId && <Onboarding onComplete={handleOnboardingComplete} />}
       <Analytics />
       <AuthManager
         setUserId={setUserId}

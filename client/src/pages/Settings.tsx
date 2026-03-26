@@ -29,6 +29,7 @@ import {
   Monitor,
   Settings2,
   LogOut,
+  Keyboard,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { type Theme } from '../lib/theme';
@@ -960,6 +961,55 @@ function PrivacySection({
   );
 }
 
+function ShortcutsSection() {
+  const shortcuts = [
+    { key: 'N', description: 'Create new event' },
+    { key: 'S', description: 'Focus search bar' },
+    { key: '?', description: 'Show keyboard shortcuts' },
+    { key: 'Esc', description: 'Close modal/dialog' },
+    { key: 'Arrow Up/Down', description: 'Navigate timeline list' },
+  ];
+
+  return (
+    <div className="gf-stack gf-stack--xl">
+      <section className="gf-stack">
+        <h2 className="gf-card-title">Keyboard Shortcuts</h2>
+        <p className="gf-muted">Quickly navigate and perform actions using keyboard shortcuts.</p>
+        <div className="gf-card" style={{ marginTop: '12px' }}>
+          <div className="gf-stack gf-stack--md">
+            {shortcuts.map((s) => (
+              <div
+                key={s.key}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '8px 0',
+                  borderBottom: '1px solid var(--line)',
+                }}
+              >
+                <span style={{ color: 'var(--muted)' }}>{s.description}</span>
+                <kbd
+                  style={{
+                    padding: '4px 10px',
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--line)',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  {s.key}
+                </kbd>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 /* ── Main Page ──────────────────────────────────────────── */
 
 interface SettingsProps {
@@ -1195,6 +1245,17 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
           <button
             className={clsx(
               'gf-settings-nav-item',
+              activeTab === 'shortcuts' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('shortcuts')}
+          >
+            <Keyboard size={20} />
+            <span style={{ flex: 1 }}>Shortcuts</span>
+            {activeTab === 'shortcuts' && <ChevronRight size={16} />}
+          </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
               activeTab === 'regional' && 'gf-settings-nav-item--active'
             )}
             onClick={() => handleTabChange('regional')}
@@ -1254,6 +1315,7 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
               onSave={handleSaveAccessibility}
             />
           )}
+          {activeTab === 'shortcuts' && <ShortcutsSection />}
           {activeTab === 'regional' && (
             <RegionalSection preferences={preferences.regional} onSave={handleSaveRegional} />
           )}
