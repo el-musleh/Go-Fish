@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronRight,
   Loader2,
+  Maximize2,
 } from 'lucide-react';
 import { api, ApiError, getCurrentUserId } from '../api/client';
 import ConfirmationDialog from '../components/ConfirmationDialog';
@@ -777,6 +778,7 @@ function TimelineView({
   searchQuery: string;
   setSearchQuery: (q: string) => void;
 }) {
+  const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     if (initialEventId && events.find((e) => e.id === initialEventId)) return initialEventId;
     return events[0]?.id ?? null;
@@ -1025,7 +1027,28 @@ function TimelineView({
       {!isMobile && (
         <div className={animating ? 'gf-timeline-detail--animating' : ''}>
           {selected ? (
-            <TimelineDetail key={selected.id} event={selected} onDelete={onDelete} />
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => navigate(`/events/${selected.id}`)}
+                className="gf-button gf-button--ghost"
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  right: 0,
+                  padding: '6px 10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontSize: '0.8rem',
+                }}
+                title="Expand"
+              >
+                <Maximize2 size={14} />
+                Expand
+              </button>
+              <TimelineDetail key={selected.id} event={selected} onDelete={onDelete} />
+            </div>
           ) : (
             <div className="gf-card">
               <p className="gf-muted">Select an event to view details.</p>

@@ -53,6 +53,22 @@ import {
   shouldBlockDuringAuthBootstrap,
 } from './lib/authSession';
 
+// ── Protected Route Wrapper ────────────────────────────────────────────────────
+
+function RequireAuth({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
+  const userId = getCurrentUserId();
+
+  useEffect(() => {
+    if (!userId) {
+      navigate('/', { replace: true });
+    }
+  }, [userId, navigate]);
+
+  if (!userId) return null;
+  return <>{children}</>;
+}
+
 function AppShell({
   children,
   userId,
@@ -390,7 +406,14 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/notifications" element={<NotificationsPage />} />
+                <Route
+                  path="/notifications"
+                  element={
+                    <RequireAuth>
+                      <NotificationsPage />
+                    </RequireAuth>
+                  }
+                />
                 <Route
                   path="/settings"
                   element={
