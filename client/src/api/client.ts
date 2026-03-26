@@ -59,14 +59,17 @@ export function subscribeToAuthChange(listener: () => void): () => void {
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
 
-  // Prefer the Supabase JWT for verified auth; fall back to x-user-id for local
-  // dev environments where Supabase is not configured on the backend.
+  // Always send the Supabase JWT when available (used by the backend in production).
+  // Always send x-user-id when available (used by the backend in dev mode when
+  // SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY are not configured). Sending both is
+  // safe: production ignores x-user-id, dev mode ignores the Bearer token.
   const {
     data: { session },
   } = await supabase.auth.getSession();
   if (session?.access_token) {
     headers['Authorization'] = `Bearer ${session.access_token}`;
-  } else if (currentUserId) {
+  }
+  if (currentUserId) {
     headers['x-user-id'] = currentUserId;
   }
 
@@ -76,8 +79,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      clearCurrentUser();
+    }
     const body = await res.json().catch(() => ({ error: res.statusText }));
-    throw new ApiError(res.status, body);
+    const error = new ApiError(res.status, body, path, options?.method || 'GET');
+    console.error(`[API Error] ${options?.method || 'GET'} ${path}`, {
+      status: res.status,
+      body,
+    });
+    throw error;
   }
 
   return res.json() as Promise<T>;
@@ -85,13 +96,18 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export class ApiError extends Error {
   status: number;
-  body: unknown;
+  body: any;
+  path: string;
+  method: string;
 
-  constructor(status: number, body: unknown) {
-    super(`API error ${status}`);
+  constructor(status: number, body: any, path: string, method: string) {
+    const message = body?.message || body?.error || `API error ${status}`;
+    super(message);
     this.name = 'ApiError';
     this.status = status;
     this.body = body;
+    this.path = path;
+    this.method = method;
   }
 }
 
@@ -118,6 +134,7 @@ export interface UserProfile {
   email: string;
   name: string | null;
   auth_provider: 'google' | 'email';
+  ai_api_key: string | null;
   created_at: string;
 }
 
