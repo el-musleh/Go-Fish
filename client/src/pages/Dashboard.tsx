@@ -209,7 +209,18 @@ function TimelineDetailCollecting({ event, onDelete }: TimelineDetailProps) {
             </p>
           )}
         </div>
-        <span className={`gf-status-chip ${STATUS_LABELS.collecting.cls}`}>Collecting</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className={`gf-status-chip ${STATUS_LABELS.collecting.cls}`}>Collecting</span>
+          <button
+            type="button"
+            onClick={() => navigate(`/events/${event.id}`)}
+            className="gf-timeline-detail-expand"
+            title="View full event"
+            aria-label="View full event"
+          >
+            <ExternalLink size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Countdown Section */}
@@ -378,7 +389,18 @@ function TimelineDetailReady({ event, onDelete }: TimelineDetailProps) {
             </p>
           )}
         </div>
-        <span className={`gf-status-chip ${STATUS_LABELS.options_ready.cls}`}>Ready</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className={`gf-status-chip ${STATUS_LABELS.options_ready.cls}`}>Ready</span>
+          <button
+            type="button"
+            onClick={() => navigate(`/events/${event.id}`)}
+            className="gf-timeline-detail-expand"
+            title="View full event"
+            aria-label="View full event"
+          >
+            <ExternalLink size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -512,7 +534,18 @@ function TimelineDetailConfirmed({ event, onDelete }: TimelineDetailProps) {
             </p>
           )}
         </div>
-        <span className={`gf-status-chip ${STATUS_LABELS.finalized.cls}`}>Confirmed</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className={`gf-status-chip ${STATUS_LABELS.finalized.cls}`}>Confirmed</span>
+          <button
+            type="button"
+            onClick={() => navigate(`/events/${event.id}`)}
+            className="gf-timeline-detail-expand"
+            title="View full event"
+            aria-label="View full event"
+          >
+            <ExternalLink size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Selected Activity */}
@@ -645,7 +678,18 @@ function TimelineDetailGenerating({ event, onCloseMobile }: TimelineDetailProps)
             </p>
           )}
         </div>
-        <span className={`gf-status-chip ${STATUS_LABELS.generating.cls}`}>Generating</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span className={`gf-status-chip ${STATUS_LABELS.generating.cls}`}>Generating</span>
+          <button
+            type="button"
+            onClick={() => navigate(`/events/${event.id}`)}
+            className="gf-timeline-detail-expand"
+            title="View full event"
+            aria-label="View full event"
+          >
+            <ExternalLink size={14} />
+          </button>
+        </div>
       </div>
 
       {/* Loading State */}
@@ -778,7 +822,6 @@ function TimelineView({
   searchQuery: string;
   setSearchQuery: (q: string) => void;
 }) {
-  const navigate = useNavigate();
   const [selectedId, setSelectedId] = useState<string | null>(() => {
     if (initialEventId && events.find((e) => e.id === initialEventId)) return initialEventId;
     return events[0]?.id ?? null;
@@ -1027,17 +1070,7 @@ function TimelineView({
       {!isMobile && (
         <div className={animating ? 'gf-timeline-detail--animating' : ''}>
           {selected ? (
-            <div className="gf-timeline-detail-wrapper">
-              <TimelineDetail key={selected.id} event={selected} onDelete={onDelete} />
-              <button
-                type="button"
-                onClick={() => navigate(`/events/${selected.id}`)}
-                className="gf-timeline-detail-expand"
-              >
-                <ExternalLink size={14} />
-                View full event
-              </button>
-            </div>
+            <TimelineDetail key={selected.id} event={selected} onDelete={onDelete} />
           ) : (
             <div className="gf-card">
               <p className="gf-muted">Select an event to view details.</p>
