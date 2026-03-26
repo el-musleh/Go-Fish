@@ -220,6 +220,63 @@ CREATE TABLE IF NOT EXISTS email_log (
 );
 ```
 
+#### 8. Notification Type Enum (`notification_type`)
+
+Defines the types of notifications that can be created.
+
+```sql
+CREATE TYPE notification_type AS ENUM (
+    'rsvp_received',
+    'event_finalized',
+    'event_invited',
+    'options_ready'
+);
+```
+
+#### 9. User Preferences Table (`user_preferences`)
+
+Stores user notification and display preferences.
+
+```sql
+CREATE TABLE IF NOT EXISTS user_preferences (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL UNIQUE REFERENCES "user"(id) ON DELETE CASCADE,
+    email_on_event_confirmed BOOLEAN NOT NULL DEFAULT TRUE,
+    email_on_new_rsvp BOOLEAN NOT NULL DEFAULT FALSE,
+    email_on_options_ready BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+#### 10. Notification Table (`notification`)
+
+Stores user notifications with real-time delivery via SSE.
+
+```sql
+CREATE TABLE IF NOT EXISTS notification (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+    type notification_type NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    description TEXT,
+    link VARCHAR(500),
+    read BOOLEAN NOT NULL DEFAULT FALSE,
+    expired BOOLEAN NOT NULL DEFAULT FALSE,
+    event_id UUID REFERENCES event(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+**Notification Types:**
+
+| Type             | Trigger                                    | Email?          |
+| ---------------- | ------------------------------------------ | --------------- |
+| `rsvp_received`  | User submits RSVP to event                 | User preference |
+| `event_finalized` | Organizer finalizes event                 | Always          |
+| `event_invited`  | User visits invite link                    | No              |
+| `options_ready`  | Response window closes                     | User preference |
+
 ### Database Migrations
 
 The project uses SQL migrations located in `src/db/migrations/`:
@@ -233,6 +290,7 @@ The project uses SQL migrations located in `src/db/migrations/`:
 | 005_add_event_scheduling.sql           | Adds scheduling fields     |
 | 006_add_event_suggestions.sql          | Adds AI suggestions        |
 | 007_add_event_archive.sql              | Adds archive functionality |
+| 008_add_notifications.sql              | Adds notifications system  |
 
 ---
 
@@ -300,6 +358,24 @@ Handles taste benchmark submissions.
 | GET    | `/api/benchmark` | Get user's benchmark   |
 | POST   | `/api/benchmark` | Submit taste benchmark |
 
+#### 6. Notification Router (`/api/notifications`)
+
+Handles notifications with real-time SSE delivery and user preferences.
+
+| Method | Endpoint                        | Description                          |
+| ------ | ------------------------------- | ------------------------------------ |
+| GET    | `/api/notifications/stream`     | SSE stream for real-time updates     |
+| GET    | `/api/notifications`             | Get paginated notification history   |
+| GET    | `/api/notifications/recent`     | Get recent notifications (for bell)  |
+| GET    | `/api/notifications/unread-count` | Get unread notification count      |
+| PATCH  | `/api/notifications/:id/read`   | Mark single notification as read     |
+| POST   | `/api/notifications/mark-all-read` | Mark all notifications as read     |
+| DELETE | `/api/notifications/:id`        | Delete a notification                |
+| GET    | `/api/notifications/preferences` | Get email notification preferences   |
+| PATCH  | `/api/notifications/preferences` | Update email notification preferences |
+
+**SSE Authentication**: Uses cookie-based session with Supabase (not query param tokens).
+
 ### Middleware
 
 #### Authentication Middleware (`src/middleware/auth.ts`)
@@ -335,7 +411,7 @@ Ensures users complete their taste benchmark before accessing certain features.
 | ------------------- | ------------------------------- | -------------------------------- |
 | LandingPage         | `/`                             | Public landing page              |
 | Dashboard           | `/dashboard`                    | User's events (created + joined) |
-| Settings            | `/settings`                     | User settings and preferences    |
+| Settings            | `/settings`                     | User settings with notifications tab |
 | EventCreationForm   | `/events/new`                   | Create new event                 |
 | EventDetail         | `/events/:eventId`              | View event details               |
 | InvitationResolver  | `/invite/:linkToken`            | Resolve invitation link          |
@@ -344,6 +420,24 @@ Ensures users complete their taste benchmark before accessing certain features.
 | EventConfirmation   | `/events/:eventId/confirmation` | Finalized event confirmation     |
 | PrivacyPolicy       | `/privacy`                      | Privacy policy page              |
 | TermsOfService      | `/terms`                        | Terms of service page            |
+
+### Settings Page - Notifications Tab
+
+The Settings page includes a Notifications tab (`/settings?tab=notifications`) with:
+
+**Notification History:**
+- Paginated list of notifications (10 per page)
+- Shows notification type, title, description, and timestamp
+- Unread notifications highlighted
+- Click to navigate to related event
+- Delete with confirmation dialog
+- Expired notifications show "[Event no longer exists]"
+
+**Email Preferences:**
+- Toggle for "Event is confirmed" notifications
+- Toggle for "New participant RSVPs" notifications
+- Toggle for "Activity options are ready" notifications
+- Preferences stored in `user_preferences` table
 
 ### Components
 
@@ -357,6 +451,72 @@ Key reusable components in [`client/src/components/`](client/src/components/):
 - **SkeletonLoader** - Skeleton loading
 - **Toaster** - Toast notifications
 - **ValidatedInput** - Form input with validation
+- **ShareEvent** - Share event invite with social icons
+- **Notifications** - Bell icon with notification dropdown
+- **Onboarding** - Welcome modal for new users
+
+### Dashboard Timeline
+
+The Dashboard page includes a Timeline view with state-specific detail cards.
+
+#### Event Status States
+
+| Status | Label | Description |
+|--------|-------|-------------|
+| `collecting` | Collecting | Response window is open, collecting RSVPs |
+| `generating` | Generating | AI is creating activity options |
+| `options_ready` | Ready | Activity options are available for selection |
+| `finalized` | Confirmed | An activity has been selected |
+
+#### State-Specific Detail Components
+
+Each event status displays a tailored detail card in the timeline:
+
+1. **TimelineDetailCollecting** - For events in `collecting` status
+   - Countdown timer showing remaining response window
+   - Share invite button (for organizers)
+   - Respondents list with date availability chips
+   - "End window & generate" button for organizers
+   - Waiting message for participants
+
+2. **TimelineDetailReady** - For events in `options_ready` status
+   - "Options ready" celebration message
+   - "Pick Activity" CTA button (for organizers)
+   - Waiting message (for participants)
+
+3. **TimelineDetailConfirmed** - For events in `finalized` status
+   - Selected activity info with icon
+   - Full date/time details
+   - Description
+   - "View Confirmation" button
+   - "Add to Calendar" dropdown (Google, Outlook, Apple, .ics)
+   - "Map & Navigation" button
+
+4. **TimelineDetailGenerating** - For events in `generating` status
+   - Loading spinner animation
+   - Context-aware message for organizer vs participant
+
+#### Mobile Accordion
+
+On mobile devices (< 720px), the timeline uses an accordion pattern:
+- Tapping a timeline card expands it inline to show the state-specific detail
+- Tapping another card collapses the previous and expands the new one
+- Tapping the same card collapses it
+- Chevron icons indicate expand/collapse state
+
+#### CSS Classes
+
+Timeline-related CSS classes in [`client/src/styles/layout.css`](client/src/styles/layout.css):
+
+- `.gf-timeline-layout` - Main timeline grid layout
+- `.gf-timeline-list` - Left panel with event list
+- `.gf-timeline-card` - Individual event card
+- `.gf-timeline-card--selected` - Selected event card (desktop)
+- `.gf-timeline-card-wrapper` - Wrapper for accordion support
+- `.gf-timeline-card-wrapper--expanded` - Expanded accordion card
+- `.gf-timeline-detail-card` - State-specific detail card
+- `.gf-timeline-filters` - Status filter chips
+- `.gf-timeline-group__date` - Date group headers
 
 ### API Client
 
@@ -408,6 +568,29 @@ Enriches activity options with real-world data:
 - **Foursquare** - Venue details
 - **Ticketmaster** - Event information
 - **OpenWeatherMap** - Weather forecasts
+
+### Notification Service (`src/services/notificationService.ts`)
+
+Manages notifications with real-time SSE delivery and factory functions for creating notifications.
+
+**Key Functions:**
+
+- [`notifyRsvpReceived()`](src/services/notificationService.ts) - Creates notification when user submits RSVP
+- [`notifyEventFinalized()`](src/services/notificationService.ts) - Creates notification for all participants when event is finalized
+- [`notifyEventInvited()`](src/services/notificationService.ts) - Creates notification when user visits invite link
+- [`notifyOptionsReady()`](src/services/notificationService.ts) - Creates notification when response window closes
+- [`broadcastNotification()`](src/services/notificationService.ts) - Pushes notification via SSE
+
+**SSE Integration:**
+
+The service maintains a map of active SSE connections per user and broadcasts notifications in real-time. Requires `X-Accel-Buffering: no` header to disable nginx buffering.
+
+**Notification Expiration:**
+
+When an event is deleted or finalized:
+- `event_finalized`: Related notifications are marked as expired
+- Event deleted: `event_id = NULL`, `expired = true`
+- Users can still view notification history with "[Event no longer exists]" message
 
 ---
 

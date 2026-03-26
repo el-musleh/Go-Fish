@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { Pool } from 'pg';
 import { getInvitationLinkByToken } from '../repositories/invitationLinkRepository';
 import { getEventById } from '../repositories/eventRepository';
+import { notifyEventInvited } from '../services/notificationService';
 
 /**
  * Public router for resolving invitation links.
@@ -52,6 +53,11 @@ export function createInviteRouter(pool: Pool): Router {
         description: event.description,
         status: event.status,
       });
+
+      // Create notification for the invitee
+      notifyEventInvited(pool, event.id, userId, event.title, req.params.linkToken).catch((err) =>
+        console.error('Failed to create invite notification:', err)
+      );
     } catch (error) {
       next(error);
     }

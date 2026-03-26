@@ -11,6 +11,8 @@ import { updateEventStatus, saveEventSuggestions, closeResponseWindow, archiveEv
 import { getResponsesByEventId, getEventIdsRespondedByUser, getResponsesForEvents } from '../repositories/responseRepository';
 import { getUserById, getUsersByIds } from '../repositories/userRepository';
 import { generateEventSuggestions } from '../services/eventPreviewService';
+import { notifyEventFinalized } from '../services/notificationService';
+import { expireNotificationsForEvent } from '../repositories/notificationRepository';
 
 // Simple geocoding: try Google Geocoding API, fall back to known cities
 const KNOWN_CITIES: Record<string, { lat: number; lng: number }> = {
@@ -472,6 +474,17 @@ export function createEventRouter(pool: Pool): Router {
         console.error('Failed to send notification emails:', err)
       );
 
+      // Notify participants that the event is finalized
+      getResponsesByEventId(pool, event.id)
+        .then((responses) => {
+          const participantIds = responses.map((r) => r.invitee_id);
+          if (participantIds.length > 0) {
+            return notifyEventFinalized(pool, event.id, participantIds, event.title);
+          }
+          return [];
+        })
+        .catch((err) => console.error('Failed to notify participants:', err));
+
       res.json({ event: updatedEvent, selectedOption });
     } catch (error) {
       console.error('Error selecting activity option:', error);
@@ -498,6 +511,8 @@ export function createEventRouter(pool: Pool): Router {
         return;
       }
 
+      // Expire related notifications before deleting
+      await expireNotificationsForEvent(pool, event.id);
       await deleteEvent(pool, event.id);
       res.json({ deleted: true });
     } catch (error) {

@@ -1,37 +1,46 @@
-/* eslint-disable react-refresh/only-export-components */
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell } from 'lucide-react';
+import {
+  type Notification,
+  getRecentNotifications,
+  markNotificationRead,
+  markAllNotificationsRead,
+  getCurrentUserId,
+} from '../api/client';
 
-export interface Notification {
-  id: string;
-  title: string;
-  description: string;
-  time: Date;
-  read: boolean;
-  link?: string;
-}
-
-interface NotificationsProps {
-  onMarkRead?: (id: string) => void;
-}
-
-export default function Notifications({ onMarkRead }: NotificationsProps) {
+export default function Notifications() {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(() => {
-    const stored = localStorage.getItem('gofish_notifications');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        return parsed.map((n: Notification) => ({ ...n, time: new Date(n.time) }));
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const fetchNotifications = useCallback(async () => {
+    if (!getCurrentUserId()) return;
+
+    setLoading(true);
+    try {
+      const data = await getRecentNotifications(5);
+      setNotifications(data.notifications);
+      setUnreadCount(data.unreadCount);
+      setHasMore(data.hasMore);
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchNotifications();
+
+    // Poll every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [fetchNotifications]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -45,19 +54,44 @@ export default function Notifications({ onMarkRead }: NotificationsProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  const handleMarkRead = (id: string) => {
-    const updated = notifications.map((n) => (n.id === id ? { ...n, read: true } : n));
-    setNotifications(updated);
-    localStorage.setItem('gofish_notifications', JSON.stringify(updated));
-    onMarkRead?.(id);
+  const handleNotificationClick = async (notification: Notification) => {
+    // Mark as read
+    if (!notification.read) {
+      try {
+        await markNotificationRead(notification.id);
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+        setNotifications((prev) =>
+          prev.map((n) => (n.id === notification.id ? { ...n, read: true } : n))
+        );
+      } catch (error) {
+        console.error('Failed to mark notification as read:', error);
+      }
+    }
+
+    // Navigate to the notification link
+    if (notification.link) {
+      setIsOpen(false);
+      navigate(notification.link);
+    }
   };
 
-  const handleClearAll = () => {
-    setNotifications([]);
-    localStorage.setItem('gofish_notifications', JSON.stringify([]));
+  const handleMarkAllRead = async () => {
+    try {
+      await markAllNotificationsRead();
+      setUnreadCount(0);
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+    } catch (error) {
+      console.error('Failed to mark all as read:', error);
+    }
   };
 
-  function formatTime(date: Date): string {
+  const handleShowAll = () => {
+    setIsOpen(false);
+    navigate('/settings?tab=notifications');
+  };
+
+  function formatTime(dateStr: string): string {
+    const date = new Date(dateStr);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const mins = Math.floor(diff / 60000);
@@ -69,6 +103,21 @@ export default function Notifications({ onMarkRead }: NotificationsProps) {
     if (hours < 24) return `${hours}h ago`;
     if (days < 7) return `${days}d ago`;
     return date.toLocaleDateString();
+  }
+
+  function getNotificationIcon(type: Notification['type']): string {
+    switch (type) {
+      case 'rsvp_received':
+        return '👥';
+      case 'event_finalized':
+        return '✅';
+      case 'event_invited':
+        return '📬';
+      case 'options_ready':
+        return '✨';
+      default:
+        return '🔔';
+    }
   }
 
   return (
@@ -89,14 +138,18 @@ export default function Notifications({ onMarkRead }: NotificationsProps) {
         <div className="gf-notifications-dropdown">
           <div className="gf-notifications-header">
             <span className="gf-notifications-title">Notifications</span>
-            {notifications.length > 0 && (
-              <button type="button" className="gf-notifications-clear" onClick={handleClearAll}>
-                Clear all
+            {unreadCount > 0 && (
+              <button type="button" className="gf-notifications-clear" onClick={handleMarkAllRead}>
+                Mark all read
               </button>
             )}
           </div>
 
-          {notifications.length === 0 ? (
+          {loading && notifications.length === 0 ? (
+            <div className="gf-notifications-loading">
+              <span className="gf-muted">Loading...</span>
+            </div>
+          ) : notifications.length === 0 ? (
             <div className="gf-notifications-empty">
               <div className="gf-notifications-empty-icon">
                 <Bell size={32} />
@@ -104,36 +157,46 @@ export default function Notifications({ onMarkRead }: NotificationsProps) {
               <p style={{ margin: 0 }}>No notifications yet</p>
             </div>
           ) : (
-            <div className="gf-notifications-list">
-              {notifications.map((n) => (
-                <div
-                  key={n.id}
-                  className={`gf-notification-item${!n.read ? ' gf-notification-item--unread' : ''}`}
-                  onClick={() => handleMarkRead(n.id)}
-                >
-                  <p className="gf-notification-title">{n.title}</p>
-                  <p className="gf-notification-desc">{n.description}</p>
-                  <p className="gf-notification-time">{formatTime(n.time)}</p>
+            <>
+              <div className="gf-notifications-list">
+                {notifications.map((n) => (
+                  <div
+                    key={n.id}
+                    className={`gf-notification-item${!n.read ? ' gf-notification-item--unread' : ''}${n.expired ? ' gf-notification-item--expired' : ''}`}
+                    onClick={() => !n.expired && handleNotificationClick(n)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        if (!n.expired) handleNotificationClick(n);
+                      }
+                    }}
+                  >
+                    <div className="gf-notification-item__icon">{getNotificationIcon(n.type)}</div>
+                    <div className="gf-notification-item__content">
+                      <p className="gf-notification-title">{n.title}</p>
+                      {n.description && <p className="gf-notification-desc">{n.description}</p>}
+                      <p className="gf-notification-time">{formatTime(n.created_at)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {hasMore && (
+                <div className="gf-notifications-footer">
+                  <button
+                    type="button"
+                    className="gf-notifications-show-all"
+                    onClick={handleShowAll}
+                  >
+                    Show all notifications
+                  </button>
                 </div>
-              ))}
-            </div>
+              )}
+            </>
           )}
         </div>
       )}
     </div>
   );
-}
-
-export function addNotification(notification: Omit<Notification, 'id' | 'time' | 'read'>) {
-  const stored = localStorage.getItem('gofish_notifications');
-  const current: Notification[] = stored ? JSON.parse(stored) : [];
-  const newNotification: Notification = {
-    ...notification,
-    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-    time: new Date(),
-    read: false,
-  };
-  const updated = [newNotification, ...current].slice(0, 20);
-  localStorage.setItem('gofish_notifications', JSON.stringify(updated));
-  return newNotification.id;
 }

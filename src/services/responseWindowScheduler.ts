@@ -10,6 +10,7 @@ import { sendNotificationEmails } from './emailService';
 import { getActivityOptionsByEventId, markActivityOptionSelected } from '../repositories/activityOptionRepository';
 import { fetchRealWorldContext } from './realWorldData';
 import { GeoLocation } from './realWorldData/types';
+import { notifyOptionsReady } from './notificationService';
 
 // Track active timers so they can be cancelled
 const activeTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -208,6 +209,11 @@ export async function triggerGeneration(
 
     // Transition to options_ready
     await updateEventStatus(pool, eventId, 'options_ready');
+
+    // Notify organizer that options are ready
+    notifyOptionsReady(pool, eventId, event.inviter_id, event.title).catch((err) =>
+      console.error('Failed to send options_ready notification:', err)
+    );
 
     return options;
   } catch (err) {

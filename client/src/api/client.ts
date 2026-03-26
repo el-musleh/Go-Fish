@@ -196,3 +196,83 @@ export const defaultPreferences: UserPreferences = {
     show_activity: true,
   },
 };
+
+// ── Notification Types ──────────────────────────────────────────────────────────
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: 'rsvp_received' | 'event_finalized' | 'event_invited' | 'options_ready';
+  title: string;
+  description: string | null;
+  event_id: string | null;
+  link: string | null;
+  read: boolean;
+  expired: boolean;
+  created_at: string;
+}
+
+export interface NotificationListResponse {
+  notifications: Notification[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
+}
+
+export interface RecentNotificationsResponse {
+  notifications: Notification[];
+  unreadCount: number;
+  hasMore: boolean;
+}
+
+export interface NotificationPreferences {
+  email_on_event_confirmed: boolean;
+  email_on_new_rsvp: boolean;
+  email_on_options_ready: boolean;
+}
+
+// ── Notification API Methods ───────────────────────────────────────────────────
+
+export async function getNotifications(
+  page: number = 1,
+  limit: number = 10
+): Promise<NotificationListResponse> {
+  return api.get<NotificationListResponse>(`/notifications?page=${page}&limit=${limit}`);
+}
+
+export async function getRecentNotifications(
+  limit: number = 5
+): Promise<RecentNotificationsResponse> {
+  return api.get<RecentNotificationsResponse>(`/notifications/recent?limit=${limit}`);
+}
+
+export async function getUnreadNotificationCount(): Promise<number> {
+  const response = await api.get<{ count: number }>('/notifications/unread-count');
+  return response.count;
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  await api.patch(`/notifications/${notificationId}/read`);
+}
+
+export async function markAllNotificationsRead(): Promise<number> {
+  const response = await api.post<{ success: boolean; count: number }>(
+    '/notifications/mark-all-read'
+  );
+  return response.count;
+}
+
+export async function deleteNotification(notificationId: string): Promise<void> {
+  await api.delete(`/notifications/${notificationId}`);
+}
+
+export async function getNotificationPreferences(): Promise<NotificationPreferences> {
+  return api.get<NotificationPreferences>('/notifications/preferences');
+}
+
+export async function updateNotificationPreferences(
+  preferences: Partial<NotificationPreferences>
+): Promise<NotificationPreferences> {
+  return api.patch<NotificationPreferences>('/notifications/preferences', preferences);
+}

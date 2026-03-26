@@ -8,6 +8,8 @@ import {
   getResponsesByEventId,
   getResponseByEventAndInvitee,
 } from '../repositories/responseRepository';
+import { notifyRsvpReceived } from '../services/notificationService';
+import { getUserById } from '../repositories/userRepository';
 
 export function createResponseRouter(pool: Pool): Router {
   const router = Router({ mergeParams: true });
@@ -94,6 +96,14 @@ export function createResponseRouter(pool: Pool): Router {
           invitee_id: userId,
           available_dates,
         });
+
+        // Send notification to organizer about the new RSVP
+        const responder = await getUserById(pool, userId);
+        if (responder) {
+          notifyRsvpReceived(pool, eventId, event.inviter_id, event.title, responder.email).catch((err) =>
+            console.error('Failed to send RSVP notification:', err)
+          );
+        }
 
         res.status(201).json(response);
       } catch (error) {
