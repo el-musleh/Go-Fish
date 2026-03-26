@@ -25,7 +25,7 @@ export async function getUserByEmail(pool: Pool, email: string): Promise<User | 
 export async function updateUser(
   pool: Pool,
   id: string,
-  data: Partial<Pick<User, 'name' | 'has_taste_benchmark'>>
+  data: Partial<Pick<User, 'name' | 'has_taste_benchmark' | 'ai_api_key'>>
 ): Promise<User | null> {
   const setClauses: string[] = [];
   const values: unknown[] = [];
@@ -39,6 +39,10 @@ export async function updateUser(
     setClauses.push('has_taste_benchmark = $' + paramIdx++);
     values.push(data.has_taste_benchmark);
   }
+  if (data.ai_api_key !== undefined) {
+    setClauses.push('ai_api_key = $' + paramIdx++);
+    values.push(data.ai_api_key);
+  }
 
   if (setClauses.length === 0) return getUserById(pool, id);
 
@@ -51,4 +55,20 @@ export async function updateUser(
 export async function deleteUser(pool: Pool, id: string): Promise<boolean> {
   const { rowCount } = await pool.query(`DELETE FROM "user" WHERE id = $1`, [id]);
   return (rowCount ?? 0) > 0;
+}
+
+/**
+ * Batch-fetch multiple users by id in a single query.
+ * Returns a Map from id → User for O(1) lookup.
+ */
+export async function getUsersByIds(
+  pool: Pool,
+  ids: string[]
+): Promise<Map<string, User>> {
+  if (ids.length === 0) return new Map();
+  const { rows } = await pool.query(
+    `SELECT * FROM "user" WHERE id = ANY($1)`,
+    [ids]
+  );
+  return new Map(rows.map((u: User) => [u.id, u]));
 }

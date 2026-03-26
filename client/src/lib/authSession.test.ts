@@ -7,9 +7,9 @@ import {
 
 describe('getSessionEmailForSync', () => {
   it('returns the email for SIGNED_IN when no app user is loaded yet', () => {
-    expect(
-      getSessionEmailForSync('SIGNED_IN', { user: { email: 'test@example.com' } }, null)
-    ).toBe('test@example.com');
+    expect(getSessionEmailForSync('SIGNED_IN', { user: { email: 'test@example.com' } }, null)).toBe(
+      'test@example.com'
+    );
   });
 
   it('returns the email for INITIAL_SESSION on OAuth callback reload', () => {
@@ -20,7 +20,11 @@ describe('getSessionEmailForSync', () => {
 
   it('returns null when an app user id already exists', () => {
     expect(
-      getSessionEmailForSync('SIGNED_IN', { user: { email: 'test@example.com' } }, 'user-1')
+      getSessionEmailForSync(
+        'SIGNED_IN',
+        { user: { email: 'test@example.com' } },
+        '00000000-0000-0000-0000-000000000001'
+      )
     ).toBeNull();
   });
 

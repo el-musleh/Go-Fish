@@ -21,8 +21,15 @@ export function createRequireAuth(pool: Pool) {
     if (!supabase) {
       // Dev/test fallback — no Supabase configured
       const userId = req.headers['x-user-id'] as string | undefined;
-      if (!userId) {
-        res.status(401).json({ error: 'unauthorized', message: 'Authentication required.' });
+      const hasBearer = !!(req.headers.authorization?.startsWith('Bearer '));
+      console.log(`[Auth] Dev mode | ${req.method} ${req.path} | x-user-id="${userId}" | has-bearer=${hasBearer}`);
+
+      // Basic UUID validation to prevent DB errors when legacy non-UUID strings are in localStorage
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+      if (!userId || !uuidRegex.test(userId)) {
+        console.warn(`[Auth] REJECTED — x-user-id missing or invalid. Tip: if the frontend has a Supabase session it must also send x-user-id (check client/src/api/client.ts).`);
+        res.status(401).json({ error: 'unauthorized', message: 'Valid User ID required.' });
         return;
       }
       (req as any).userId = userId;

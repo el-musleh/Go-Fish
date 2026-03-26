@@ -37,17 +37,17 @@ describe('Auth Router', () => {
     });
 
     it('returns 200 and user profile when authenticated', async () => {
-      const mockUser = { id: 'user-1', email: 'test@example.com', name: 'Test User' };
+      const mockUser = { id: '00000000-0000-0000-0000-000000000001', email: 'test@example.com', name: 'Test User' };
       (getUserById as any).mockResolvedValue(mockUser);
 
       const app = buildApp();
       const res = await request(app)
         .get('/api/auth/me')
-        .set('x-user-id', 'user-1');
+        .set('x-user-id', '00000000-0000-0000-0000-000000000001');
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual(mockUser);
-      expect(getUserById).toHaveBeenCalledWith(mockPool, 'user-1');
+      expect(getUserById).toHaveBeenCalledWith(mockPool, '00000000-0000-0000-0000-000000000001');
     });
   });
 
@@ -61,7 +61,7 @@ describe('Auth Router', () => {
       const app = buildApp();
       const res = await request(app)
         .get('/api/auth/storage-info')
-        .set('x-user-id', 'user-1');
+        .set('x-user-id', '00000000-0000-0000-0000-000000000001');
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual({
@@ -74,18 +74,18 @@ describe('Auth Router', () => {
 
   describe('PATCH /api/auth/me', () => {
     it('updates and returns the user profile', async () => {
-      const updatedUser = { id: 'user-1', email: 'test@example.com', name: 'New Name' };
+      const updatedUser = { id: '00000000-0000-0000-0000-000000000001', email: 'test@example.com', name: 'New Name' };
       (updateUser as any).mockResolvedValue(updatedUser);
 
       const app = buildApp();
       const res = await request(app)
         .patch('/api/auth/me')
-        .set('x-user-id', 'user-1')
+        .set('x-user-id', '00000000-0000-0000-0000-000000000001')
         .send({ name: 'New Name' });
 
       expect(res.status).toBe(200);
       expect(res.body).toEqual(updatedUser);
-      expect(updateUser).toHaveBeenCalledWith(mockPool, 'user-1', { name: 'New Name' });
+      expect(updateUser).toHaveBeenCalledWith(mockPool, '00000000-0000-0000-0000-000000000001', { name: 'New Name' });
     });
   });
 });

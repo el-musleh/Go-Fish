@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, NextFunction } from 'express';
 import { Pool } from 'pg';
 import { getUserByEmail, createUser, getUserById, updateUser } from '../repositories/userRepository';
 import { getSupabaseAdmin } from '../lib/supabaseAdmin';
@@ -12,18 +12,19 @@ export function createAuthRouter(pool: Pool): Router {
    * GET /api/auth/me
    * Return the current authenticated user's profile.
    */
-  router.get('/me', requireAuth, async (req, res) => {
+  router.get('/me', requireAuth, async (req, res, next: NextFunction) => {
     try {
       const userId = (req as any).userId;
+      console.log(`[Debug] Fetching profile for user: ${userId}`);
       const user = await getUserById(pool, userId);
       if (!user) {
+        console.warn(`[Debug] User not found: ${userId}`);
         res.status(404).json({ error: 'user_not_found', message: 'User not found.' });
         return;
       }
       res.json(user);
     } catch (error) {
-      console.error('Error fetching user profile:', error);
-      res.status(500).json({ error: 'internal_error', message: 'Failed to fetch user profile.' });
+      next(error);
     }
   });
 
@@ -31,19 +32,19 @@ export function createAuthRouter(pool: Pool): Router {
    * PATCH /api/auth/me
    * Update the current authenticated user's profile.
    */
-  router.patch('/me', requireAuth, async (req, res) => {
+  router.patch('/me', requireAuth, async (req, res, next: NextFunction) => {
     try {
       const userId = (req as any).userId;
-      const { name } = req.body;
-      const user = await updateUser(pool, userId, { name });
+      const { name, ai_api_key } = req.body;
+      console.log(`[Debug] Updating profile for user: ${userId}`);
+      const user = await updateUser(pool, userId, { name, ai_api_key });
       if (!user) {
         res.status(404).json({ error: 'user_not_found', message: 'User not found.' });
         return;
       }
       res.json(user);
     } catch (error) {
-      console.error('Error updating user profile:', error);
-      res.status(500).json({ error: 'internal_error', message: 'Failed to update user profile.' });
+      next(error);
     }
   });
 
@@ -51,9 +52,10 @@ export function createAuthRouter(pool: Pool): Router {
    * GET /api/auth/storage-info
    * Return data storage statistics for the user.
    */
-  router.get('/storage-info', requireAuth, async (req, res) => {
+  router.get('/storage-info', requireAuth, async (req, res, next: NextFunction) => {
     try {
       const userId = (req as any).userId;
+      console.log(`[Debug] Fetching storage info for user: ${userId}`);
 
       const [eventsResult, responsesResult, benchmarkResult] = await Promise.all([
         pool.query('SELECT COUNT(*) FROM event WHERE inviter_id = $1', [userId]),
@@ -67,8 +69,7 @@ export function createAuthRouter(pool: Pool): Router {
         hasTasteBenchmark: benchmarkResult.rows.length > 0,
       });
     } catch (error) {
-      console.error('Error fetching storage info:', error);
-      res.status(500).json({ error: 'internal_error', message: 'Failed to fetch storage info.' });
+      next(error);
     }
   });
 
@@ -79,7 +80,7 @@ export function createAuthRouter(pool: Pool): Router {
    * When Supabase is configured: verifies the JWT and extracts the email from it.
    * When Supabase is absent (dev/test): reads email from the request body.
    */
-  router.post('/email', async (req, res) => {
+  router.post('/email', async (req, res, next: NextFunction) => {
     try {
       let email: string;
       const supabase = getSupabaseAdmin();
@@ -118,8 +119,7 @@ export function createAuthRouter(pool: Pool): Router {
 
       res.json({ userId: user.id, email: user.email, isNew: !user.has_taste_benchmark });
     } catch (err) {
-      console.error('Auth email error:', err);
-      res.status(500).json({ error: 'Authentication failed.' });
+      next(err);
     }
   });
 
