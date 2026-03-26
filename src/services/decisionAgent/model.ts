@@ -7,6 +7,7 @@ export interface OpenRouterModelConfig {
   apiKey?: string;
   model?: string;
   temperature?: number;
+  maxTokens?: number;
 }
 
 export function resolveOpenRouterApiKey(apiKey?: string): string {
@@ -18,7 +19,7 @@ export function resolveOpenRouterApiKey(apiKey?: string): string {
     process.env.GEMINI_API_KEY;
   if (!resolved) {
     throw new Error(
-      'DEEPSEEK_API_KEY is not configured (set it in .env)'
+      'No AI API key configured. Set OPENROUTER_API_KEY, DEEPSEEK_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY in your environment.'
     );
   }
   return resolved;
@@ -34,16 +35,24 @@ export function resolveOpenRouterModelName(model?: string): string {
 }
 
 /**
- * Robustly extracts the first JSON object from a string.
- * Handles cases where the model might include markdown fences or extra text.
+ * Robustly extracts the first complete JSON object from a string using
+ * bracket counting. Handles models that wrap output in markdown fences or
+ * add trailing commentary after the JSON.
  */
 export function extractJson(text: string): string {
   const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
-  if (start === -1 || end === -1) {
-    throw new Error('No JSON object found in text');
+  if (start === -1) {
+    throw new Error('No JSON object found in model output');
   }
-  return text.substring(start, end + 1);
+  let depth = 0;
+  for (let i = start; i < text.length; i++) {
+    if (text[i] === '{') depth++;
+    else if (text[i] === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  throw new Error('Unmatched braces in model output — JSON object is incomplete');
 }
 
 export function createChatOpenRouterModel(config: OpenRouterModelConfig = {}): ChatOpenRouter {
@@ -52,11 +61,15 @@ export function createChatOpenRouterModel(config: OpenRouterModelConfig = {}): C
     model: resolveOpenRouterModelName(config.model),
     maxRetries: 0,
     temperature: config.temperature ?? 0.2,
+    maxTokens: config.maxTokens ?? 2048,
   });
 }
 
-export function shouldUseFallbackModel(error: unknown, modelName: string): boolean {
-  if (resolveOpenRouterModelName(modelName) !== DEFAULT_MODEL) {
+export function shouldUseFallbackModel(error: unknown, activeModel: string): boolean {
+  // Only switch to fallback when the currently active model is the default.
+  // Compare directly against activeModel (not re-resolved from env) so this
+  // works correctly when OPENROUTER_MODEL env var overrides the default.
+  if (activeModel !== DEFAULT_MODEL) {
     return false;
   }
 

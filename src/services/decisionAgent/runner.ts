@@ -163,26 +163,46 @@ export async function runPlanningAgent(
     throw new Error('No valid overlapping time windows are available');
   }
 
+  const AGENT_TIMEOUT_MS = 60_000;
+
   const agentApp = createReactAgent({
     llm: createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.2 }),
     tools: [...createAgentTools(runtime)],
     messageModifier: createAgentPrompt(runtime),
   });
 
-  const shortlistResult = await agentApp.invoke({
-    messages: [new HumanMessage(buildAgentUserPrompt(runtime))],
-  });
+  // Abort the agent if it runs longer than AGENT_TIMEOUT_MS
+  const agentController = new AbortController();
+  const agentTimer = setTimeout(() => agentController.abort(), AGENT_TIMEOUT_MS);
+  let shortlistResult;
+  try {
+    shortlistResult = await agentApp.invoke(
+      { messages: [new HumanMessage(buildAgentUserPrompt(runtime))] },
+      { recursionLimit: 10, signal: agentController.signal }
+    );
+  } finally {
+    clearTimeout(agentTimer);
+  }
 
   const shortlist = extractAgentShortlist(shortlistResult.messages);
 
   // Use manual JSON extraction instead of .withStructuredOutput() for
   // compatibility with models that don't support JSON schema response_format.
   const finalizer = createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.1 });
-  const finalizerResult = await finalizer.invoke([
-    new HumanMessage({
-      content: buildFinalizerPrompt(runtime, shortlist) + '\n\nIMPORTANT: Return ONLY a raw JSON object — no markdown fences, no commentary.',
-    }),
-  ]);
+
+  const finalizerController = new AbortController();
+  const finalizerTimer = setTimeout(() => finalizerController.abort(), AGENT_TIMEOUT_MS);
+  let finalizerResult;
+  try {
+    finalizerResult = await finalizer.invoke(
+      [new HumanMessage({
+        content: buildFinalizerPrompt(runtime, shortlist) + '\n\nIMPORTANT: Return ONLY a raw JSON object — no markdown fences, no commentary.',
+      })],
+      { signal: finalizerController.signal }
+    );
+  } finally {
+    clearTimeout(finalizerTimer);
+  }
   const finalizerText = formatMessageContent(finalizerResult.content);
   const finalized = finalizedOptionsSchema.parse(JSON.parse(extractJson(finalizerText)));
   return validateAndHydrateOptions(finalized, runtime);

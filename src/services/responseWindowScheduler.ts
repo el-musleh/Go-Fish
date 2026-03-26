@@ -4,6 +4,7 @@ import { getResponsesByEventId } from '../repositories/responseRepository';
 import { getTasteBenchmarkByUserId } from '../repositories/tasteBenchmarkRepository';
 import { createActivityOption } from '../repositories/activityOptionRepository';
 import { getEventById, updateEventStatus } from '../repositories/eventRepository';
+import { getUserById } from '../repositories/userRepository';
 import { generateActivityOptions, GeneratedOption, ParticipantAvailability } from './decisionAgent';
 import { sendNotificationEmails } from './emailService';
 import { getActivityOptionsByEventId, markActivityOptionSelected } from '../repositories/activityOptionRepository';
@@ -97,6 +98,18 @@ export async function triggerGeneration(
 
   // Fetch event for context (title/description)
   const event = await getEventById(pool, eventId);
+  if (!event) {
+    throw new Error(`Event ${eventId} not found for generation.`);
+  }
+
+  // Use user's custom API key if available and no override apiKey provided in deps
+  let effectiveApiKey = apiKey;
+  if (!effectiveApiKey) {
+    const inviter = await getUserById(pool, event.inviter_id);
+    if (inviter?.ai_api_key) {
+      effectiveApiKey = inviter.ai_api_key;
+    }
+  }
 
   // Transition to generating
   await updateEventStatus(pool, eventId, 'generating');
@@ -169,7 +182,7 @@ export async function triggerGeneration(
     const options = await generateActivityOptions(
       benchmarks,
       participantAvailability,
-      apiKey,
+      effectiveApiKey,
       eventContext,
       realWorldContext
     );

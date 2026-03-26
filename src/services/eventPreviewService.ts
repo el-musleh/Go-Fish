@@ -64,14 +64,14 @@ export async function generateEventSuggestions(event: {
   title: string;
   description: string;
   location_city: string | null;
-}): Promise<EventSuggestions> {
-  const cacheKey = `${event.title}|${event.description}|${event.location_city ?? ''}`;
+}, apiKey?: string): Promise<EventSuggestions> {
+  const cacheKey = `${event.title}|${event.description}|${event.location_city ?? ''}|${apiKey ?? 'default'}`;
   const cached = cache.get(cacheKey);
   if (cached && cached.expiry > Date.now()) return cached.data;
 
-  const apiKey = resolveOpenRouterApiKey();
+  const effectiveApiKey = resolveOpenRouterApiKey(apiKey);
   const prompt = buildPrompt(event);
-  const model = createChatOpenRouterModel({ apiKey, temperature: 0.4 });
+  const model = createChatOpenRouterModel({ apiKey: effectiveApiKey, temperature: 0.4 });
   const response = await model.invoke([
     {
       role: 'user',
