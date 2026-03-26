@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { Pool } from 'pg';
 import { getInvitationLinkByToken } from '../repositories/invitationLinkRepository';
 import { getEventById } from '../repositories/eventRepository';
@@ -15,7 +15,7 @@ export function createInviteRouter(pool: Pool): Router {
    * Resolve an invitation token to its event.
    * Unauthenticated users get a redirect hint to auth first.
    */
-  router.get('/:linkToken', async (req: Request, res: Response) => {
+  router.get('/:linkToken', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const invitationLink = await getInvitationLinkByToken(pool, req.params.linkToken);
 
@@ -53,8 +53,7 @@ export function createInviteRouter(pool: Pool): Router {
         status: event.status,
       });
     } catch (error) {
-      console.error('Error resolving invitation link:', error);
-      res.status(500).json({ error: 'internal_error', message: 'Failed to resolve invitation link.' });
+      next(error);
     }
   });
 

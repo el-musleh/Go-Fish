@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { Pool } from 'pg';
 import { createRequireAuth } from '../middleware/auth';
 import { tasteBenchmarkGate } from '../middleware/tasteBenchmarkGate';
@@ -22,7 +22,7 @@ export function createResponseRouter(pool: Pool): Router {
     '/',
     requireAuth,
     tasteBenchmarkGate(pool),
-    async (req: Request, res: Response) => {
+    async (req: Request, res: Response, next: NextFunction) => {
       try {
         const userId = (req as any).userId as string;
         const { eventId } = req.params;
@@ -97,8 +97,7 @@ export function createResponseRouter(pool: Pool): Router {
 
         res.status(201).json(response);
       } catch (error) {
-        console.error('Error submitting response:', error);
-        res.status(500).json({ error: 'internal_error', message: 'Failed to submit response.' });
+        next(error);
       }
     },
   );
@@ -107,7 +106,7 @@ export function createResponseRouter(pool: Pool): Router {
    * GET /api/events/:eventId/responses
    * Return all responses for an event (Inviter only).
    */
-  router.get('/', requireAuth, async (req: Request, res: Response) => {
+  router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req as any).userId as string;
       const { eventId } = req.params;
@@ -130,8 +129,7 @@ export function createResponseRouter(pool: Pool): Router {
       const responses = await getResponsesByEventId(pool, eventId);
       res.json(responses);
     } catch (error) {
-      console.error('Error fetching responses:', error);
-      res.status(500).json({ error: 'internal_error', message: 'Failed to fetch responses.' });
+      next(error);
     }
   });
 

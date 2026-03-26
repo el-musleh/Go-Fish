@@ -15,7 +15,15 @@ vi.mock('../repositories/userRepository', () => ({
 import { createTasteBenchmark, getTasteBenchmarkByUserId } from '../repositories/tasteBenchmarkRepository';
 import { updateUser } from '../repositories/userRepository';
 
-const mockPool = {} as any;
+const mockClient = {
+  query: vi.fn(),
+  release: vi.fn(),
+};
+
+const mockPool = {
+  connect: vi.fn().mockResolvedValue(mockClient),
+  query: vi.fn(),
+} as any;
 
 function buildApp() {
   const app = express();
@@ -48,7 +56,7 @@ describe('POST /api/taste-benchmark', () => {
     const app = buildApp();
     const res = await request(app)
       .post('/api/taste-benchmark')
-      .set('x-user-id', 'user-1')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001')
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('incomplete_benchmark');
@@ -63,7 +71,7 @@ describe('POST /api/taste-benchmark', () => {
 
     const res = await request(app)
       .post('/api/taste-benchmark')
-      .set('x-user-id', 'user-1')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001')
       .send({ answers });
 
     expect(res.status).toBe(400);
@@ -79,7 +87,7 @@ describe('POST /api/taste-benchmark', () => {
 
     const res = await request(app)
       .post('/api/taste-benchmark')
-      .set('x-user-id', 'user-1')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001')
       .send({ answers });
 
     expect(res.status).toBe(400);
@@ -88,20 +96,24 @@ describe('POST /api/taste-benchmark', () => {
 
   it('returns 201 and stores benchmark when all 10 questions are answered', async () => {
     const answers = makeFullAnswers();
-    const mockBenchmark = { id: 'bm-1', user_id: 'user-1', answers, created_at: new Date() };
-    (createTasteBenchmark as any).mockResolvedValue(mockBenchmark);
-    (updateUser as any).mockResolvedValue({ id: 'user-1', has_taste_benchmark: true });
+    const mockBenchmark = { id: 'bm-1', user_id: '00000000-0000-0000-0000-000000000001', answers, created_at: new Date() };
+    
+    mockClient.query.mockResolvedValueOnce({ rows: [] }); // BEGIN
+    mockClient.query.mockResolvedValueOnce({ rows: [mockBenchmark] }); // INSERT
+    mockClient.query.mockResolvedValueOnce({ rows: [] }); // UPDATE
+    mockClient.query.mockResolvedValueOnce({ rows: [] }); // COMMIT
 
     const app = buildApp();
     const res = await request(app)
       .post('/api/taste-benchmark')
-      .set('x-user-id', 'user-1')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001')
       .send({ answers });
 
     expect(res.status).toBe(201);
     expect(res.body.id).toBe('bm-1');
-    expect(createTasteBenchmark).toHaveBeenCalledWith(mockPool, { user_id: 'user-1', answers });
-    expect(updateUser).toHaveBeenCalledWith(mockPool, 'user-1', { has_taste_benchmark: true });
+    expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+    expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
+    expect(mockClient.release).toHaveBeenCalled();
   });
 });
 
@@ -121,23 +133,23 @@ describe('GET /api/taste-benchmark', () => {
     const app = buildApp();
     const res = await request(app)
       .get('/api/taste-benchmark')
-      .set('x-user-id', 'user-1');
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001');
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('not_found');
   });
 
   it('returns the benchmark when it exists', async () => {
-    const mockBenchmark = { id: 'bm-1', user_id: 'user-1', answers: { q1: ['a'] }, created_at: new Date() };
+    const mockBenchmark = { id: 'bm-1', user_id: '00000000-0000-0000-0000-000000000001', answers: { q1: ['a'] }, created_at: new Date() };
     (getTasteBenchmarkByUserId as any).mockResolvedValue(mockBenchmark);
 
     const app = buildApp();
     const res = await request(app)
       .get('/api/taste-benchmark')
-      .set('x-user-id', 'user-1');
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001');
 
     expect(res.status).toBe(200);
     expect(res.body.id).toBe('bm-1');
-    expect(getTasteBenchmarkByUserId).toHaveBeenCalledWith(mockPool, 'user-1');
+    expect(getTasteBenchmarkByUserId).toHaveBeenCalledWith(mockPool, '00000000-0000-0000-0000-000000000001');
   });
 });

@@ -1,15 +1,15 @@
 import crypto from 'crypto';
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { Pool } from 'pg';
 import { createRequireAuth } from '../middleware/auth';
 import { createEvent, deleteEvent, getEventById, getEventsByInviterId, getEventsByIds } from '../repositories/eventRepository';
 import { createInvitationLink, getInvitationLinkByEventId } from '../repositories/invitationLinkRepository';
 import { triggerGeneration, scheduleResponseWindow } from '../services/responseWindowScheduler';
 import { sendNotificationEmails } from '../services/emailService';
-import { getActivityOptionsByEventId, getActivityOptionById, markActivityOptionSelected } from '../repositories/activityOptionRepository';
-import { updateEventStatus, saveEventSuggestions, closeResponseWindow, archiveEvent } from '../repositories/eventRepository';
-import { getResponsesByEventId, getEventIdsRespondedByUser } from '../repositories/responseRepository';
-import { getUserById } from '../repositories/userRepository';
+import { getActivityOptionsByEventId, getActivityOptionById, selectActivityOptionTx, getActivityOptionsForEvents } from '../repositories/activityOptionRepository';
+import { updateEventStatus, saveEventSuggestions, closeResponseWindow, archiveEvent, transitionEventStatus, archiveExpiredEvents } from '../repositories/eventRepository';
+import { getResponsesByEventId, getEventIdsRespondedByUser, getResponsesForEvents } from '../repositories/responseRepository';
+import { getUserById, getUsersByIds } from '../repositories/userRepository';
 import { generateEventSuggestions } from '../services/eventPreviewService';
 
 // Simple geocoding: try Google Geocoding API, fall back to known cities
@@ -56,12 +56,13 @@ async function geocodeCity(city: string): Promise<{ lat: number; lng: number } |
   return null;
 }
 
-async function generateAndSave(pool: Pool, event: { id: string; title: string; description: string; location_city: string | null }) {
+async function generateAndSave(pool: Pool, event: { id: string; inviter_id: string; title: string; description: string; location_city: string | null }) {
+  const inviter = await getUserById(pool, event.inviter_id);
   const suggestions = await generateEventSuggestions({
     title: event.title,
     description: event.description,
     location_city: event.location_city,
-  });
+  }, inviter?.ai_api_key ?? undefined);
   await saveEventSuggestions(pool, event.id, suggestions);
   return suggestions;
 }
@@ -70,19 +71,22 @@ async function autoArchivePastEvents(pool: Pool, events: any[]) {
   const now = new Date();
   now.setHours(0, 0, 0, 0);
 
+  const toArchive: string[] = [];
   for (const event of events) {
     if (event.archived) continue;
-
     const eventDateStr = event.selected_activity?.suggested_date ?? event.preferred_date;
     if (!eventDateStr) continue;
-
     const eventDate = new Date(eventDateStr);
     eventDate.setHours(0, 0, 0, 0);
-
     if (eventDate < now) {
-      await archiveEvent(pool, event.id);
+      toArchive.push(event.id);
       event.archived = true;
     }
+  }
+
+  // Single batch UPDATE instead of N individual queries
+  if (toArchive.length > 0) {
+    await archiveExpiredEvents(pool, toArchive);
   }
 }
 
@@ -109,7 +113,7 @@ export function createEventRouter(pool: Pool): Router {
    * POST /api/events
    * Create a new event with title and description.
    */
-  router.post('/', async (req: Request, res: Response) => {
+  router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req as any).userId as string;
       const { 
@@ -164,8 +168,7 @@ export function createEventRouter(pool: Pool): Router {
       // Schedule auto-generation when the response window expires.
       scheduleResponseWindow(event, { pool });
     } catch (error) {
-      console.error('Error creating event:', error);
-      res.status(500).json({ error: 'internal_error', message: 'Failed to create event.' });
+      next(error);
     }
   });
 
@@ -183,32 +186,34 @@ export function createEventRouter(pool: Pool): Router {
       const filteredJoinedIds = joinedIds.filter((id) => !created.some((e) => e.id === id));
       const joined = filteredJoinedIds.length > 0 ? await getEventsByIds(pool, filteredJoinedIds) : [];
 
-      const createdWithCounts = await Promise.all(
-        created.map(async (event) => {
-          const responses = await getResponsesByEventId(pool, event.id);
-          let selected_activity = null;
-          if (event.status === 'finalized') {
-            const opts = await getActivityOptionsByEventId(pool, event.id);
-            const sel = opts.find((o) => o.is_selected);
-            if (sel) selected_activity = { title: sel.title, suggested_date: sel.suggested_date, suggested_time: sel.suggested_time };
-          }
-          const inviter = await getUserById(pool, event.inviter_id);
-          return { ...event, respondent_count: responses.length, selected_activity, inviter_email: inviter?.email };
-        })
-      );
+      const allEvents = [...created, ...joined];
+      const allEventIds = allEvents.map((e) => e.id);
 
-      const joinedWithActivity = await Promise.all(
-        joined.map(async (event) => {
-          let selected_activity = null;
-          if (event.status === 'finalized') {
-            const opts = await getActivityOptionsByEventId(pool, event.id);
-            const sel = opts.find((o) => o.is_selected);
-            if (sel) selected_activity = { title: sel.title, suggested_date: sel.suggested_date, suggested_time: sel.suggested_time };
-          }
-          const inviter = await getUserById(pool, event.inviter_id);
-          return { ...event, selected_activity, inviter_email: inviter?.email };
-        })
-      );
+      // Three batch queries instead of N×3 per-event queries
+      const [responsesMap, optionsMap, inviterMap] = await Promise.all([
+        getResponsesForEvents(pool, allEventIds),
+        getActivityOptionsForEvents(pool, allEventIds),
+        getUsersByIds(pool, [...new Set(allEvents.map((e) => e.inviter_id))]),
+      ]);
+
+      function buildSelectedActivity(eventId: string) {
+        const opts = optionsMap.get(eventId) ?? [];
+        const sel = opts.find((o) => o.is_selected);
+        return sel ? { title: sel.title, suggested_date: sel.suggested_date, suggested_time: sel.suggested_time } : null;
+      }
+
+      const createdWithCounts = created.map((event) => ({
+        ...event,
+        respondent_count: (responsesMap.get(event.id) ?? []).length,
+        selected_activity: event.status === 'finalized' ? buildSelectedActivity(event.id) : null,
+        inviter_email: inviterMap.get(event.inviter_id)?.email,
+      }));
+
+      const joinedWithActivity = joined.map((event) => ({
+        ...event,
+        selected_activity: event.status === 'finalized' ? buildSelectedActivity(event.id) : null,
+        inviter_email: inviterMap.get(event.inviter_id)?.email,
+      }));
 
       await autoArchivePastEvents(pool, createdWithCounts);
       await autoArchivePastEvents(pool, joinedWithActivity);
@@ -224,7 +229,7 @@ export function createEventRouter(pool: Pool): Router {
    * GET /api/events/:eventId
    * Return event details.
    */
-  router.get('/:eventId', async (req: Request, res: Response) => {
+  router.get('/:eventId', async (req: Request, res: Response, next: NextFunction) => {
     try {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
       const event = await getEventById(pool, req.params.eventId);
@@ -237,9 +242,9 @@ export function createEventRouter(pool: Pool): Router {
       const inviter = await getUserById(pool, event.inviter_id);
       res.json({ ...event, inviter_email: inviter?.email });
     } catch (error) {
-      console.error('Error fetching event:', error);
-      res.status(500).json({ error: 'internal_error', message: 'Failed to fetch event.' });
+      next(error);
     }
+
   });
 
   /**
@@ -361,8 +366,13 @@ export function createEventRouter(pool: Pool): Router {
         return;
       }
 
-      if (event.status !== 'collecting') {
-        res.status(409).json({ error: 'invalid_status', message: `Cannot generate from status '${event.status}'.` });
+      // Atomic status transition: only one concurrent request can win
+      const transitioning = await transitionEventStatus(pool, event.id, 'collecting', 'generating');
+      if (!transitioning) {
+        // Either already transitioned by a concurrent request or status was not 'collecting'
+        const current = await getEventById(pool, event.id);
+        const currentStatus = current?.status ?? event.status;
+        res.status(409).json({ error: 'invalid_status', message: `Cannot generate from status '${currentStatus}'.` });
         return;
       }
 
@@ -432,22 +442,37 @@ export function createEventRouter(pool: Pool): Router {
         return;
       }
 
-      const option = await getActivityOptionById(pool, activityOptionId);
-
-      if (!option || option.event_id !== event.id) {
-        res.status(404).json({ error: 'not_found', message: 'Activity option not found for this event.' });
-        return;
+      // Atomically mark the option selected and finalize the event in one transaction
+      const client = await pool.connect();
+      let updatedEvent;
+      let selectedOption;
+      try {
+        await client.query('BEGIN');
+        selectedOption = await selectActivityOptionTx(client, event.id, activityOptionId);
+        if (!selectedOption) {
+          await client.query('ROLLBACK');
+          res.status(404).json({ error: 'not_found', message: 'Activity option not found for this event.' });
+          return;
+        }
+        const { rows } = await client.query(
+          `UPDATE event SET status = 'finalized' WHERE id = $1 RETURNING *`,
+          [event.id]
+        );
+        updatedEvent = rows[0];
+        await client.query('COMMIT');
+      } catch (err) {
+        await client.query('ROLLBACK');
+        throw err;
+      } finally {
+        client.release();
       }
-
-      await markActivityOptionSelected(pool, activityOptionId);
-      const updatedEvent = await updateEventStatus(pool, event.id, 'finalized');
 
       // Send notification emails to all participants
       sendNotificationEmails(pool, event.id).catch((err) =>
         console.error('Failed to send notification emails:', err)
       );
 
-      res.json({ event: updatedEvent, selectedOption: { ...option, is_selected: true } });
+      res.json({ event: updatedEvent, selectedOption });
     } catch (error) {
       console.error('Error selecting activity option:', error);
       res.status(500).json({ error: 'internal_error', message: 'Failed to select activity option.' });
@@ -458,7 +483,7 @@ export function createEventRouter(pool: Pool): Router {
    * DELETE /api/events/:eventId
    * Delete an event (Inviter only). Cascade removes related records.
    */
-  router.delete('/:eventId', async (req: Request, res: Response) => {
+  router.delete('/:eventId', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req as any).userId as string;
       const event = await getEventById(pool, req.params.eventId);
@@ -476,9 +501,9 @@ export function createEventRouter(pool: Pool): Router {
       await deleteEvent(pool, event.id);
       res.json({ deleted: true });
     } catch (error) {
-      console.error('Error deleting event:', error);
-      res.status(500).json({ error: 'internal_error', message: 'Failed to delete event.' });
+      next(error);
     }
+
   });
 
   /**

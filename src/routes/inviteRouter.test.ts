@@ -55,7 +55,7 @@ describe('GET /api/invite/:linkToken', () => {
 
     expect(res.status).toBe(401);
     expect(res.body.error).toBe('auth_required');
-    expect(res.body.redirect).toContain('/api/auth/login');
+    expect(res.body.redirect).toContain('/?auth=1');
     expect(res.body.redirect).toContain('returnTo');
     expect(res.body.eventId).toBe('evt-1');
   });
@@ -98,7 +98,7 @@ describe('GET /api/invite/:linkToken', () => {
     const app = buildApp();
     const res = await request(app)
       .get('/api/invite/orphan-token')
-      .set('x-user-id', 'user-1');
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001');
 
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('not_found');

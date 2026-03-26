@@ -71,7 +71,7 @@ describe('POST /api/events/:eventId/responses', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: user has completed taste benchmark
-    (getUserById as any).mockResolvedValue({ id: 'user-1', has_taste_benchmark: true });
+    (getUserById as any).mockResolvedValue({ id: '00000000-0000-0000-0000-000000000001', has_taste_benchmark: true });
   });
 
   it('returns 401 when no x-user-id header is provided', async () => {
@@ -83,11 +83,11 @@ describe('POST /api/events/:eventId/responses', () => {
   });
 
   it('returns 403 when user has not completed taste benchmark', async () => {
-    (getUserById as any).mockResolvedValue({ id: 'user-1', has_taste_benchmark: false });
+    (getUserById as any).mockResolvedValue({ id: '00000000-0000-0000-0000-000000000001', has_taste_benchmark: false });
     const app = buildApp();
     const res = await request(app)
       .post('/api/events/evt-1/responses')
-      .set('x-user-id', 'user-1')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001')
       .send({ available_dates: sampleAvailability });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('benchmark_required');
@@ -97,7 +97,7 @@ describe('POST /api/events/:eventId/responses', () => {
     const app = buildApp();
     const res = await request(app)
       .post('/api/events/evt-1/responses')
-      .set('x-user-id', 'user-1')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001')
       .send({});
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_dates');
@@ -107,7 +107,7 @@ describe('POST /api/events/:eventId/responses', () => {
     const app = buildApp();
     const res = await request(app)
       .post('/api/events/evt-1/responses')
-      .set('x-user-id', 'user-1')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001')
       .send({ available_dates: [] });
     expect(res.status).toBe(400);
     expect(res.body.error).toBe('invalid_dates');
@@ -118,7 +118,7 @@ describe('POST /api/events/:eventId/responses', () => {
     const app = buildApp();
     const res = await request(app)
       .post('/api/events/nonexistent/responses')
-      .set('x-user-id', 'user-1')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001')
       .send({ available_dates: sampleAvailability });
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('not_found');
@@ -129,7 +129,7 @@ describe('POST /api/events/:eventId/responses', () => {
     const app = buildApp();
     const res = await request(app)
       .post('/api/events/evt-1/responses')
-      .set('x-user-id', 'user-1')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001')
       .send({ available_dates: sampleAvailability });
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('window_closed');
@@ -140,13 +140,13 @@ describe('POST /api/events/:eventId/responses', () => {
     (getResponseByEventAndInvitee as any).mockResolvedValue({
       id: 'resp-1',
       event_id: 'evt-1',
-      invitee_id: 'user-1',
+      invitee_id: '00000000-0000-0000-0000-000000000001',
       available_dates: sampleAvailability,
     });
     const app = buildApp();
     const res = await request(app)
       .post('/api/events/evt-1/responses')
-      .set('x-user-id', 'user-1')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001')
       .send({ available_dates: alternateAvailability });
     expect(res.status).toBe(409);
     expect(res.body.error).toBe('duplicate_response');
@@ -159,7 +159,7 @@ describe('POST /api/events/:eventId/responses', () => {
     const mockResponse = {
       id: 'resp-1',
       event_id: 'evt-1',
-      invitee_id: 'user-1',
+      invitee_id: '00000000-0000-0000-0000-000000000001',
       available_dates: multiDayAvailability,
       created_at: new Date(),
     };
@@ -168,7 +168,7 @@ describe('POST /api/events/:eventId/responses', () => {
     const app = buildApp();
     const res = await request(app)
       .post('/api/events/evt-1/responses')
-      .set('x-user-id', 'user-1')
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001')
       .send({ available_dates: multiDayAvailability });
 
     expect(res.status).toBe(201);
@@ -176,7 +176,7 @@ describe('POST /api/events/:eventId/responses', () => {
     expect(res.body.available_dates).toEqual(multiDayAvailability);
     expect(createResponse).toHaveBeenCalledWith(mockPool, {
       event_id: 'evt-1',
-      invitee_id: 'user-1',
+      invitee_id: '00000000-0000-0000-0000-000000000001',
       available_dates: multiDayAvailability,
     });
   });
@@ -198,7 +198,7 @@ describe('GET /api/events/:eventId/responses', () => {
     const app = buildApp();
     const res = await request(app)
       .get('/api/events/evt-1/responses')
-      .set('x-user-id', 'user-1');
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001');
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('not_found');
   });
@@ -208,13 +208,13 @@ describe('GET /api/events/:eventId/responses', () => {
     const app = buildApp();
     const res = await request(app)
       .get('/api/events/evt-1/responses')
-      .set('x-user-id', 'user-1');
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001');
     expect(res.status).toBe(403);
     expect(res.body.error).toBe('forbidden');
   });
 
   it('returns responses when user is the inviter', async () => {
-    (getEventById as any).mockResolvedValue(openEvent({ inviter_id: 'user-1' }));
+    (getEventById as any).mockResolvedValue(openEvent({ inviter_id: '00000000-0000-0000-0000-000000000001' }));
     const mockResponses = [
       { id: 'r1', event_id: 'evt-1', invitee_id: 'inv-1', available_dates: sampleAvailability },
       { id: 'r2', event_id: 'evt-1', invitee_id: 'inv-2', available_dates: alternateAvailability },
@@ -224,7 +224,7 @@ describe('GET /api/events/:eventId/responses', () => {
     const app = buildApp();
     const res = await request(app)
       .get('/api/events/evt-1/responses')
-      .set('x-user-id', 'user-1');
+      .set('x-user-id', '00000000-0000-0000-0000-000000000001');
 
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(2);
