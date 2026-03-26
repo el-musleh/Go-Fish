@@ -5,7 +5,15 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { toast } from '../components/Toaster';
 import ValidatedInput from '../components/ValidatedInput';
+import StepIndicator from '../components/StepIndicator';
 import { Loader2 } from 'lucide-react';
+
+const STEPS = [
+  { label: 'Create' },
+  { label: 'Invite' },
+  { label: 'Pick' },
+  { label: 'Confirm' }
+];
 
 // Define the validation schema using zod
 const eventSchema = z.object({
@@ -39,39 +47,43 @@ export default function EventCreationForm() {
   };
 
   return (
-    <div className="gf-card">
-      <form onSubmit={handleSubmit(onSubmit)} className="gf-form" noValidate>
-        <h2 className="gf-card-title">Create a New Event</h2>
-        <p className="gf-muted">
-          Start by giving your event a name. You'll be able to add more details and invite friends
-          in the next step.
-        </p>
+    <div className="gf-stack gf-stack--xl">
+      <StepIndicator steps={STEPS} currentStep={0} />
+      
+      <div className="gf-card">
+        <form onSubmit={handleSubmit(onSubmit)} className="gf-form" noValidate>
+          <h2 className="gf-card-title">Create a New Event</h2>
+          <p className="gf-muted">
+            Start by giving your event a name. You'll be able to add more details and invite friends
+            in the next step.
+          </p>
 
-        <ValidatedInput
-          label="Title"
-          registration={register('title')}
-          error={errors.title}
-          placeholder="e.g., Team Lunch, Weekend Hike"
-          autoFocus
-        />
+          <ValidatedInput
+            label="Title"
+            registration={register('title')}
+            error={errors.title}
+            placeholder="e.g., Team Lunch, Weekend Hike"
+            autoFocus
+          />
 
-        <ValidatedInput
-          label="Description (Optional)"
-          registration={register('description')}
-          error={errors.description}
-          placeholder="A brief description of the event"
-        />
+          <ValidatedInput
+            label="Description (Optional)"
+            registration={register('description')}
+            error={errors.description}
+            placeholder="A brief description of the event"
+          />
 
-        <div className="gf-actions">
-          <button type="submit" className="gf-button gf-button--primary" disabled={isSubmitting}>
-            {isSubmitting ? (
-              <Loader2 size={20} className="animate-spin" />
-            ) : (
-              'Create Event & Continue'
-            )}
-          </button>
-        </div>
-      </form>
+          <div className="gf-actions">
+            <button type="submit" className="gf-button gf-button--primary" disabled={isSubmitting}>
+              {isSubmitting ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                'Create Event & Continue'
+              )}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

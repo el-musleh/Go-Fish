@@ -235,6 +235,23 @@ export default function TasteBenchmarkForm() {
 
   return (
     <div className="gf-stack gf-stack--xl">
+      <div className="gf-benchmark-progress-container">
+        <div className="gf-benchmark-progress-header">
+          <span>Question {progress} of {questions.length}</span>
+          <span className="gf-benchmark-progress-pct">{Math.round(pct)}%</span>
+        </div>
+        <div
+          className="gf-benchmark-progress"
+          role="progressbar"
+          aria-label="Questions answered"
+          aria-valuenow={progress}
+          aria-valuemin={0}
+          aria-valuemax={questions.length}
+        >
+          <div className="gf-benchmark-progress__fill" style={{ width: `${pct}%` }} />
+        </div>
+      </div>
+
       <div>
         <h1 className="gf-section-title">{isUpdate ? 'Update Preferences' : 'Taste Benchmark'}</h1>
         <p className="gf-muted">
@@ -242,17 +259,6 @@ export default function TasteBenchmarkForm() {
             ? 'Update your preferences to help us find better activities for your group.'
             : "Tell us what you're into so we can find the perfect activity for your group."}
         </p>
-      </div>
-
-      <div
-        className="gf-benchmark-progress"
-        role="progressbar"
-        aria-label="Questions answered"
-        aria-valuenow={progress}
-        aria-valuemin={0}
-        aria-valuemax={questions.length}
-      >
-        <div className="gf-benchmark-progress__fill" style={{ width: `${pct}%` }} />
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="gf-stack gf-stack--xl" noValidate>
