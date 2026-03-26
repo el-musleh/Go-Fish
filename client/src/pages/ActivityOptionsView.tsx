@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { api } from '../api/client';
 import OptionGenerationState from '../components/OptionGenerationState';
 
@@ -23,11 +24,19 @@ interface EventData {
   status: string;
 }
 
-const RANK_CLASS: Record<number, string> = { 1: 'gf-option-card--rank-1', 2: 'gf-option-card--rank-2', 3: 'gf-option-card--rank-3' };
+const RANK_CLASS: Record<number, string> = {
+  1: 'gf-option-card--rank-1',
+  2: 'gf-option-card--rank-2',
+  3: 'gf-option-card--rank-3',
+};
 
 function prettyDate(d: string) {
   const dateStr = d.includes('T') ? d.split('T')[0] : d;
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
 }
 
 export default function ActivityOptionsView() {
@@ -110,14 +119,22 @@ export default function ActivityOptionsView() {
     try {
       await api.post(`/events/${eventId}/select`, { activityOptionId: optionId });
       navigate(`/events/${eventId}/confirmation`);
-    } catch { setError('Failed to select. Try again.'); }
-    finally { setSelecting(null); isSelectingRef.current = false; }
+    } catch {
+      setError('Failed to select. Try again.');
+    } finally {
+      setSelecting(null);
+      isSelectingRef.current = false;
+    }
   }
 
   if (loading) return <p className="gf-muted">Loading…</p>;
 
   return (
     <div className="gf-stack gf-stack--xl">
+      <button type="button" className="gf-back-btn" onClick={() => navigate(-1)}>
+        <ArrowLeft size={18} />
+        Back
+      </button>
       <div>
         <h1 className="gf-section-title">Pick Your Activity</h1>
         <p className="gf-muted">AI analyzed everyone's preferences. Here are the top picks.</p>
@@ -130,31 +147,76 @@ export default function ActivityOptionsView() {
           {options.map((opt) => (
             <div key={opt.id} className={`gf-card gf-option-card ${RANK_CLASS[opt.rank] ?? ''}`}>
               {opt.image_url && (
-                <img src={opt.image_url} alt={opt.title} style={{ width: '100%', height: 160, objectFit: 'cover', borderRadius: 8, marginBottom: 8 }} />
+                <img
+                  src={opt.image_url}
+                  alt={opt.title}
+                  style={{
+                    width: '100%',
+                    height: 160,
+                    objectFit: 'cover',
+                    borderRadius: 8,
+                    marginBottom: 8,
+                  }}
+                />
               )}
               {opt.rank === 1 && <span className="gf-top-pick">Top Pick</span>}
               <h3 className="gf-card-title">{opt.title}</h3>
-              {opt.venue_name && <p className="gf-muted" style={{ marginTop: -6, fontSize: '0.9rem' }}>{opt.venue_name}</p>}
+              {opt.venue_name && (
+                <p className="gf-muted" style={{ marginTop: -6, fontSize: '0.9rem' }}>
+                  {opt.venue_name}
+                </p>
+              )}
               <p className="gf-muted">{opt.description}</p>
               <p className="gf-muted">
-                {prettyDate(opt.suggested_date)}{opt.suggested_time ? ` at ${opt.suggested_time}` : ''}
+                {prettyDate(opt.suggested_date)}
+                {opt.suggested_time ? ` at ${opt.suggested_time}` : ''}
               </p>
               {opt.price_range && (
-                <span style={{ display: 'inline-block', alignSelf: 'flex-start', padding: '3px 10px', borderRadius: '999px', border: '1px solid var(--line-strong)', fontSize: '0.8rem', color: 'var(--accent)', background: 'rgba(255,157,73,0.08)' }}>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    alignSelf: 'flex-start',
+                    padding: '3px 10px',
+                    borderRadius: '999px',
+                    border: '1px solid var(--line-strong)',
+                    fontSize: '0.8rem',
+                    color: 'var(--accent)',
+                    background: 'rgba(255,157,73,0.08)',
+                  }}
+                >
                   {opt.price_range}
                 </span>
               )}
               {opt.weather_note && (
-                <p className="gf-muted" style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span>&#x26C5;</span>{opt.weather_note}
+                <p
+                  className="gf-muted"
+                  style={{ fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <span>&#x26C5;</span>
+                  {opt.weather_note}
                 </p>
               )}
               {opt.source_url && (
-                <a href={opt.source_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.85rem', color: 'var(--accent)', textDecoration: 'underline', textUnderlineOffset: 3 }}>
+                <a
+                  href={opt.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    fontSize: '0.85rem',
+                    color: 'var(--accent)',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                  }}
+                >
                   More info
                 </a>
               )}
-              <button type="button" onClick={() => handleSelect(opt.id)} disabled={selecting !== null} className="gf-button gf-button--primary">
+              <button
+                type="button"
+                onClick={() => handleSelect(opt.id)}
+                disabled={selecting !== null}
+                className="gf-button gf-button--primary"
+              >
                 {selecting === opt.id ? 'Selecting…' : 'Choose This'}
               </button>
             </div>

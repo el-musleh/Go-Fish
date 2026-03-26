@@ -7,7 +7,7 @@ import { api, ApiError, getCurrentUserId } from '../api/client';
 import { toast } from '../components/Toaster';
 import LoadingSpinner from '../components/LoadingSpinner';
 import StepIndicator from '../components/StepIndicator';
-import { Loader2, Calendar as CalendarIcon, Info, Clock } from 'lucide-react';
+import { Loader2, Calendar as CalendarIcon, Info, Clock, ArrowLeft } from 'lucide-react';
 
 interface EventData {
   id: string;
@@ -213,6 +213,10 @@ export default function EventResponseForm() {
 
   return (
     <div className="gf-stack gf-stack--xl">
+      <button type="button" className="gf-back-btn" onClick={() => navigate(-1)}>
+        <ArrowLeft size={18} />
+        Back
+      </button>
       {isInviter && <StepIndicator steps={STEPS} currentStep={1} />}
 
       <form className="gf-stack gf-stack--xl" onSubmit={handleSubmit(onSubmit)} noValidate>

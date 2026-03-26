@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { api } from '../api/client';
 import { toast } from '../components/Toaster';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 
 interface Question {
   id: string;
@@ -235,9 +235,15 @@ export default function TasteBenchmarkForm() {
 
   return (
     <div className="gf-stack gf-stack--xl">
+      <button type="button" className="gf-back-btn" onClick={() => navigate(-1)}>
+        <ArrowLeft size={18} />
+        Back
+      </button>
       <div className="gf-benchmark-progress-container">
         <div className="gf-benchmark-progress-header">
-          <span>Question {progress} of {questions.length}</span>
+          <span>
+            Question {progress} of {questions.length}
+          </span>
           <span className="gf-benchmark-progress-pct">{Math.round(pct)}%</span>
         </div>
         <div

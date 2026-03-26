@@ -2,18 +2,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import { api } from '../api/client';
 import { toast } from '../components/Toaster';
 import ValidatedInput from '../components/ValidatedInput';
 import StepIndicator from '../components/StepIndicator';
-import { Loader2 } from 'lucide-react';
 
-const STEPS = [
-  { label: 'Create' },
-  { label: 'Invite' },
-  { label: 'Pick' },
-  { label: 'Confirm' }
-];
+const STEPS = [{ label: 'Create' }, { label: 'Invite' }, { label: 'Pick' }, { label: 'Confirm' }];
 
 // Define the validation schema using zod
 const eventSchema = z.object({
@@ -48,8 +43,12 @@ export default function EventCreationForm() {
 
   return (
     <div className="gf-stack gf-stack--xl">
+      <button type="button" className="gf-back-btn" onClick={() => navigate(-1)}>
+        <ArrowLeft size={18} />
+        Back
+      </button>
       <StepIndicator steps={STEPS} currentStep={0} />
-      
+
       <div className="gf-card">
         <form onSubmit={handleSubmit(onSubmit)} className="gf-form" noValidate>
           <h2 className="gf-card-title">Create a New Event</h2>
