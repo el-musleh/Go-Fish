@@ -659,7 +659,7 @@ function NotificationsSection({
   const [saving, setSaving] = useState(false);
 
   const handleToggle = (key: keyof typeof local) => {
-    setLocal((prev) => ({ ...prev, [key]: !prev[key] }));
+    setLocal((prev: typeof local) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleSave = async () => {
@@ -729,7 +729,7 @@ function AccessibilitySection({
   const [saving, setSaving] = useState(false);
 
   const handleOptionChange = (key: keyof typeof local, value: string | boolean) => {
-    setLocal((prev) => ({ ...prev, [key]: value }));
+    setLocal((prev: typeof local) => ({ ...prev, [key]: value }));
   };
 
   const handleSave = async () => {
@@ -817,7 +817,7 @@ function RegionalSection({
   const [saving, setSaving] = useState(false);
 
   const handleOptionChange = (key: keyof typeof local, value: string) => {
-    setLocal((prev) => ({ ...prev, [key]: value }));
+    setLocal((prev: typeof local) => ({ ...prev, [key]: value }));
   };
 
   const handleSave = async () => {
@@ -919,7 +919,7 @@ function PrivacySection({
   const [saving, setSaving] = useState(false);
 
   const handleToggle = (key: keyof typeof local) => {
-    setLocal((prev) => ({ ...prev, [key]: !prev[key] }));
+    setLocal((prev: typeof local) => ({ ...prev, [key]: !prev[key] }));
   };
 
   const handleSave = async () => {

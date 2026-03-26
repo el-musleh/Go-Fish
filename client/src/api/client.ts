@@ -148,3 +148,51 @@ export interface StorageInfo {
   responsesSubmitted: number;
   hasTasteBenchmark: boolean;
 }
+
+export interface UserPreferences {
+  notifications: {
+    invite_received: boolean;
+    event_reminder: boolean;
+    event_results: boolean;
+    weekly_digest: boolean;
+  };
+  accessibility: {
+    font_size: 'small' | 'medium' | 'large';
+    reduced_motion: boolean;
+    compact_mode: boolean;
+    high_contrast: boolean;
+    screen_reader: boolean;
+  };
+  regional: {
+    timezone: string;
+    date_format: string;
+  };
+  privacy: {
+    profile_visible: boolean;
+    show_activity: boolean;
+  };
+}
+
+export const defaultPreferences: UserPreferences = {
+  notifications: {
+    invite_received: true,
+    event_reminder: true,
+    event_results: true,
+    weekly_digest: false,
+  },
+  accessibility: {
+    font_size: 'medium',
+    reduced_motion: false,
+    compact_mode: false,
+    high_contrast: false,
+    screen_reader: false,
+  },
+  regional: {
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    date_format: 'MM/DD/YYYY',
+  },
+  privacy: {
+    profile_visible: true,
+    show_activity: true,
+  },
+};
