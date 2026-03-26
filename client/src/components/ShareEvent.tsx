@@ -11,9 +11,13 @@ interface ShareEventProps {
   inline?: boolean;
 }
 
-function generateShareText(tone: ShareTone, eventTitle: string, eventCity?: string): string {
+function generateShareText(
+  tone: ShareTone,
+  eventTitle: string,
+  eventCity: string | undefined,
+  inviteLink: string
+): string {
   const location = eventCity ? ` in ${eventCity}` : '';
-  const baseUrl = `${window.location.origin}/invite`;
 
   switch (tone) {
     case 'fun':
@@ -21,7 +25,7 @@ function generateShareText(tone: ShareTone, eventTitle: string, eventCity?: stri
 
 I just planned something awesome and I need YOU there! \uD83D\uDCAA
 
-RSVP here \u{1F517} ${baseUrl}
+RSVP here \u{1F517} ${inviteLink}
 
 Don't leave me hanging! \u{1F62D}`;
     case 'formal':
@@ -29,7 +33,7 @@ Don't leave me hanging! \u{1F62D}`;
 
 ${eventCity ? `Location: ${eventCity}\n` : ''}Please follow the link below to indicate your availability.
 
-RSVP: ${baseUrl}
+RSVP: ${inviteLink}
 
 Thank you for your response.`;
     case 'chill':
@@ -37,7 +41,7 @@ Thank you for your response.`;
 
 Figured I'd put something together \u{1F60E} Let me know if you're free!
 
-${baseUrl}`;
+${inviteLink}`;
   }
 }
 
@@ -154,7 +158,7 @@ export default function ShareEvent({
 
   async function handleNativeShare() {
     if (!inviteLink) return;
-    const text = generateShareText(tone, eventTitle, eventCity);
+    const text = generateShareText(tone, eventTitle, eventCity, inviteLink);
     if (navigator.share) {
       try {
         await navigator.share({
@@ -170,15 +174,16 @@ export default function ShareEvent({
 
   function handlePlatformShare(platform: (typeof SOCIAL_PLATFORMS)[0]) {
     if (!inviteLink) return;
-    const text = generateShareText(tone, eventTitle, eventCity);
+    const text = generateShareText(tone, eventTitle, eventCity, inviteLink);
     const url = platform.getUrl(text, inviteLink);
     window.open(url, '_blank', 'noopener,noreferrer,width=600,height=500');
   }
 
   async function handleCopyLink() {
     if (!inviteLink) return;
+    const text = generateShareText(tone, eventTitle, eventCity, inviteLink);
     try {
-      await navigator.clipboard.writeText(inviteLink);
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -186,7 +191,9 @@ export default function ShareEvent({
     }
   }
 
-  const shareText = generateShareText(tone, eventTitle, eventCity);
+  const shareText = inviteLink
+    ? generateShareText(tone, eventTitle, eventCity, inviteLink)
+    : 'Generating invite link...';
   const hasNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
 
   if (!inline && !isOpen) {
