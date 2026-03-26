@@ -9,7 +9,7 @@ import {
   useNavigate,
   useLocation,
 } from 'react-router-dom';
-import { LogIn, LogOut, Moon, Plus, Settings as SettingsIcon, Sun, LayoutGrid } from 'lucide-react';
+import { Plus, Settings as SettingsIcon, LayoutGrid } from 'lucide-react';
 import {
   api,
   clearCurrentUser,
@@ -35,7 +35,13 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import NotFound from './pages/NotFound';
 import PrototypePage from './pages/prototype/PrototypePage';
-import { applyTheme, persistTheme, resolveInitialTheme, type Theme } from './lib/theme';
+import {
+  applyTheme,
+  persistTheme,
+  resolveInitialTheme,
+  resolveEffectiveTheme,
+  type Theme,
+} from './lib/theme';
 import AuthDialog from './components/AuthDialog';
 import {
   getPostAuthDestination,
@@ -43,28 +49,24 @@ import {
   shouldBlockDuringAuthBootstrap,
 } from './lib/authSession';
 
-function AppShell({ 
+function AppShell({
   children,
   userId,
-  theme,
-  setTheme,
   authOpen,
   setAuthOpen,
   authReturnTo,
   authBootstrapping,
   isSignOutConfirmOpen,
-  setSignOutConfirmOpen
-}: { 
-  children: React.ReactNode,
-  userId: string | null,
-  theme: Theme,
-  setTheme: (t: Theme) => void,
-  authOpen: boolean,
-  setAuthOpen: (o: boolean) => void,
-  authReturnTo: string,
-  authBootstrapping: boolean,
-  isSignOutConfirmOpen: boolean,
-  setSignOutConfirmOpen: (o: boolean) => void
+  setSignOutConfirmOpen,
+}: {
+  children: React.ReactNode;
+  userId: string | null;
+  authOpen: boolean;
+  setAuthOpen: (o: boolean) => void;
+  authReturnTo: string;
+  authBootstrapping: boolean;
+  isSignOutConfirmOpen: boolean;
+  setSignOutConfirmOpen: (o: boolean) => void;
 }) {
   const location = useLocation();
   const isDashboard = location.pathname === '/dashboard';
@@ -105,7 +107,7 @@ function AppShell({
           )}
         </nav>
         <div className="gf-topbar__actions">
-          {userId && (
+          {userId ? (
             <Link
               to="/settings"
               className={`gf-nav-link gf-nav-link--icon${isSettings ? ' gf-nav-link--active' : ''}`}
@@ -114,6 +116,14 @@ function AppShell({
             >
               <SettingsIcon size={20} />
             </Link>
+          ) : (
+            <button
+              className="gf-button gf-button--primary"
+              onClick={() => setAuthOpen(true)}
+              style={{ marginLeft: '8px' }}
+            >
+              Sign In
+            </button>
           )}
         </div>
       </header>
@@ -158,8 +168,121 @@ function AppShell({
           </Link>
         </div>
       </footer>
+      <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} returnTo={authReturnTo} />
+      <ConfirmationDialog
+        open={isSignOutConfirmOpen}
+        onClose={() => setSignOutConfirmOpen(false)}
+        onConfirm={() => {
+          setSignOutConfirmOpen(false);
+          supabase.auth.signOut({ scope: 'local' }).finally(() => {
+            clearCurrentUser();
+            window.location.href = '/';
+          });
+        }}
+        title="Sign Out"
+        description="Are you sure you want to sign out?"
+        confirmText="Sign Out"
+        isDestructive
+      />
     </div>
   );
+}
+
+function AuthManager({
+  setUserId,
+  setAuthOpen,
+  setAuthBootstrapping,
+  setAuthReturnTo,
+}: {
+  setUserId: (id: string | null) => void;
+  setAuthOpen: (o: boolean) => void;
+  setAuthBootstrapping: (b: boolean) => void;
+  setAuthReturnTo: (r: string) => void;
+}) {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const syncInFlightRef = useRef<Promise<void> | null>(null);
+  const currentPathRef = useRef(location.pathname + location.search);
+
+  useEffect(() => {
+    currentPathRef.current = location.pathname + location.search;
+  }, [location.pathname, location.search]);
+
+  // Handle ?auth=1 query param
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('auth') === '1') {
+      const returnTo = params.get('returnTo') || '/dashboard';
+      setAuthReturnTo(returnTo);
+      setAuthOpen(true);
+      navigate(location.pathname, { replace: true });
+    }
+  }, [location.search, location.pathname, navigate, setAuthOpen, setAuthReturnTo]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function syncSessionEmail(email: string) {
+      if (!active || syncInFlightRef.current) return;
+
+      setAuthBootstrapping(true);
+      syncInFlightRef.current = (async () => {
+        try {
+          const { userId: id, isNew } = await api.post<{ userId: string; isNew: boolean }>(
+            '/auth/email',
+            { email }
+          );
+          if (!active) return;
+
+          setCurrentUserId(id);
+          setCurrentUserEmail(email);
+          setUserId(id);
+          setAuthOpen(false);
+
+          const destination = getPostAuthDestination(currentPathRef.current, isNew);
+          if (destination) {
+            navigate(destination, { replace: true });
+          }
+        } catch {
+          // ignore
+        } finally {
+          if (active) setAuthBootstrapping(false);
+          syncInFlightRef.current = null;
+        }
+      })();
+    }
+
+    const handleAuthEvent = (event: string, session: { user?: { email?: string } } | null) => {
+      if (event === 'SIGNED_OUT') {
+        clearCurrentUser();
+        setUserId(null);
+        setAuthBootstrapping(false);
+        return;
+      }
+
+      const email = getSessionEmailForSync(event, session, getCurrentUserId());
+      if (email) syncSessionEmail(email);
+      else if (event === 'INITIAL_SESSION') setAuthBootstrapping(false);
+    };
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(handleAuthEvent);
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!active) return;
+      const email = data.session?.user?.email?.trim();
+      if (email && !getCurrentUserId()) syncSessionEmail(email);
+      else setAuthBootstrapping(false);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [navigate, setAuthBootstrapping, setAuthOpen, setUserId]);
+
+  return null;
 }
 
 export default function App() {
@@ -169,121 +292,44 @@ export default function App() {
   const [authBootstrapping, setAuthBootstrapping] = useState(true);
   const [isSignOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
   const [theme, setTheme] = useState<Theme>(() => resolveInitialTheme());
-  const currentPathRef = useRef('/dashboard');
-  const syncInFlightRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     applyTheme(theme);
     persistTheme(theme);
   }, [theme]);
 
-  useEffect(() => subscribeToAuthChange(() => setUserId(getCurrentUserId())), []);
-
   useEffect(() => {
-    let active = true;
+    if (theme !== 'system') return;
 
-    async function syncSessionEmail(email: string) {
-      if (!active || syncInFlightRef.current) {
-        return syncInFlightRef.current ?? undefined;
-      }
-
-      setAuthBootstrapping(true);
-      syncInFlightRef.current = (async () => {
-        try {
-          const { userId: id, isNew } = await api.post<{ userId: string; isNew: boolean }>(
-            '/auth/email',
-            { email }
-          );
-          if (!active) {
-            return;
-          }
-
-          setCurrentUserId(id);
-          setCurrentUserEmail(email);
-          setAuthOpen(false);
-
-          const destination = getPostAuthDestination(currentPathRef.current, isNew);
-          if (destination) {
-            // Need a way to navigate here - will use a helper component or handle in effect
-          }
-        } catch {
-          // ignore
-        } finally {
-          if (active) {
-            setAuthBootstrapping(false);
-          }
-          syncInFlightRef.current = null;
-        }
-      })();
-
-      return syncInFlightRef.current;
-    }
-
-    const handleAuthEvent = (event: string, session: { user?: { email?: string } } | null) => {
-      if (event === 'SIGNED_OUT') {
-        clearCurrentUser();
-        setAuthBootstrapping(false);
-        return;
-      }
-
-      const email = getSessionEmailForSync(event, session, getCurrentUserId());
-      if (!email) {
-        if (event === 'INITIAL_SESSION') {
-          setAuthBootstrapping(false);
-        }
-        return;
-      }
-
-      void syncSessionEmail(email);
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
+    const handler = () => {
+      applyTheme(resolveEffectiveTheme('system'));
     };
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(handleAuthEvent);
+    mediaQuery.addEventListener('change', handler);
+    applyTheme(resolveEffectiveTheme('system'));
 
-    void supabase.auth.getSession().then(({ data }) => {
-      if (!active) {
-        return;
-      }
+    return () => mediaQuery.removeEventListener('change', handler);
+  }, [theme]);
 
-      const email = data.session?.user?.email?.trim();
-      if (email && !getCurrentUserId()) {
-        void syncSessionEmail(email);
-        return;
-      }
-
-      setAuthBootstrapping(false);
-    });
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  async function handleConfirmSignOut() {
-    setSignOutConfirmOpen(false);
-    try {
-      await supabase.auth.signOut({ scope: 'local' });
-    } finally {
-      clearCurrentUser();
-      setAuthBootstrapping(false);
-      window.location.href = '/';
-    }
-  }
+  useEffect(() => subscribeToAuthChange(() => setUserId(getCurrentUserId())), []);
 
   return (
     <BrowserRouter>
       <Analytics />
+      <AuthManager
+        setUserId={setUserId}
+        setAuthOpen={setAuthOpen}
+        setAuthBootstrapping={setAuthBootstrapping}
+        setAuthReturnTo={setAuthReturnTo}
+      />
       <Routes>
         {import.meta.env.DEV && <Route path="/prototype" element={<PrototypePage />} />}
         <Route
           path="*"
           element={
-            <AppShell 
+            <AppShell
               userId={userId}
-              theme={theme}
-              setTheme={setTheme}
               authOpen={authOpen}
               setAuthOpen={setAuthOpen}
               authReturnTo={authReturnTo}
@@ -294,27 +340,27 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<LandingPage />} />
                 <Route path="/dashboard" element={<Dashboard />} />
-                <Route 
-                  path="/settings" 
+                <Route
+                  path="/settings"
                   element={
-                    <Settings 
-                      theme={theme} 
-                      onThemeChange={setTheme} 
+                    <Settings
+                      theme={theme}
+                      onThemeChange={setTheme}
                       onSignOut={() => setSignOutConfirmOpen(true)}
                       onSignIn={() => setAuthOpen(true)}
                     />
-                  } 
+                  }
                 />
-                <Route 
-                  path="/benchmark" 
+                <Route
+                  path="/benchmark"
                   element={
-                    <Settings 
-                      theme={theme} 
-                      onThemeChange={setTheme} 
+                    <Settings
+                      theme={theme}
+                      onThemeChange={setTheme}
                       onSignOut={() => setSignOutConfirmOpen(true)}
                       onSignIn={() => setAuthOpen(true)}
                     />
-                  } 
+                  }
                 />
                 <Route path="/events/new" element={<EventCreationForm />} />
                 <Route path="/events/:eventId" element={<EventDetail />} />
@@ -326,16 +372,6 @@ export default function App() {
                 <Route path="/terms" element={<TermsOfService />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
-              <AuthDialog open={authOpen} onClose={() => setAuthOpen(false)} returnTo={authReturnTo} />
-              <ConfirmationDialog
-                open={isSignOutConfirmOpen}
-                onClose={() => setSignOutConfirmOpen(false)}
-                onConfirm={handleConfirmSignOut}
-                title="Sign Out"
-                description="Are you sure you want to sign out?"
-                confirmText="Sign Out"
-                isDestructive
-              />
               <Toaster />
             </AppShell>
           }

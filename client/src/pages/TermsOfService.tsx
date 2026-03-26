@@ -1,17 +1,14 @@
-import { Link } from 'react-router-dom';
-import { getCurrentUserId } from '../api/client';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 
 export default function TermsOfService() {
-  const userId = getCurrentUserId();
+  const navigate = useNavigate();
   return (
     <div className="gf-stack gf-stack--xl" style={{ padding: '20px 0 60px' }}>
-      <Link
-        to={userId ? '/dashboard' : '/'}
-        className="gf-button gf-button--ghost gf-button--sm"
-        style={{ alignSelf: 'flex-start' }}
-      >
-        ← Back
-      </Link>
+      <button type="button" className="gf-back-btn" onClick={() => navigate(-1)}>
+        <ArrowLeft size={18} />
+        Back
+      </button>
       <div>
         <h1 className="gf-section-title">Terms of Service</h1>
         <p className="gf-muted">Last updated: March 22, 2026</p>

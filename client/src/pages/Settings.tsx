@@ -20,291 +20,47 @@ import {
   Cpu,
   Moon,
   Sun,
-  LogOut,
   Palette,
+  Bell,
+  Globe,
+  Clock,
+  EyeOff,
+  Type,
+  Monitor,
+  Settings2,
+  LogOut,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { type Theme } from '../lib/theme';
+import { type UserPreferences, defaultPreferences } from '../api/client';
 
-/* ... (keep questions and benchmark logic unchanged) ... */
+/* ── Toggle Switch Component ───────────────────────────── */
 
-function ProfileSection({
-  profile,
-  onUpdate,
-  onSignOut,
+function Toggle({
+  checked,
+  onChange,
+  label,
+  description,
 }: {
-  profile: UserProfile;
-  onUpdate: (data: { name: string }) => Promise<void>;
-  onSignOut: () => void;
-}) {
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting },
-  } = useForm({
-    defaultValues: { name: profile.name || '' },
-  });
-
-  return (
-    <div className="gf-stack gf-stack--xl">
-      <section className="gf-stack">
-        <h2 className="gf-card-title">Personal Information</h2>
-        <p className="gf-muted">How you appear to others in Go Fish.</p>
-
-        <div className="gf-card" style={{ marginTop: '12px' }}>
-          <form onSubmit={handleSubmit(onUpdate)} className="gf-stack">
-            <div className="gf-field-row">
-              <ValidatedInput
-                label="Display Name"
-                registration={register('name')}
-                error={errors.name}
-                placeholder="Your name"
-              />
-              <div className="gf-field">
-                <label className="gf-field__label">Email Address</label>
-                <div
-                  className="gf-input"
-                  style={{
-                    opacity: 0.7,
-                    background: 'var(--bg-surface)',
-                    cursor: 'not-allowed',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}
-                >
-                  <Mail size={16} /> {profile.email}
-                </div>
-              </div>
-            </div>
-            <div className="gf-actions">
-              <button
-                type="submit"
-                className="gf-button gf-button--primary"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : 'Save Changes'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </section>
-
-      <section className="gf-stack">
-        <h2 className="gf-card-title">Account Security</h2>
-        <p className="gf-muted">Manage your authentication and login details.</p>
-
-        <div className="gf-card" style={{ marginTop: '12px' }}>
-          <div className="gf-stack gf-stack--sm">
-            <div className="gf-detail-row">
-              <span className="gf-detail-row__label">Authentication Provider</span>
-              <span
-                className="gf-detail-row__value"
-                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-              >
-                <ShieldCheck size={16} className="gf-success" />{' '}
-                {profile.auth_provider === 'google' ? 'Google OAuth' : 'Email Login'}
-              </span>
-            </div>
-            <div className="gf-detail-row">
-              <span className="gf-detail-row__label">Member Since</span>
-              <span className="gf-detail-row__value">
-                {new Date(profile.created_at).toLocaleDateString(undefined, { dateStyle: 'long' })}
-              </span>
-            </div>
-            <div className="gf-actions" style={{ marginTop: '16px' }}>
-              <button
-                type="button"
-                className="gf-button gf-button--secondary gf-inline-icon"
-                onClick={onSignOut}
-                style={{ color: 'var(--danger)', borderColor: 'rgba(var(--danger-rgb), 0.2)' }}
-              >
-                <LogOut size={18} /> Sign Out
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-function AppearanceSection({
-  theme,
-  onThemeChange,
-}: {
-  theme: Theme;
-  onThemeChange: (theme: Theme) => void;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+  label: string;
+  description?: string;
 }) {
   return (
-    <div className="gf-stack gf-stack--xl">
-      <section className="gf-stack">
-        <h2 className="gf-card-title">Visual Appearance</h2>
-        <p className="gf-muted">Customize how Go Fish looks on your device.</p>
-
-        <div className="gf-grid gf-grid--two" style={{ marginTop: '12px' }}>
-          <button
-            type="button"
-            className={clsx('gf-card gf-text-center', theme === 'day' && 'gf-card--active')}
-            style={{ 
-              borderColor: theme === 'day' ? 'var(--accent)' : undefined,
-              boxShadow: theme === 'day' ? '0 0 0 3px rgba(var(--accent-rgb), 0.15)' : undefined,
-              cursor: 'pointer'
-            }}
-            onClick={() => onThemeChange('day')}
-          >
-            <Sun size={32} className={theme === 'day' ? 'gf-accent' : 'gf-muted'} style={{ margin: '0 auto 12px' }} />
-            <div style={{ fontWeight: 700 }}>Day Mode</div>
-            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>Light and crisp</p>
-          </button>
-          
-          <button
-            type="button"
-            className={clsx('gf-card gf-text-center', theme === 'night' && 'gf-card--active')}
-            style={{ 
-              borderColor: theme === 'night' ? 'var(--accent)' : undefined,
-              boxShadow: theme === 'night' ? '0 0 0 3px rgba(var(--accent-rgb), 0.15)' : undefined,
-              cursor: 'pointer'
-            }}
-            onClick={() => onThemeChange('night')}
-          >
-            <Moon size={32} className={theme === 'night' ? 'gf-accent' : 'gf-muted'} style={{ margin: '0 auto 12px' }} />
-            <div style={{ fontWeight: 700 }}>Night Mode</div>
-            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>Dark and cozy</p>
-          </button>
-        </div>
-      </section>
-    </div>
-  );
-}
-
-/* ... (keep PreferencesSection, DataSection, InfrastructureSection unchanged) ... */
-
-export default function Settings({
-  theme,
-  onThemeChange,
-  onSignOut,
-  onSignIn,
-}: {
-  theme: Theme;
-  onThemeChange: (theme: Theme) => void;
-  onSignOut: () => void;
-  onSignIn: () => void;
-}) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile');
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [errorDetails, setErrorDetails] = useState<string | null>(null);
-
-  /* ... (keep fetchAll, useEffect, handleTabChange, handleUpdateProfile, handleUpdateInfrastructure, handleSavePreferences unchanged) ... */
-
-  if (loading)
-    return (
-      <div className="gf-page-center">
-        <LoadingSpinner size="lg" label="Loading settings..." />
-      </div>
-    );
-
-  if (!profile)
-    return (
-      <div className="gf-page-center">
-        <div className="gf-stack gf-text-center" style={{ alignItems: 'center' }}>
-          <p className="gf-feedback gf-feedback--error">Failed to load user profile.</p>
-          <p className="gf-muted" style={{ marginBottom: '16px' }}>You may need to sign in again.</p>
-          <button className="gf-button gf-button--primary" onClick={onSignIn}>
-            Sign In
-          </button>
-        </div>
-      </div>
-    );
-
-  return (
-    <div className="gf-stack gf-stack--xl">
-      <header>
-        <h1 className="gf-section-title">Settings</h1>
-        <p className="gf-muted">Manage your profile, appearance, and activity preferences.</p>
-      </header>
-
-      <div className="gf-settings-layout">
-        <aside className="gf-settings-sidebar">
-          <button
-            className={clsx(
-              'gf-settings-nav-item',
-              activeTab === 'profile' && 'gf-settings-nav-item--active'
-            )}
-            onClick={() => handleTabChange('profile')}
-          >
-            <User size={20} />
-            <span style={{ flex: 1 }}>Profile</span>
-            {activeTab === 'profile' && <ChevronRight size={16} />}
-          </button>
-          <button
-            className={clsx(
-              'gf-settings-nav-item',
-              activeTab === 'appearance' && 'gf-settings-nav-item--active'
-            )}
-            onClick={() => handleTabChange('appearance')}
-          >
-            <Palette size={20} />
-            <span style={{ flex: 1 }}>Appearance</span>
-            {activeTab === 'appearance' && <ChevronRight size={16} />}
-          </button>
-          <button
-            className={clsx(
-              'gf-settings-nav-item',
-              activeTab === 'preferences' && 'gf-settings-nav-item--active'
-            )}
-            onClick={() => handleTabChange('preferences')}
-          >
-            <Sliders size={20} />
-            <span style={{ flex: 1 }}>Preferences</span>
-            {activeTab === 'preferences' && <ChevronRight size={16} />}
-          </button>
-          <button
-            className={clsx(
-              'gf-settings-nav-item',
-              activeTab === 'infrastructure' && 'gf-settings-nav-item--active'
-            )}
-            onClick={() => handleTabChange('infrastructure')}
-          >
-            <Cpu size={20} />
-            <span style={{ flex: 1 }}>Infrastructure</span>
-            {activeTab === 'infrastructure' && <ChevronRight size={16} />}
-          </button>
-          <button
-            className={clsx(
-              'gf-settings-nav-item',
-              activeTab === 'data' && 'gf-settings-nav-item--active'
-            )}
-            onClick={() => handleTabChange('data')}
-          >
-            <Database size={20} />
-            <span style={{ flex: 1 }}>Data & Storage</span>
-            {activeTab === 'data' && <ChevronRight size={16} />}
-          </button>
-        </aside>
-
-        <main className="gf-settings-content">
-          {activeTab === 'profile' && (
-            <ProfileSection 
-              profile={profile} 
-              onUpdate={handleUpdateProfile} 
-              onSignOut={onSignOut} 
-            />
-          )}
-          {activeTab === 'appearance' && (
-            <AppearanceSection theme={theme} onThemeChange={onThemeChange} />
-          )}
-          {activeTab === 'preferences' && <PreferencesSection onSave={handleSavePreferences} />}
-          {activeTab === 'infrastructure' && (
-            <InfrastructureSection profile={profile} onUpdate={handleUpdateInfrastructure} />
-          )}
-          {activeTab === 'data' && <DataSection info={storageInfo} />}
-        </main>
-      </div>
-    </div>
+    <label className="gf-toggle">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        className="gf-toggle__input"
+      />
+      <span className="gf-toggle__switch" />
+      <span className="gf-toggle__label-group">
+        <span className="gf-toggle__label">{label}</span>
+        {description && <span className="gf-toggle__description">{description}</span>}
+      </span>
+    </label>
   );
 }
 
@@ -725,8 +481,8 @@ function InfrastructureSection({
       <section className="gf-stack">
         <h2 className="gf-card-title">AI Configuration</h2>
         <p className="gf-muted">
-          By default, Go Fish uses our managed AI provider (OpenRouter). 
-          Provide your own key to use your own usage quotas.
+          By default, Go Fish uses our managed AI provider (OpenRouter). Provide your own key to use
+          your own usage quotas.
         </p>
 
         <div className="gf-card" style={{ marginTop: '12px' }}>
@@ -755,10 +511,10 @@ function InfrastructureSection({
               placeholder="sk-or-v1-..."
               type="password"
             />
-            
+
             <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
-              Your key is stored securely and used only for your event generations. 
-              Leave empty to use the service default.
+              Your key is stored securely and used only for your event generations. Leave empty to
+              use the service default.
             </p>
 
             <div className="gf-actions">
@@ -767,7 +523,11 @@ function InfrastructureSection({
                 className="gf-button gf-button--primary"
                 disabled={isSubmitting}
               >
-                {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : 'Update AI Settings'}
+                {isSubmitting ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : (
+                  'Update AI Settings'
+                )}
               </button>
             </div>
           </form>
@@ -804,13 +564,417 @@ function InfrastructureSection({
   );
 }
 
+function AppearanceSection({
+  theme,
+  onThemeChange,
+}: {
+  theme: Theme;
+  onThemeChange: (theme: Theme) => void;
+}) {
+  return (
+    <div className="gf-stack gf-stack--xl">
+      <section className="gf-stack">
+        <h2 className="gf-card-title">Visual Appearance</h2>
+        <p className="gf-muted">Customize how Go Fish looks on your device.</p>
+
+        <div className="gf-grid gf-grid--three" style={{ marginTop: '12px' }}>
+          <button
+            type="button"
+            className={clsx('gf-card gf-text-center', theme === 'system' && 'gf-card--active')}
+            style={{
+              borderColor: theme === 'system' ? 'var(--accent)' : undefined,
+              boxShadow: theme === 'system' ? '0 0 0 3px rgba(var(--accent-rgb), 0.15)' : undefined,
+              cursor: 'pointer',
+            }}
+            onClick={() => onThemeChange('system')}
+          >
+            <Settings2
+              size={32}
+              className={theme === 'system' ? 'gf-accent' : 'gf-muted'}
+              style={{ margin: '0 auto 12px' }}
+            />
+            <div style={{ fontWeight: 700 }}>System</div>
+            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
+              Match device settings
+            </p>
+          </button>
+
+          <button
+            type="button"
+            className={clsx('gf-card gf-text-center', theme === 'day' && 'gf-card--active')}
+            style={{
+              borderColor: theme === 'day' ? 'var(--accent)' : undefined,
+              boxShadow: theme === 'day' ? '0 0 0 3px rgba(var(--accent-rgb), 0.15)' : undefined,
+              cursor: 'pointer',
+            }}
+            onClick={() => onThemeChange('day')}
+          >
+            <Sun
+              size={32}
+              className={theme === 'day' ? 'gf-accent' : 'gf-muted'}
+              style={{ margin: '0 auto 12px' }}
+            />
+            <div style={{ fontWeight: 700 }}>Day Mode</div>
+            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
+              Light and crisp
+            </p>
+          </button>
+
+          <button
+            type="button"
+            className={clsx('gf-card gf-text-center', theme === 'night' && 'gf-card--active')}
+            style={{
+              borderColor: theme === 'night' ? 'var(--accent)' : undefined,
+              boxShadow: theme === 'night' ? '0 0 0 3px rgba(var(--accent-rgb), 0.15)' : undefined,
+              cursor: 'pointer',
+            }}
+            onClick={() => onThemeChange('night')}
+          >
+            <Moon
+              size={32}
+              className={theme === 'night' ? 'gf-accent' : 'gf-muted'}
+              style={{ margin: '0 auto 12px' }}
+            />
+            <div style={{ fontWeight: 700 }}>Night Mode</div>
+            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
+              Dark and cozy
+            </p>
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ── Notifications Section ──────────────────────────────── */
+
+function NotificationsSection({
+  preferences,
+  onSave,
+}: {
+  preferences: UserPreferences['notifications'];
+  onSave: (data: UserPreferences['notifications']) => Promise<void>;
+}) {
+  const [local, setLocal] = useState(preferences);
+  const [saving, setSaving] = useState(false);
+
+  const handleToggle = (key: keyof typeof local) => {
+    setLocal((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(local);
+    setSaving(false);
+  };
+
+  return (
+    <div className="gf-stack gf-stack--xl">
+      <section className="gf-stack">
+        <h2 className="gf-card-title">Email Notifications</h2>
+        <p className="gf-muted">Control which emails you receive from Go Fish.</p>
+
+        <div className="gf-card" style={{ marginTop: '12px' }}>
+          <div className="gf-stack gf-stack--md">
+            <Toggle
+              checked={local.invite_received}
+              onChange={() => handleToggle('invite_received')}
+              label="New Invites"
+              description="When someone invites you to an event"
+            />
+            <Toggle
+              checked={local.event_reminder}
+              onChange={() => handleToggle('event_reminder')}
+              label="Event Reminders"
+              description="Reminders before events you are invited to"
+            />
+            <Toggle
+              checked={local.event_results}
+              onChange={() => handleToggle('event_results')}
+              label="Event Results"
+              description="When final activity is selected for an event"
+            />
+            <Toggle
+              checked={local.weekly_digest}
+              onChange={() => handleToggle('weekly_digest')}
+              label="Weekly Digest"
+              description="Weekly summary of activity in your group"
+            />
+          </div>
+          <div className="gf-actions" style={{ marginTop: '24px' }}>
+            <button className="gf-button gf-button--primary" onClick={handleSave} disabled={saving}>
+              {saving ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                'Save Notification Settings'
+              )}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ── Accessibility Section ───────────────────────────────── */
+
+function AccessibilitySection({
+  preferences,
+  onSave,
+}: {
+  preferences: UserPreferences['accessibility'];
+  onSave: (data: UserPreferences['accessibility']) => Promise<void>;
+}) {
+  const [local, setLocal] = useState(preferences);
+  const [saving, setSaving] = useState(false);
+
+  const handleOptionChange = (key: keyof typeof local, value: string | boolean) => {
+    setLocal((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(local);
+    setSaving(false);
+  };
+
+  const fontSizes = [
+    { value: 'small', label: 'Small' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'large', label: 'Large' },
+  ];
+
+  return (
+    <div className="gf-stack gf-stack--xl">
+      <section className="gf-stack">
+        <h2 className="gf-card-title">Accessibility Options</h2>
+        <p className="gf-muted">Customize the display for better readability and comfort.</p>
+
+        <div className="gf-card" style={{ marginTop: '12px' }}>
+          <div className="gf-stack gf-stack--lg">
+            <div className="gf-field">
+              <label
+                className="gf-field__label"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Type size={16} /> Font Size
+              </label>
+              <div className="gf-segmented-control">
+                {fontSizes.map((size) => (
+                  <button
+                    key={size.value}
+                    type="button"
+                    className={clsx(
+                      'gf-segmented-control__item',
+                      local.font_size === size.value && 'gf-segmented-control__item--active'
+                    )}
+                    onClick={() => handleOptionChange('font_size', size.value)}
+                  >
+                    {size.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <Toggle
+              checked={local.reduced_motion}
+              onChange={(checked) => handleOptionChange('reduced_motion', checked)}
+              label="Reduced Motion"
+              description="Minimize animations throughout the app"
+            />
+            <Toggle
+              checked={local.compact_mode}
+              onChange={(checked) => handleOptionChange('compact_mode', checked)}
+              label="Compact Mode"
+              description="Reduce spacing for more content visibility"
+            />
+          </div>
+          <div className="gf-actions" style={{ marginTop: '24px' }}>
+            <button className="gf-button gf-button--primary" onClick={handleSave} disabled={saving}>
+              {saving ? (
+                <Loader2 size={20} className="animate-spin" />
+              ) : (
+                'Save Accessibility Settings'
+              )}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ── Regional Section ───────────────────────────────────── */
+
+function RegionalSection({
+  preferences,
+  onSave,
+}: {
+  preferences: UserPreferences['regional'];
+  onSave: (data: UserPreferences['regional']) => Promise<void>;
+}) {
+  const [local, setLocal] = useState(preferences);
+  const [saving, setSaving] = useState(false);
+
+  const handleOptionChange = (key: keyof typeof local, value: string) => {
+    setLocal((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(local);
+    setSaving(false);
+  };
+
+  const dateFormats = [
+    { value: 'MM/DD/YYYY', label: 'MM/DD/YYYY' },
+    { value: 'DD/MM/YYYY', label: 'DD/MM/YYYY' },
+    { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD' },
+  ];
+
+  const timezones = [
+    { value: 'America/New_York', label: 'Eastern Time (ET)' },
+    { value: 'America/Chicago', label: 'Central Time (CT)' },
+    { value: 'America/Denver', label: 'Mountain Time (MT)' },
+    { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+    { value: 'Europe/London', label: 'London (GMT/BST)' },
+    { value: 'Europe/Paris', label: 'Paris (CET/CEST)' },
+    { value: 'Asia/Tokyo', label: 'Tokyo (JST)' },
+    { value: 'Australia/Sydney', label: 'Sydney (AEST/AEDT)' },
+  ];
+
+  return (
+    <div className="gf-stack gf-stack--xl">
+      <section className="gf-stack">
+        <h2 className="gf-card-title">Regional Settings</h2>
+        <p className="gf-muted">Set your timezone and date format preferences.</p>
+
+        <div className="gf-card" style={{ marginTop: '12px' }}>
+          <div className="gf-stack gf-stack--lg">
+            <div className="gf-field">
+              <label
+                className="gf-field__label"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Globe size={16} /> Time Zone
+              </label>
+              <select
+                className="gf-input"
+                value={local.timezone}
+                onChange={(e) => handleOptionChange('timezone', e.target.value)}
+              >
+                {timezones.map((tz) => (
+                  <option key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="gf-field">
+              <label
+                className="gf-field__label"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Clock size={16} /> Date Format
+              </label>
+              <div className="gf-segmented-control">
+                {dateFormats.map((format) => (
+                  <button
+                    key={format.value}
+                    type="button"
+                    className={clsx(
+                      'gf-segmented-control__item',
+                      local.date_format === format.value && 'gf-segmented-control__item--active'
+                    )}
+                    onClick={() => handleOptionChange('date_format', format.value)}
+                  >
+                    {format.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="gf-actions" style={{ marginTop: '24px' }}>
+            <button className="gf-button gf-button--primary" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 size={20} className="animate-spin" /> : 'Save Regional Settings'}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ── Privacy Section ─────────────────────────────────────── */
+
+function PrivacySection({
+  preferences,
+  onSave,
+}: {
+  preferences: UserPreferences['privacy'];
+  onSave: (data: UserPreferences['privacy']) => Promise<void>;
+}) {
+  const [local, setLocal] = useState(preferences);
+  const [saving, setSaving] = useState(false);
+
+  const handleToggle = (key: keyof typeof local) => {
+    setLocal((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    await onSave(local);
+    setSaving(false);
+  };
+
+  return (
+    <div className="gf-stack gf-stack--xl">
+      <section className="gf-stack">
+        <h2 className="gf-card-title">Privacy Controls</h2>
+        <p className="gf-muted">Manage your profile visibility and data sharing.</p>
+
+        <div className="gf-card" style={{ marginTop: '12px' }}>
+          <div className="gf-stack gf-stack--md">
+            <Toggle
+              checked={local.profile_visible}
+              onChange={() => handleToggle('profile_visible')}
+              label="Profile Visibility"
+              description="Allow others to see your profile"
+            />
+            <Toggle
+              checked={local.show_activity}
+              onChange={() => handleToggle('show_activity')}
+              label="Show Activity"
+              description="Let others see your events and responses"
+            />
+          </div>
+          <div className="gf-actions" style={{ marginTop: '24px' }}>
+            <button className="gf-button gf-button--primary" onClick={handleSave} disabled={saving}>
+              {saving ? <Loader2 size={20} className="animate-spin" /> : 'Save Privacy Settings'}
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 /* ── Main Page ──────────────────────────────────────────── */
 
-export default function Settings() {
+interface SettingsProps {
+  theme: Theme;
+  onThemeChange: (theme: Theme) => void;
+  onSignOut: () => void;
+  onSignIn: () => void;
+}
+
+export default function Settings({ theme, onThemeChange, onSignOut }: SettingsProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile');
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
+  const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences);
   const [loading, setLoading] = useState(true);
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
@@ -820,11 +984,11 @@ export default function Settings() {
       setErrorDetails(null);
       console.log('[Debug] Starting fetchAll...');
       const [p, s] = await Promise.all([
-        api.get<UserProfile>('/auth/me').catch(err => {
+        api.get<UserProfile>('/auth/me').catch((err) => {
           console.error('[Debug] /auth/me failed:', err);
           throw new Error(`/auth/me: ${err.status || 'Error'}`);
         }),
-        api.get<StorageInfo>('/auth/storage-info').catch(err => {
+        api.get<StorageInfo>('/auth/storage-info').catch((err) => {
           console.error('[Debug] /auth/storage-info failed:', err);
           throw new Error(`/auth/storage-info: ${err.status || 'Error'}`);
         }),
@@ -832,9 +996,10 @@ export default function Settings() {
       console.log('[Debug] fetchAll success:', { p, s });
       setProfile(p);
       setStorageInfo(s);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Failed to load settings:', err);
-      setErrorDetails(err.message || 'Unknown error');
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      setErrorDetails(message);
       toast.error('Failed to load settings.');
     } finally {
       setLoading(false);
@@ -842,6 +1007,15 @@ export default function Settings() {
   };
 
   useEffect(() => {
+    // Load preferences from localStorage
+    const savedPrefs = localStorage.getItem('gofish_preferences');
+    if (savedPrefs) {
+      try {
+        setPreferences(JSON.parse(savedPrefs));
+      } catch {
+        // Use defaults if parsing fails
+      }
+    }
     fetchAll();
   }, []);
 
@@ -887,6 +1061,34 @@ export default function Settings() {
     });
   };
 
+  const handleSaveNotifications = async (data: UserPreferences['notifications']) => {
+    const newPrefs = { ...preferences, notifications: data };
+    setPreferences(newPrefs);
+    localStorage.setItem('gofish_preferences', JSON.stringify(newPrefs));
+    toast.success('Notification settings saved!');
+  };
+
+  const handleSaveAccessibility = async (data: UserPreferences['accessibility']) => {
+    const newPrefs = { ...preferences, accessibility: data };
+    setPreferences(newPrefs);
+    localStorage.setItem('gofish_preferences', JSON.stringify(newPrefs));
+    toast.success('Accessibility settings saved!');
+  };
+
+  const handleSaveRegional = async (data: UserPreferences['regional']) => {
+    const newPrefs = { ...preferences, regional: data };
+    setPreferences(newPrefs);
+    localStorage.setItem('gofish_preferences', JSON.stringify(newPrefs));
+    toast.success('Regional settings saved!');
+  };
+
+  const handleSavePrivacy = async (data: UserPreferences['privacy']) => {
+    const newPrefs = { ...preferences, privacy: data };
+    setPreferences(newPrefs);
+    localStorage.setItem('gofish_preferences', JSON.stringify(newPrefs));
+    toast.success('Privacy settings saved!');
+  };
+
   if (loading)
     return (
       <div className="gf-page-center">
@@ -899,8 +1101,16 @@ export default function Settings() {
       <div className="gf-page-center">
         <div className="gf-stack gf-text-center" style={{ alignItems: 'center' }}>
           <p className="gf-feedback gf-feedback--error">Failed to load user profile.</p>
-          {errorDetails && <p className="gf-muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>{errorDetails}</p>}
-          <button className="gf-button gf-button--secondary" onClick={fetchAll} style={{ marginTop: '16px' }}>
+          {errorDetails && (
+            <p className="gf-muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+              {errorDetails}
+            </p>
+          )}
+          <button
+            className="gf-button gf-button--secondary"
+            onClick={fetchAll}
+            style={{ marginTop: '16px' }}
+          >
             Retry
           </button>
         </div>
@@ -930,6 +1140,17 @@ export default function Settings() {
           <button
             className={clsx(
               'gf-settings-nav-item',
+              activeTab === 'appearance' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('appearance')}
+          >
+            <Palette size={20} />
+            <span style={{ flex: 1 }}>Appearance</span>
+            {activeTab === 'appearance' && <ChevronRight size={16} />}
+          </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
               activeTab === 'preferences' && 'gf-settings-nav-item--active'
             )}
             onClick={() => handleTabChange('preferences')}
@@ -952,6 +1173,50 @@ export default function Settings() {
           <button
             className={clsx(
               'gf-settings-nav-item',
+              activeTab === 'notifications' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('notifications')}
+          >
+            <Bell size={20} />
+            <span style={{ flex: 1 }}>Notifications</span>
+            {activeTab === 'notifications' && <ChevronRight size={16} />}
+          </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
+              activeTab === 'accessibility' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('accessibility')}
+          >
+            <Monitor size={20} />
+            <span style={{ flex: 1 }}>Accessibility</span>
+            {activeTab === 'accessibility' && <ChevronRight size={16} />}
+          </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
+              activeTab === 'regional' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('regional')}
+          >
+            <Globe size={20} />
+            <span style={{ flex: 1 }}>Regional</span>
+            {activeTab === 'regional' && <ChevronRight size={16} />}
+          </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
+              activeTab === 'privacy' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('privacy')}
+          >
+            <EyeOff size={20} />
+            <span style={{ flex: 1 }}>Privacy</span>
+            {activeTab === 'privacy' && <ChevronRight size={16} />}
+          </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
               activeTab === 'data' && 'gf-settings-nav-item--active'
             )}
             onClick={() => handleTabChange('data')}
@@ -960,15 +1225,40 @@ export default function Settings() {
             <span style={{ flex: 1 }}>Data & Storage</span>
             {activeTab === 'data' && <ChevronRight size={16} />}
           </button>
+          <button className="gf-settings-nav-item gf-settings-nav-item--danger" onClick={onSignOut}>
+            <LogOut size={20} />
+            <span style={{ flex: 1 }}>Sign Out</span>
+          </button>
         </aside>
 
         <main className="gf-settings-content">
           {activeTab === 'profile' && (
             <ProfileSection profile={profile} onUpdate={handleUpdateProfile} />
           )}
+          {activeTab === 'appearance' && (
+            <AppearanceSection theme={theme} onThemeChange={onThemeChange} />
+          )}
           {activeTab === 'preferences' && <PreferencesSection onSave={handleSavePreferences} />}
           {activeTab === 'infrastructure' && (
             <InfrastructureSection profile={profile} onUpdate={handleUpdateInfrastructure} />
+          )}
+          {activeTab === 'notifications' && (
+            <NotificationsSection
+              preferences={preferences.notifications}
+              onSave={handleSaveNotifications}
+            />
+          )}
+          {activeTab === 'accessibility' && (
+            <AccessibilitySection
+              preferences={preferences.accessibility}
+              onSave={handleSaveAccessibility}
+            />
+          )}
+          {activeTab === 'regional' && (
+            <RegionalSection preferences={preferences.regional} onSave={handleSaveRegional} />
+          )}
+          {activeTab === 'privacy' && (
+            <PrivacySection preferences={preferences.privacy} onSave={handleSavePrivacy} />
           )}
           {activeTab === 'data' && <DataSection info={storageInfo} />}
         </main>

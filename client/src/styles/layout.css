@@ -108,6 +108,18 @@
   box-shadow: var(--shadow-soft);
 }
 
+.gf-settings-nav-item--danger {
+  color: var(--danger);
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+}
+
+.gf-settings-nav-item--danger:hover {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--danger);
+}
+
 .gf-settings-content {
   animation: gf-fade-in 300ms ease;
 }

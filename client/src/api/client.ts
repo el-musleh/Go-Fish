@@ -96,12 +96,17 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 
 export class ApiError extends Error {
   status: number;
-  body: any;
+  body: unknown;
   path: string;
   method: string;
 
-  constructor(status: number, body: any, path: string, method: string) {
-    const message = body?.message || body?.error || `API error ${status}`;
+  constructor(status: number, body: unknown, path: string, method: string) {
+    const bodyObj =
+      typeof body === 'object' && body !== null ? (body as Record<string, unknown>) : {};
+    const message =
+      (bodyObj.message as string | undefined) ||
+      (bodyObj.error as string | undefined) ||
+      `API error ${status}`;
     super(message);
     this.name = 'ApiError';
     this.status = status;

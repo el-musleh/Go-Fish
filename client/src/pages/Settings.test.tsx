@@ -34,6 +34,7 @@ describe('Settings Page', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (api.get as any).mockImplementation((url: string) => {
       if (url === '/auth/me') return Promise.resolve(mockProfile);
       if (url === '/auth/storage-info') return Promise.resolve(mockStorageInfo);
@@ -45,7 +46,7 @@ describe('Settings Page', () => {
   it('renders navigation tabs including Infrastructure', async () => {
     render(
       <MemoryRouter initialEntries={['/settings']}>
-        <Settings />
+        <Settings theme="day" onThemeChange={() => {}} onSignOut={() => {}} onSignIn={() => {}} />
       </MemoryRouter>
     );
 
@@ -60,7 +61,7 @@ describe('Settings Page', () => {
   it('displays infrastructure details and AI configuration', async () => {
     render(
       <MemoryRouter initialEntries={['/settings?tab=infrastructure']}>
-        <Settings />
+        <Settings theme="day" onThemeChange={() => {}} onSignOut={() => {}} onSignIn={() => {}} />
       </MemoryRouter>
     );
 
@@ -72,11 +73,12 @@ describe('Settings Page', () => {
   });
 
   it('updates AI API key successfully', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (api.patch as any).mockResolvedValue({ ...mockProfile, ai_api_key: 'new-key' });
 
     render(
       <MemoryRouter initialEntries={['/settings?tab=infrastructure']}>
-        <Settings />
+        <Settings theme="day" onThemeChange={() => {}} onSignOut={() => {}} onSignIn={() => {}} />
       </MemoryRouter>
     );
 
@@ -84,7 +86,7 @@ describe('Settings Page', () => {
 
     const input = screen.getByPlaceholderText(/sk-or-v1-.../i);
     await userEvent.type(input, 'new-key');
-    
+
     const submitBtn = screen.getByRole('button', { name: /Update AI Settings/i });
     await userEvent.click(submitBtn);
 

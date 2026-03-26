@@ -2,8 +2,11 @@ import * as RadixDialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import { cn } from '../cn';
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const Dialog = RadixDialog.Root;
+// eslint-disable-next-line react-refresh/only-export-components
 export const DialogTrigger = RadixDialog.Trigger;
+// eslint-disable-next-line react-refresh/only-export-components
 export const DialogClose = RadixDialog.Close;
 
 export function DialogContent({
@@ -23,7 +26,7 @@ export function DialogContent({
           'data-[state=open]:animate-in data-[state=closed]:animate-out',
           'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
           'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
-          className,
+          className
         )}
       >
         {children}
