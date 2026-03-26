@@ -7,6 +7,7 @@ import { api, type UserProfile, type StorageInfo } from '../api/client';
 import { toast } from '../components/Toaster';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ValidatedInput from '../components/ValidatedInput';
+import Onboarding from '../components/Onboarding';
 import {
   Loader2,
   User,
@@ -30,6 +31,7 @@ import {
   Settings2,
   LogOut,
   Keyboard,
+  Sparkles,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { type Theme } from '../lib/theme';
@@ -961,7 +963,7 @@ function PrivacySection({
   );
 }
 
-function ShortcutsSection() {
+function ShortcutsSection({ onShowOnboarding }: { onShowOnboarding: () => void }) {
   const shortcuts = [
     { key: 'N', description: 'Create new event' },
     { key: 'S', description: 'Focus search bar' },
@@ -1006,6 +1008,18 @@ function ShortcutsSection() {
           </div>
         </div>
       </section>
+      <section className="gf-stack">
+        <h2 className="gf-card-title">Quick Start Guide</h2>
+        <p className="gf-muted">Not sure how to get started? View our quick tour.</p>
+        <button
+          type="button"
+          className="gf-button gf-button--secondary"
+          onClick={onShowOnboarding}
+          style={{ alignSelf: 'flex-start', marginTop: '8px' }}
+        >
+          <Sparkles size={16} /> View Quick Tour
+        </button>
+      </section>
     </div>
   );
 }
@@ -1027,6 +1041,7 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
   const [preferences, setPreferences] = useState<UserPreferences>(defaultPreferences);
   const [loading, setLoading] = useState(true);
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const fetchAll = async () => {
     try {
@@ -1315,7 +1330,9 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
               onSave={handleSaveAccessibility}
             />
           )}
-          {activeTab === 'shortcuts' && <ShortcutsSection />}
+          {activeTab === 'shortcuts' && (
+            <ShortcutsSection onShowOnboarding={() => setShowOnboarding(true)} />
+          )}
           {activeTab === 'regional' && (
             <RegionalSection preferences={preferences.regional} onSave={handleSaveRegional} />
           )}
@@ -1325,6 +1342,7 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
           {activeTab === 'data' && <DataSection info={storageInfo} />}
         </main>
       </div>
+      {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}
     </div>
   );
 }

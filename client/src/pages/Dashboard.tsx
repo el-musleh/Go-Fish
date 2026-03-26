@@ -9,9 +9,9 @@ import {
   Search,
   CalendarPlus,
   X,
-  LayoutGrid,
   Clock,
   ChevronDown,
+  Bell,
 } from 'lucide-react';
 import { api, ApiError, getCurrentUserId } from '../api/client';
 import ConfirmationDialog from '../components/ConfirmationDialog';
@@ -89,63 +89,102 @@ function formatOrganizerName(email?: string | null): string {
   return email;
 }
 
-function EventCard({
-  event,
-  role,
-  onHide,
-}: {
-  event: EventItem;
-  role: 'creator' | 'participant';
-  onHide?: (e: React.MouseEvent, id: string) => void;
-}) {
-  const s = STATUS_LABELS[event.status] || { label: event.status, cls: '' };
-  const linkTo =
-    event.status === 'options_ready' && role === 'creator'
-      ? `/events/${event.id}/options`
-      : event.status === 'finalized'
-        ? `/events/${event.id}/confirmation`
-        : `/events/${event.id}`;
+interface NotificationsViewProps {
+  created: EventItem[];
+  joined: EventItem[];
+}
+
+function NotificationsView({ created, joined }: NotificationsViewProps) {
+  const navigate = useNavigate();
+  const [hideIds, setHideIds] = useState<Set<string>>(new Set());
+
+  const myNewEvents = created.filter((e) => e.status === 'collecting');
+  const joinedNewEvents = joined.filter((e) => e.status === 'collecting');
+
+  const allNotifications = [
+    ...myNewEvents.map((e) => ({
+      event: e,
+      role: 'creator' as const,
+      time: e.response_window_end,
+    })),
+    ...joinedNewEvents.map((e) => ({
+      event: e,
+      role: 'participant' as const,
+      time: e.response_window_end,
+    })),
+  ].filter((n) => !hideIds.has(n.event.id));
+
+  const handleDismiss = (id: string) => {
+    setHideIds((prev) => new Set([...prev, id]));
+  };
+
+  if (allNotifications.length === 0) {
+    return (
+      <EmptyState
+        icon={<Bell size={48} />}
+        title="All caught up!"
+        description="You don't have any pending notifications. New event invitations will appear here."
+      />
+    );
+  }
 
   return (
-    <Link to={linkTo} style={{ textDecoration: 'none', color: 'inherit' }}>
-      <div className="gf-card gf-event-card">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <h3 className="gf-card-title">{event.title}</h3>
-            {role === 'participant' && event.inviter_email && (
-              <p className="gf-muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>
-                by {formatOrganizerName(event.inviter_email)}
-              </p>
-            )}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span className={`gf-status-chip ${s.cls}`}>{s.label}</span>
-            {onHide && (
+    <div className="gf-stack">
+      <h2 className="gf-section-title">Pending Responses</h2>
+      <p className="gf-muted" style={{ fontSize: '0.9rem', marginTop: '-12px' }}>
+        Events waiting for your response or participant RSVPs
+      </p>
+      <div className="gf-grid gf-grid--two">
+        {allNotifications.map(({ event, role }) => (
+          <div key={event.id} className="gf-notification-card">
+            <div
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}
+            >
+              <div>
+                <h3 className="gf-card-title">{event.title}</h3>
+                {role === 'participant' && event.inviter_email && (
+                  <p className="gf-muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+                    Invited by {formatOrganizerName(event.inviter_email)}
+                  </p>
+                )}
+                {role === 'creator' && event.respondent_count !== undefined && (
+                  <p className="gf-muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+                    {event.respondent_count} awaiting response
+                  </p>
+                )}
+              </div>
               <button
                 type="button"
                 className="gf-delete-btn"
-                onClick={(e) => onHide(e, event.id)}
-                aria-label={`Hide ${event.title}`}
+                onClick={() => handleDismiss(event.id)}
+                aria-label="Dismiss notification"
               >
-                <X size={14} aria-hidden="true" />
+                <X size={14} />
               </button>
-            )}
+            </div>
+            <div className="gf-actions" style={{ marginTop: '12px' }}>
+              {role === 'participant' ? (
+                <button
+                  type="button"
+                  className="gf-button gf-button--primary"
+                  onClick={() => navigate(`/events/${event.id}`)}
+                >
+                  Respond Now
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="gf-button gf-button--primary"
+                  onClick={() => navigate(`/events/${event.id}`)}
+                >
+                  View Details
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-        {event.status === 'finalized' && event.selected_activity && (
-          <p className="gf-muted">
-            🎯 {event.selected_activity.title} · 📅{' '}
-            {prettyDate(event.selected_activity.suggested_date)}
-            {event.selected_activity.suggested_time
-              ? ` at ${event.selected_activity.suggested_time}`
-              : ''}
-          </p>
-        )}
-        {role === 'creator' && event.respondent_count !== undefined && (
-          <p className="gf-muted">👥 {event.respondent_count} responded</p>
-        )}
+        ))}
       </div>
-    </Link>
+    </div>
   );
 }
 
@@ -770,38 +809,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState('');
-  const tab = (searchParams.get('tab') === 'timeline' ? 'timeline' : 'events') as
-    | 'events'
-    | 'timeline';
-  const [showArchived, setShowArchived] = useState(false);
+  const tab = (searchParams.get('tab') === 'notifications' ? 'notifications' : 'timeline') as
+    | 'timeline'
+    | 'notifications';
   const [searchQuery, setSearchQuery] = useState('');
-  const [createdLimit, setCreatedLimit] = useState(6);
-  const [joinedLimit, setJoinedLimit] = useState(4);
-  const [archivedLimit, setArchivedLimit] = useState(4);
-  const [hiddenEventIds, setHiddenEventIds] = useState<Set<string>>(() => {
-    try {
-      const stored = localStorage.getItem('gofish_hidden_events');
-      if (stored) return new Set(JSON.parse(stored));
-    } catch {
-      /* ignore */
-    }
-    return new Set();
-  });
-
-  const handleHideEvent = useCallback((e: React.MouseEvent, id: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setHiddenEventIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
-      try {
-        localStorage.setItem('gofish_hidden_events', JSON.stringify(Array.from(next)));
-      } catch {
-        /* ignore */
-      }
-      return next;
-    });
-  }, []);
 
   function handleDeleteEvent(eventId: string) {
     setCreated((prev) => prev.filter((e) => e.id !== eventId));
@@ -910,28 +921,7 @@ export default function Dashboard() {
     );
   }
 
-  const activeCreated = created.filter(
-    (e) => !e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id)
-  );
-  const archivedCreated = created.filter(
-    (e) => e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id)
-  );
-  const activeJoined = joined.filter(
-    (e) => !e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id)
-  );
-  const archivedJoined = joined.filter(
-    (e) => e.archived && matchesSearch(e) && !hiddenEventIds.has(e.id)
-  );
-
-  const allArchived = [
-    ...archivedCreated.map((e) => ({ e, role: 'creator' as const })),
-    ...archivedJoined.map((e) => ({ e, role: 'participant' as const })),
-  ];
-
   const timelineEvents = [...created, ...joined].filter((e) => !e.archived && matchesSearch(e));
-
-  const hasAnyActive = activeCreated.length > 0 || activeJoined.length > 0;
-  const hasAnyArchived = archivedCreated.length > 0 || archivedJoined.length > 0;
 
   return (
     <div className="gf-stack gf-stack--xl">
@@ -941,15 +931,6 @@ export default function Dashboard() {
       <div className="gf-tabs" style={{ marginBottom: '8px' }}>
         <button
           type="button"
-          className={`gf-tab ${tab === 'events' ? 'gf-tab--active' : ''}`}
-          onClick={() => setSearchParams({ tab: 'events' })}
-        >
-          <span className="gf-inline-icon">
-            <LayoutGrid size={16} /> Grid
-          </span>
-        </button>
-        <button
-          type="button"
           className={`gf-tab ${tab === 'timeline' ? 'gf-tab--active' : ''}`}
           onClick={() => setSearchParams({ tab: 'timeline' })}
         >
@@ -957,108 +938,20 @@ export default function Dashboard() {
             <Clock size={16} /> Timeline
           </span>
         </button>
+        <button
+          type="button"
+          className={`gf-tab ${tab === 'notifications' ? 'gf-tab--active' : ''}`}
+          onClick={() => setSearchParams({ tab: 'notifications' })}
+        >
+          <span className="gf-inline-icon">
+            <Bell size={16} /> Notifications
+          </span>
+        </button>
       </div>
 
-      {tab === 'events' && (
+      {tab === 'notifications' && (
         <>
-          {activeCreated.length > 0 && (
-            <section className="gf-stack">
-              <h2 className="gf-section-title">My Events</h2>
-              <div className="gf-grid gf-grid--two">
-                {activeCreated.slice(0, createdLimit).map((e) => (
-                  <EventCard key={e.id} event={e} role="creator" onHide={handleHideEvent} />
-                ))}
-              </div>
-              {activeCreated.length > createdLimit && (
-                <button
-                  type="button"
-                  className="gf-button gf-button--ghost"
-                  onClick={() => setCreatedLimit((prev) => prev + 6)}
-                  style={{ alignSelf: 'center', marginTop: '8px' }}
-                >
-                  Show more
-                </button>
-              )}
-            </section>
-          )}
-
-          {activeJoined.length > 0 && (
-            <section className="gf-stack">
-              <h2 className="gf-section-title">Joined Events</h2>
-              <div className="gf-grid gf-grid--two">
-                {activeJoined.slice(0, joinedLimit).map((e) => (
-                  <EventCard key={e.id} event={e} role="participant" onHide={handleHideEvent} />
-                ))}
-              </div>
-              {activeJoined.length > joinedLimit && (
-                <button
-                  type="button"
-                  className="gf-button gf-button--ghost"
-                  onClick={() => setJoinedLimit((prev) => prev + 4)}
-                  style={{ alignSelf: 'center', marginTop: '8px' }}
-                >
-                  Show more
-                </button>
-              )}
-            </section>
-          )}
-
-          {!hasAnyActive && !hasAnyArchived && (
-            <EmptyState
-              icon={<CalendarPlus size={48} />}
-              title={searchQuery ? 'No matching events' : 'No events yet'}
-              description={
-                searchQuery
-                  ? 'Try adjusting your search query.'
-                  : 'Get started by creating a new event for you and your friends.'
-              }
-              action={
-                !searchQuery && (
-                  <Link to="/events/new" className="gf-button gf-button--primary">
-                    Create New Event
-                  </Link>
-                )
-              }
-            />
-          )}
-
-          {hasAnyArchived && (
-            <section className="gf-stack" style={{ marginTop: '24px' }}>
-              <div
-                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
-              >
-                <h2 className="gf-section-title" style={{ color: 'var(--muted)' }}>
-                  Past Events
-                </h2>
-                <button
-                  type="button"
-                  className="gf-button gf-button--ghost gf-button--sm"
-                  onClick={() => setShowArchived(!showArchived)}
-                >
-                  {showArchived ? 'Hide' : 'Show'}
-                </button>
-              </div>
-              {showArchived && (
-                <>
-                  <div className="gf-grid gf-grid--two" style={{ opacity: 0.7 }}>
-                    {allArchived.slice(0, archivedLimit).map(({ e, role }) => (
-                      <EventCard key={e.id} event={e} role={role} onHide={handleHideEvent} />
-                    ))}
-                  </div>
-                  {allArchived.length > archivedLimit && (
-                    <button
-                      type="button"
-                      className="gf-button gf-button--ghost"
-                      onClick={() => setArchivedLimit((prev) => prev + 4)}
-                      style={{ alignSelf: 'center', marginTop: '8px' }}
-                    >
-                      Show more
-                    </button>
-                  )}
-                </>
-              )}
-            </section>
-          )}
+          <NotificationsView created={created} joined={joined} />
         </>
       )}
 

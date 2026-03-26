@@ -9,7 +9,7 @@ import {
   useNavigate,
   useLocation,
 } from 'react-router-dom';
-import { Plus, Settings as SettingsIcon, LayoutGrid, HelpCircle } from 'lucide-react';
+import { Plus, Settings as SettingsIcon, LayoutGrid } from 'lucide-react';
 import {
   api,
   clearCurrentUser,
@@ -145,15 +145,6 @@ function AppShell({
         </nav>
         <div className="gf-topbar__actions">
           {userId && <Notifications />}
-          <button
-            type="button"
-            className="gf-nav-link gf-nav-link--icon"
-            onClick={() => setShowShortcuts(true)}
-            title="Keyboard shortcuts (?)"
-            aria-label="Keyboard shortcuts"
-          >
-            <HelpCircle size={18} />
-          </button>
           {userId ? (
             <Link
               to="/settings"
