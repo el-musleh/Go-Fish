@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Link, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import { Calendar, Home, LogIn, LogOut, Moon, Plus, Settings, Sun } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 import {
   api,
   clearCurrentUser,
@@ -285,6 +286,7 @@ export default function App() {
           }
         />
       </Routes>
+      <Analytics />
     </BrowserRouter>
   );
 }
