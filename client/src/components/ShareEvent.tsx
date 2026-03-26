@@ -179,7 +179,7 @@ export default function ShareEvent({
     window.open(url, '_blank', 'noopener,noreferrer,width=600,height=500');
   }
 
-  async function handleCopyLink() {
+  async function handleCopyMessage() {
     if (!inviteLink) return;
     const text = generateShareText(tone, eventTitle, eventCity, inviteLink);
     try {
@@ -302,7 +302,7 @@ export default function ShareEvent({
         <button
           type="button"
           className="gf-button gf-button--secondary"
-          onClick={handleCopyLink}
+          onClick={handleCopyMessage}
           disabled={!inviteLink}
         >
           {copied ? (
@@ -311,7 +311,7 @@ export default function ShareEvent({
             </>
           ) : (
             <>
-              <LinkIcon size={18} /> Copy Link
+              <LinkIcon size={18} /> Copy Message
             </>
           )}
         </button>
