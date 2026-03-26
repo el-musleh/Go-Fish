@@ -17,8 +17,296 @@ import {
   Calendar,
   CheckCircle2,
   ChevronRight,
+  Cpu,
+  Moon,
+  Sun,
+  LogOut,
+  Palette,
 } from 'lucide-react';
 import { clsx } from 'clsx';
+import { type Theme } from '../lib/theme';
+
+/* ... (keep questions and benchmark logic unchanged) ... */
+
+function ProfileSection({
+  profile,
+  onUpdate,
+  onSignOut,
+}: {
+  profile: UserProfile;
+  onUpdate: (data: { name: string }) => Promise<void>;
+  onSignOut: () => void;
+}) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    defaultValues: { name: profile.name || '' },
+  });
+
+  return (
+    <div className="gf-stack gf-stack--xl">
+      <section className="gf-stack">
+        <h2 className="gf-card-title">Personal Information</h2>
+        <p className="gf-muted">How you appear to others in Go Fish.</p>
+
+        <div className="gf-card" style={{ marginTop: '12px' }}>
+          <form onSubmit={handleSubmit(onUpdate)} className="gf-stack">
+            <div className="gf-field-row">
+              <ValidatedInput
+                label="Display Name"
+                registration={register('name')}
+                error={errors.name}
+                placeholder="Your name"
+              />
+              <div className="gf-field">
+                <label className="gf-field__label">Email Address</label>
+                <div
+                  className="gf-input"
+                  style={{
+                    opacity: 0.7,
+                    background: 'var(--bg-surface)',
+                    cursor: 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                  }}
+                >
+                  <Mail size={16} /> {profile.email}
+                </div>
+              </div>
+            </div>
+            <div className="gf-actions">
+              <button
+                type="submit"
+                className="gf-button gf-button--primary"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : 'Save Changes'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section className="gf-stack">
+        <h2 className="gf-card-title">Account Security</h2>
+        <p className="gf-muted">Manage your authentication and login details.</p>
+
+        <div className="gf-card" style={{ marginTop: '12px' }}>
+          <div className="gf-stack gf-stack--sm">
+            <div className="gf-detail-row">
+              <span className="gf-detail-row__label">Authentication Provider</span>
+              <span
+                className="gf-detail-row__value"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <ShieldCheck size={16} className="gf-success" />{' '}
+                {profile.auth_provider === 'google' ? 'Google OAuth' : 'Email Login'}
+              </span>
+            </div>
+            <div className="gf-detail-row">
+              <span className="gf-detail-row__label">Member Since</span>
+              <span className="gf-detail-row__value">
+                {new Date(profile.created_at).toLocaleDateString(undefined, { dateStyle: 'long' })}
+              </span>
+            </div>
+            <div className="gf-actions" style={{ marginTop: '16px' }}>
+              <button
+                type="button"
+                className="gf-button gf-button--secondary gf-inline-icon"
+                onClick={onSignOut}
+                style={{ color: 'var(--danger)', borderColor: 'rgba(var(--danger-rgb), 0.2)' }}
+              >
+                <LogOut size={18} /> Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AppearanceSection({
+  theme,
+  onThemeChange,
+}: {
+  theme: Theme;
+  onThemeChange: (theme: Theme) => void;
+}) {
+  return (
+    <div className="gf-stack gf-stack--xl">
+      <section className="gf-stack">
+        <h2 className="gf-card-title">Visual Appearance</h2>
+        <p className="gf-muted">Customize how Go Fish looks on your device.</p>
+
+        <div className="gf-grid gf-grid--two" style={{ marginTop: '12px' }}>
+          <button
+            type="button"
+            className={clsx('gf-card gf-text-center', theme === 'day' && 'gf-card--active')}
+            style={{ 
+              borderColor: theme === 'day' ? 'var(--accent)' : undefined,
+              boxShadow: theme === 'day' ? '0 0 0 3px rgba(var(--accent-rgb), 0.15)' : undefined,
+              cursor: 'pointer'
+            }}
+            onClick={() => onThemeChange('day')}
+          >
+            <Sun size={32} className={theme === 'day' ? 'gf-accent' : 'gf-muted'} style={{ margin: '0 auto 12px' }} />
+            <div style={{ fontWeight: 700 }}>Day Mode</div>
+            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>Light and crisp</p>
+          </button>
+          
+          <button
+            type="button"
+            className={clsx('gf-card gf-text-center', theme === 'night' && 'gf-card--active')}
+            style={{ 
+              borderColor: theme === 'night' ? 'var(--accent)' : undefined,
+              boxShadow: theme === 'night' ? '0 0 0 3px rgba(var(--accent-rgb), 0.15)' : undefined,
+              cursor: 'pointer'
+            }}
+            onClick={() => onThemeChange('night')}
+          >
+            <Moon size={32} className={theme === 'night' ? 'gf-accent' : 'gf-muted'} style={{ margin: '0 auto 12px' }} />
+            <div style={{ fontWeight: 700 }}>Night Mode</div>
+            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>Dark and cozy</p>
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+/* ... (keep PreferencesSection, DataSection, InfrastructureSection unchanged) ... */
+
+export default function Settings({
+  theme,
+  onThemeChange,
+  onSignOut,
+  onSignIn,
+}: {
+  theme: Theme;
+  onThemeChange: (theme: Theme) => void;
+  onSignOut: () => void;
+  onSignIn: () => void;
+}) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile');
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
+
+  /* ... (keep fetchAll, useEffect, handleTabChange, handleUpdateProfile, handleUpdateInfrastructure, handleSavePreferences unchanged) ... */
+
+  if (loading)
+    return (
+      <div className="gf-page-center">
+        <LoadingSpinner size="lg" label="Loading settings..." />
+      </div>
+    );
+
+  if (!profile)
+    return (
+      <div className="gf-page-center">
+        <div className="gf-stack gf-text-center" style={{ alignItems: 'center' }}>
+          <p className="gf-feedback gf-feedback--error">Failed to load user profile.</p>
+          <p className="gf-muted" style={{ marginBottom: '16px' }}>You may need to sign in again.</p>
+          <button className="gf-button gf-button--primary" onClick={onSignIn}>
+            Sign In
+          </button>
+        </div>
+      </div>
+    );
+
+  return (
+    <div className="gf-stack gf-stack--xl">
+      <header>
+        <h1 className="gf-section-title">Settings</h1>
+        <p className="gf-muted">Manage your profile, appearance, and activity preferences.</p>
+      </header>
+
+      <div className="gf-settings-layout">
+        <aside className="gf-settings-sidebar">
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
+              activeTab === 'profile' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('profile')}
+          >
+            <User size={20} />
+            <span style={{ flex: 1 }}>Profile</span>
+            {activeTab === 'profile' && <ChevronRight size={16} />}
+          </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
+              activeTab === 'appearance' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('appearance')}
+          >
+            <Palette size={20} />
+            <span style={{ flex: 1 }}>Appearance</span>
+            {activeTab === 'appearance' && <ChevronRight size={16} />}
+          </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
+              activeTab === 'preferences' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('preferences')}
+          >
+            <Sliders size={20} />
+            <span style={{ flex: 1 }}>Preferences</span>
+            {activeTab === 'preferences' && <ChevronRight size={16} />}
+          </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
+              activeTab === 'infrastructure' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('infrastructure')}
+          >
+            <Cpu size={20} />
+            <span style={{ flex: 1 }}>Infrastructure</span>
+            {activeTab === 'infrastructure' && <ChevronRight size={16} />}
+          </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
+              activeTab === 'data' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('data')}
+          >
+            <Database size={20} />
+            <span style={{ flex: 1 }}>Data & Storage</span>
+            {activeTab === 'data' && <ChevronRight size={16} />}
+          </button>
+        </aside>
+
+        <main className="gf-settings-content">
+          {activeTab === 'profile' && (
+            <ProfileSection 
+              profile={profile} 
+              onUpdate={handleUpdateProfile} 
+              onSignOut={onSignOut} 
+            />
+          )}
+          {activeTab === 'appearance' && (
+            <AppearanceSection theme={theme} onThemeChange={onThemeChange} />
+          )}
+          {activeTab === 'preferences' && <PreferencesSection onSave={handleSavePreferences} />}
+          {activeTab === 'infrastructure' && (
+            <InfrastructureSection profile={profile} onUpdate={handleUpdateInfrastructure} />
+          )}
+          {activeTab === 'data' && <DataSection info={storageInfo} />}
+        </main>
+      </div>
+    </div>
+  );
+}
 
 /* ── Taste Benchmark Logic ──────────────────────────────── */
 
@@ -417,6 +705,105 @@ function DataSection({ info }: { info: StorageInfo | null }) {
   );
 }
 
+function InfrastructureSection({
+  profile,
+  onUpdate,
+}: {
+  profile: UserProfile;
+  onUpdate: (data: { ai_api_key: string | null }) => Promise<void>;
+}) {
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting },
+  } = useForm({
+    defaultValues: { ai_api_key: profile.ai_api_key || '' },
+  });
+
+  return (
+    <div className="gf-stack gf-stack--xl">
+      <section className="gf-stack">
+        <h2 className="gf-card-title">AI Configuration</h2>
+        <p className="gf-muted">
+          By default, Go Fish uses our managed AI provider (OpenRouter). 
+          Provide your own key to use your own usage quotas.
+        </p>
+
+        <div className="gf-card" style={{ marginTop: '12px' }}>
+          <form onSubmit={handleSubmit(onUpdate)} className="gf-stack">
+            <div className="gf-field">
+              <label className="gf-field__label">AI Provider</label>
+              <div
+                className="gf-input"
+                style={{
+                  opacity: 0.7,
+                  background: 'var(--bg-surface)',
+                  cursor: 'not-allowed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <Cpu size={16} /> OpenRouter (LangChain)
+              </div>
+            </div>
+
+            <ValidatedInput
+              label="Manual API Key (Optional)"
+              registration={register('ai_api_key')}
+              error={errors.ai_api_key}
+              placeholder="sk-or-v1-..."
+              type="password"
+            />
+            
+            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
+              Your key is stored securely and used only for your event generations. 
+              Leave empty to use the service default.
+            </p>
+
+            <div className="gf-actions">
+              <button
+                type="submit"
+                className="gf-button gf-button--primary"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : 'Update AI Settings'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section className="gf-stack">
+        <h2 className="gf-card-title">Database & Infrastructure</h2>
+        <p className="gf-muted">Current system status and infrastructure details.</p>
+
+        <div className="gf-card" style={{ marginTop: '12px' }}>
+          <div className="gf-stack gf-stack--sm">
+            <div className="gf-detail-row">
+              <span className="gf-detail-row__label">Database Engine</span>
+              <span
+                className="gf-detail-row__value"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Database size={16} className="gf-success" /> PostgreSQL
+              </span>
+            </div>
+            <div className="gf-detail-row">
+              <span className="gf-detail-row__label">Infrastructure</span>
+              <span className="gf-detail-row__value">Managed Cloud</span>
+            </div>
+            <div className="gf-detail-row">
+              <span className="gf-detail-row__label">Region</span>
+              <span className="gf-detail-row__value">Global (Edge Optimized)</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 /* ── Main Page ──────────────────────────────────────────── */
 
 export default function Settings() {
@@ -425,16 +812,29 @@ export default function Settings() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [storageInfo, setStorageInfo] = useState<StorageInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
 
   const fetchAll = async () => {
     try {
+      setLoading(true);
+      setErrorDetails(null);
+      console.log('[Debug] Starting fetchAll...');
       const [p, s] = await Promise.all([
-        api.get<UserProfile>('/auth/me'),
-        api.get<StorageInfo>('/auth/storage-info'),
+        api.get<UserProfile>('/auth/me').catch(err => {
+          console.error('[Debug] /auth/me failed:', err);
+          throw new Error(`/auth/me: ${err.status || 'Error'}`);
+        }),
+        api.get<StorageInfo>('/auth/storage-info').catch(err => {
+          console.error('[Debug] /auth/storage-info failed:', err);
+          throw new Error(`/auth/storage-info: ${err.status || 'Error'}`);
+        }),
       ]);
+      console.log('[Debug] fetchAll success:', { p, s });
       setProfile(p);
       setStorageInfo(s);
-    } catch {
+    } catch (err: any) {
+      console.error('Failed to load settings:', err);
+      setErrorDetails(err.message || 'Unknown error');
       toast.error('Failed to load settings.');
     } finally {
       setLoading(false);
@@ -462,6 +862,19 @@ export default function Settings() {
     });
   };
 
+  const handleUpdateInfrastructure = async (data: { ai_api_key: string | null }) => {
+    const cleanData = { ai_api_key: data.ai_api_key?.trim() || null };
+    const promise = api.patch<UserProfile>('/auth/me', cleanData);
+    toast.promise(promise, {
+      loading: 'Updating infrastructure settings...',
+      success: (p) => {
+        setProfile(p);
+        return 'Infrastructure updated!';
+      },
+      error: 'Failed to update infrastructure.',
+    });
+  };
+
   const handleSavePreferences = async (data: BenchmarkFormData) => {
     const promise = api.post('/taste-benchmark', { answers: data });
     toast.promise(promise, {
@@ -480,7 +893,19 @@ export default function Settings() {
         <LoadingSpinner size="lg" label="Loading settings..." />
       </div>
     );
-  if (!profile) return null;
+
+  if (!profile)
+    return (
+      <div className="gf-page-center">
+        <div className="gf-stack gf-text-center" style={{ alignItems: 'center' }}>
+          <p className="gf-feedback gf-feedback--error">Failed to load user profile.</p>
+          {errorDetails && <p className="gf-muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>{errorDetails}</p>}
+          <button className="gf-button gf-button--secondary" onClick={fetchAll} style={{ marginTop: '16px' }}>
+            Retry
+          </button>
+        </div>
+      </div>
+    );
 
   return (
     <div className="gf-stack gf-stack--xl">
@@ -516,6 +941,17 @@ export default function Settings() {
           <button
             className={clsx(
               'gf-settings-nav-item',
+              activeTab === 'infrastructure' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('infrastructure')}
+          >
+            <Cpu size={20} />
+            <span style={{ flex: 1 }}>Infrastructure</span>
+            {activeTab === 'infrastructure' && <ChevronRight size={16} />}
+          </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
               activeTab === 'data' && 'gf-settings-nav-item--active'
             )}
             onClick={() => handleTabChange('data')}
@@ -531,6 +967,9 @@ export default function Settings() {
             <ProfileSection profile={profile} onUpdate={handleUpdateProfile} />
           )}
           {activeTab === 'preferences' && <PreferencesSection onSave={handleSavePreferences} />}
+          {activeTab === 'infrastructure' && (
+            <InfrastructureSection profile={profile} onUpdate={handleUpdateInfrastructure} />
+          )}
           {activeTab === 'data' && <DataSection info={storageInfo} />}
         </main>
       </div>
