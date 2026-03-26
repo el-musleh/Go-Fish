@@ -13,6 +13,27 @@ export interface ConnectOptions {
   poolConfig?: PoolConfig;
 }
 
+function buildPoolConfig(): PoolConfig {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error(
+      'DATABASE_URL is not set. Configure it in .env or Railway environment variables.'
+    );
+  }
+
+  const sslEnv = (process.env.DB_SSL ?? 'false').toLowerCase();
+  const ssl = sslEnv === 'true' ? { rejectUnauthorized: false } : undefined;
+
+  return {
+    connectionString,
+    ssl,
+    max: parseInt(process.env.DB_POOL_MAX ?? '10', 10),
+    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS ?? '10000', 10),
+    // Fail fast when all connections are busy instead of waiting forever
+    connectionTimeoutMillis: parseInt(process.env.DB_CONNECTION_TIMEOUT_MS ?? '5000', 10),
+  };
+}
+
 export async function connectWithRetry(
   options: ConnectOptions = {}
 ): Promise<Pool> {
@@ -22,12 +43,7 @@ export async function connectWithRetry(
     poolConfig,
   } = options;
 
-  const config: PoolConfig = poolConfig ?? {
-    connectionString:
-      process.env.DATABASE_URL ||
-      'postgres://gofish:gofish@db:5432/gofish',
-  };
-
+  const config: PoolConfig = poolConfig ?? buildPoolConfig();
   const pool = new Pool(config);
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -57,20 +73,4 @@ export async function connectWithRetry(
 
   // Unreachable, but satisfies TypeScript
   throw new Error('Unexpected: exhausted retries without throwing');
-}
-
-let defaultPool: Pool | null = null;
-
-export async function getPool(options?: ConnectOptions): Promise<Pool> {
-  if (!defaultPool) {
-    defaultPool = await connectWithRetry(options);
-  }
-  return defaultPool;
-}
-
-export async function closePool(): Promise<void> {
-  if (defaultPool) {
-    await defaultPool.end();
-    defaultPool = null;
-  }
 }

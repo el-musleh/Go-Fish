@@ -40,6 +40,20 @@ export function mountRoutes(pool: Pool): void {
       res.sendFile(path.join(clientDist, 'index.html'));
     });
   }
+
+  // Global Error Handler
+  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    console.error('[Unhandled Error]', err);
+    
+    const statusCode = err.status || err.statusCode || 500;
+    const message = err.message || 'An unexpected error occurred';
+    
+    res.status(statusCode).json({
+      error: err.name || 'InternalServerError',
+      message: message,
+      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    });
+  });
 }
 
 export default app;

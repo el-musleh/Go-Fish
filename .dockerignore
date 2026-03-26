@@ -15,7 +15,13 @@ _main_reference
 .kiro
 .vscode
 .git
+.claude
 .env
+.env.*
+!.env.example
+
+# Runtime logs
+logs
 
 # Docs and media
 *.md

@@ -24,7 +24,8 @@ services:
       GOOGLE_PLACES_API_KEY: ${GOOGLE_PLACES_API_KEY}
       FOURSQUARE_API_KEY: ${FOURSQUARE_API_KEY}
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     networks:
       - gofish-network
 
@@ -38,6 +39,11 @@ services:
       POSTGRES_DB: gofish
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gofish"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
     networks:
       - gofish-network
 

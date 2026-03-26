@@ -14,6 +14,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
 LOG_DIR="$SCRIPT_DIR/logs"
+SESSION_PID_FILE="$LOG_DIR/start.pid"
 BACKEND_PID=""
 FRONTEND_PID=""
 TAIL_PID=""
@@ -35,6 +36,7 @@ step() { echo -e "\n${BOLD}── $1 ──${NC}"; }
 cleanup() {
   echo ""
   log "Shutting down..."
+  [ -n "${SESSION_PID_FILE:-}" ] && rm -f "$SESSION_PID_FILE" 2>/dev/null || true
   [ -n "$BACKEND_PID" ]  && kill "$BACKEND_PID"  2>/dev/null || true
   [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null || true
   [ -n "$TAIL_PID" ]     && kill "$TAIL_PID"     2>/dev/null || true
@@ -50,6 +52,22 @@ if [ "${1:-}" = "stop" ]; then
   log "Stopped. (Kill any running npm processes manually if needed.)"
   exit 0
 fi
+
+# ── Kill any previous start.sh session ────────────────────────────────────
+# If a previous session is still running its cleanup will stop the DB, which
+# would send 57P01 to the new backend's idle pool connections and crash it.
+# Kill the old session first and wait for its cleanup to finish.
+mkdir -p "$LOG_DIR"
+if [ -f "$SESSION_PID_FILE" ]; then
+  old_pid=$(cat "$SESSION_PID_FILE" 2>/dev/null || true)
+  if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+    warn "Previous session still running (PID $old_pid) — stopping it first..."
+    kill "$old_pid" 2>/dev/null || true
+    sleep 2  # give its cleanup trap time to stop the DB
+  fi
+  rm -f "$SESSION_PID_FILE"
+fi
+echo $$ > "$SESSION_PID_FILE"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. Prerequisites
