@@ -12,8 +12,8 @@ const corsHeaders = {
 
 function createSupabaseClient(req: Request) {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  return createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+  return createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
 }
 
 async function getUserFromToken(req: Request, supabase: ReturnType<typeof createSupabaseClient>): Promise<{ id: string; email: string } | null> {

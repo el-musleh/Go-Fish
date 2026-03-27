@@ -122,7 +122,7 @@ describe('sendNotificationEmails', () => {
     expect(updateEmailLogStatus).toHaveBeenCalledTimes(3);
     expect(mockTransport.send).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: 'Go Fish <onboarding@resend.dev>',
+        from: 'Go Fish <hello@example.com>',
         to: 'user-a@test.com',
         subject: 'Go Fish: Bowling Night',
       })
