@@ -92,8 +92,14 @@ serve(async (req: Request) => {
       },
     });
   } catch (error) {
-    console.error('Gateway error:', error);
-    return new Response(JSON.stringify({ error: 'internal_error', message: 'Failed to route request' }), {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Gateway error:', errorMessage);
+    return new Response(JSON.stringify({ 
+      error: 'internal_error', 
+      message: 'Failed to route request',
+      details: errorMessage,
+      hint: 'Check Supabase function logs for details'
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

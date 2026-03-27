@@ -140,8 +140,13 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Taste benchmark function error:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Taste benchmark function error:', errorMessage);
+    return new Response(JSON.stringify({ 
+      error: 'Internal server error',
+      message: errorMessage,
+      hint: 'Check Supabase function logs for details'
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

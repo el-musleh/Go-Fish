@@ -46,20 +46,44 @@ function decodeJwt(token: string): { sub: string; email?: string } | null {
 
 async function getUserFromToken(req: Request, supabase: SupabaseClient): Promise<{ id: string; email: string } | null> {
   const authHeader = req.headers.get('x-session-token');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  const token = authHeader.slice(7);
+  const userIdHeader = req.headers.get('x-user-id');
   
-  const decoded = decodeJwt(token);
-  if (decoded && decoded.sub) {
-    return { id: decoded.sub, email: decoded.email ?? '' };
+  // Try session token first
+  if (authHeader) {
+    const token = authHeader;
+    
+    // Try to decode JWT directly
+    const decoded = decodeJwt(token);
+    if (decoded && decoded.sub) {
+      return { id: decoded.sub, email: decoded.email ?? '' };
+    }
+    
+    // Fallback: try Supabase auth
+    try {
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) return { id: user.id, email: user.email ?? '' };
+    } catch (e) {
+      console.error('getUserFromToken: getUser error:', e);
+    }
   }
   
-  try {
-    const { data: { user } } = await supabase.auth.getUser(token);
-    if (user) return { id: user.id, email: user.email ?? '' };
-  } catch {
-    // ignore
+  // Fallback: use x-user-id header if available
+  if (userIdHeader) {
+    try {
+      const { data: user } = await supabase
+        .from('user')
+        .select('email')
+        .eq('id', userIdHeader)
+        .single();
+      if (user) {
+        return { id: userIdHeader, email: user.email ?? '' };
+      }
+      return { id: userIdHeader, email: '' };
+    } catch (e) {
+      console.error('getUserFromToken: x-user-id lookup error:', e);
+    }
   }
+  
   return null;
 }
 
@@ -394,8 +418,13 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('Events function error:', error);
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Events function error:', errorMessage);
+    return new Response(JSON.stringify({ 
+      error: 'Internal server error',
+      message: errorMessage,
+      hint: 'Check Supabase function logs for details'
+    }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
