@@ -56,18 +56,21 @@ export function subscribeToAuthChange(listener: () => void): () => void {
   };
 }
 
-async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
 
-  // Always send the Supabase JWT when available (used by the backend in production).
-  // Always send x-user-id when available (used by the backend in dev mode when
-  // SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY are not configured). Sending both is
-  // safe: production ignores x-user-id, dev mode ignores the Bearer token.
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+async function request<T>(path: string, options?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    apikey: SUPABASE_ANON_KEY,
+  };
+
+  let session = (await supabase.auth.getSession()).data.session;
+  if (!session) {
+    await new Promise((r) => setTimeout(r, 100));
+    session = (await supabase.auth.getSession()).data.session;
+  }
   if (session?.access_token) {
-    headers['Authorization'] = `Bearer ${session.access_token}`;
+    headers['x-session-token'] = session.access_token;
   }
   if (currentUserId) {
     headers['x-user-id'] = currentUserId;

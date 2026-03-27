@@ -30,7 +30,7 @@ export function mountRoutes(pool: Pool): void {
   app.use('/api/notifications', createNotificationRouter(pool));
 
   // Return 404 for unmatched /api/* routes before falling through to the SPA
-  app.use('/api', (_req, res) => {
+  app.use('/api/:path(*)', (_req, res) => {
     res.status(404).json({ error: 'not_found', message: 'API endpoint not found.' });
   });
 
@@ -38,7 +38,7 @@ export function mountRoutes(pool: Pool): void {
   const clientDist = path.join(__dirname, '../client/dist');
   if (fs.existsSync(clientDist)) {
     app.use(express.static(clientDist));
-    app.get('*', (_req, res) => {
+    app.get('/:path(*)', (_req, res) => {
       res.sendFile(path.join(clientDist, 'index.html'));
     });
   }

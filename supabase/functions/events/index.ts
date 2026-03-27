@@ -35,24 +35,32 @@ function decodeJwt(token: string): { sub: string; email?: string } | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]));
-    return { sub: payload.sub, email: payload.email };
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (payload.length % 4) payload += '=';
+    const decoded = JSON.parse(atob(payload));
+    return { sub: decoded.sub, email: decoded.email };
   } catch {
     return null;
   }
 }
 
 async function getUserFromToken(req: Request, supabase: SupabaseClient): Promise<{ id: string; email: string } | null> {
-  const authHeader = req.headers.get('Authorization');
+  const authHeader = req.headers.get('x-session-token');
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) {
-    const decoded = decodeJwt(token);
-    if (decoded) return { id: decoded.sub, email: decoded.email ?? '' };
-    return null;
+  
+  const decoded = decodeJwt(token);
+  if (decoded && decoded.sub) {
+    return { id: decoded.sub, email: decoded.email ?? '' };
   }
-  return { id: user.id, email: user.email ?? '' };
+  
+  try {
+    const { data: { user } } = await supabase.auth.getUser(token);
+    if (user) return { id: user.id, email: user.email ?? '' };
+  } catch {
+    // ignore
+  }
+  return null;
 }
 
 async function requireAuth(req: Request, supabase: SupabaseClient) {

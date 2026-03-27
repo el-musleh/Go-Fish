@@ -29,7 +29,7 @@ function decodeJwt(token: string): { sub: string; email?: string } | null {
 }
 
 async function getUserFromToken(req: Request, supabase: ReturnType<typeof createSupabaseClient>): Promise<{ id: string; email: string } | null> {
-  const authHeader = req.headers.get('Authorization');
+  const authHeader = req.headers.get('x-session-token');
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
   const { data: { user }, error } = await supabase.auth.getUser(token);

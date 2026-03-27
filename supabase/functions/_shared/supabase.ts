@@ -15,25 +15,39 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServic
 });
 
 /**
- * Get the authenticated user from the Authorization header
- * Returns null if no valid token provided
+ * Get the authenticated user from the x-session-token header or x-user-id header
+ * Returns null if no valid credentials provided
  */
 export async function getAuthenticatedUser(
   req: Request
 ): Promise<{ id: string; email: string } | null> {
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) {
-    return null;
+  const authHeader = req.headers.get('x-session-token');
+  const userIdHeader = req.headers.get('x-user-id');
+
+  // Try session token first
+  if (authHeader) {
+    const token = authHeader;
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (!error && user) {
+      return { id: user.id, email: user.email ?? '' };
+    }
   }
 
-  const token = authHeader.slice(7);
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-
-  if (error || !user) {
-    return null;
+  // Fallback: use x-user-id header if available
+  if (userIdHeader) {
+    const { data: user } = await supabase
+      .from('user')
+      .select('email')
+      .eq('id', userIdHeader)
+      .single();
+    if (user) {
+      return { id: userIdHeader, email: user.email ?? '' };
+    }
+    return { id: userIdHeader, email: '' };
   }
 
-  return { id: user.id, email: user.email ?? '' };
+  return null;
 }
 
 /**

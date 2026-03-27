@@ -32,10 +32,14 @@ export function getPostAuthDestination(currentPath: string, isNew: boolean): str
   return `/benchmark?returnTo=${encodeURIComponent(resolvedPath)}`;
 }
 
-export function shouldBlockDuringAuthBootstrap(pathname: string, isBootstrapping: boolean): boolean {
+export function shouldBlockDuringAuthBootstrap(
+  pathname: string,
+  isBootstrapping: boolean
+): boolean {
   if (!isBootstrapping) {
     return false;
   }
 
-  return pathname !== '/';
+  const publicRoutes = ['/', '/login', '/auth/callback'];
+  return !publicRoutes.includes(pathname);
 }

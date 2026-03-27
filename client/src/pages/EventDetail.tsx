@@ -297,6 +297,7 @@ export default function EventDetail() {
       </button>
       <div>
         <h2 className="gf-section-title">{event.title}</h2>
+        {event.description && <p className="gf-muted">{event.description}</p>}
         {event.location_city && (
           <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>
             &#128205; {event.location_city}

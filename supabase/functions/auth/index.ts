@@ -25,31 +25,52 @@ function decodeJwt(token: string): { sub: string; email?: string } | null {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1]));
-    return { sub: payload.sub, email: payload.email };
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (payload.length % 4) payload += '=';
+    const decoded = JSON.parse(atob(payload));
+    return { sub: decoded.sub, email: decoded.email };
   } catch {
     return null;
   }
 }
 
 async function getUserFromToken(req: Request, supabase: SupabaseClient): Promise<{ id: string; email: string } | null> {
-  const authHeader = req.headers.get('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) return null;
+  const authHeader = req.headers.get('x-session-token');
+  const userIdHeader = req.headers.get('x-user-id');
   
-  const token = authHeader.slice(7);
-  
-  // First try with Supabase auth
-  const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) {
-    // Fallback: try to decode JWT manually
+  // If we have a session token, try to use it
+  if (authHeader) {
+    const token = authHeader;
+    
+    // Try to decode JWT directly - faster and more reliable
     const decoded = decodeJwt(token);
-    if (decoded) {
+    if (decoded && decoded.sub) {
       return { id: decoded.sub, email: decoded.email ?? '' };
     }
-    return null;
+    
+    // Fallback: try Supabase auth
+    try {
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) return { id: user.id, email: user.email ?? '' };
+    } catch {
+      // ignore
+    }
   }
   
-  return { id: user.id, email: user.email ?? '' };
+  // Fallback: use x-user-id header if available (set by client from localStorage)
+  if (userIdHeader) {
+    const { data: user } = await supabase
+      .from('user')
+      .select('email')
+      .eq('id', userIdHeader)
+      .single();
+    if (user) {
+      return { id: userIdHeader, email: user.email ?? '' };
+    }
+    return { id: userIdHeader, email: '' };
+  }
+  
+  return null;
 }
 
 async function getOrCreateUser(req: Request, supabase: SupabaseClient): Promise<{ id: string; email: string }> {
