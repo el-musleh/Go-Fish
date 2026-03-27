@@ -11,6 +11,10 @@ vi.mock('../repositories/userRepository', () => ({
   createUser: vi.fn(),
 }));
 
+vi.mock('../lib/supabaseAdmin', () => ({
+  getSupabaseAdmin: vi.fn().mockReturnValue(null),
+}));
+
 import { getUserById, updateUser } from '../repositories/userRepository';
 
 const mockPool = {

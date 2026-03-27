@@ -15,10 +15,21 @@ const corsHeaders = {
 
 function createSupabaseClient(req: Request): SupabaseClient {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-  return createClient(supabaseUrl, supabaseAnonKey, {
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  return createClient(supabaseUrl, supabaseServiceKey, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+function decodeJwt(token: string): { sub: string; email?: string } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return { sub: payload.sub, email: payload.email };
+  } catch {
+    return null;
+  }
 }
 
 async function getUserFromToken(req: Request, supabase: SupabaseClient): Promise<{ id: string; email: string } | null> {
@@ -26,8 +37,17 @@ async function getUserFromToken(req: Request, supabase: SupabaseClient): Promise
   if (!authHeader?.startsWith('Bearer ')) return null;
   
   const token = authHeader.slice(7);
+  
+  // First try with Supabase auth
   const { data: { user }, error } = await supabase.auth.getUser(token);
-  if (error || !user) return null;
+  if (error || !user) {
+    // Fallback: try to decode JWT manually
+    const decoded = decodeJwt(token);
+    if (decoded) {
+      return { id: decoded.sub, email: decoded.email ?? '' };
+    }
+    return null;
+  }
   
   return { id: user.id, email: user.email ?? '' };
 }

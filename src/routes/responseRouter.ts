@@ -27,7 +27,7 @@ export function createResponseRouter(pool: Pool): Router {
     async (req: Request, res: Response, next: NextFunction) => {
       try {
         const userId = (req as any).userId as string;
-        const { eventId } = req.params;
+        const eventId = req.params.eventId as string;
         const { available_dates } = req.body;
 
         // Validate dates with time windows
@@ -119,7 +119,7 @@ export function createResponseRouter(pool: Pool): Router {
   router.get('/', requireAuth, async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req as any).userId as string;
-      const { eventId } = req.params;
+      const eventId = req.params.eventId as string;
 
       const event = await getEventById(pool, eventId);
       if (!event) {

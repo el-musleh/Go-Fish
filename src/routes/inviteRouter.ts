@@ -18,7 +18,7 @@ export function createInviteRouter(pool: Pool): Router {
    */
   router.get('/:linkToken', async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const invitationLink = await getInvitationLinkByToken(pool, req.params.linkToken);
+      const invitationLink = await getInvitationLinkByToken(pool, (req.params.linkToken as string));
 
       if (!invitationLink) {
         res.status(404).json({ error: 'invalid_link', message: 'This invitation link is not valid.' });
@@ -40,7 +40,7 @@ export function createInviteRouter(pool: Pool): Router {
         res.status(401).json({
           error: 'auth_required',
           message: 'Please log in to respond to this invitation.',
-          redirect: `/?auth=1&returnTo=/invite/${req.params.linkToken}`,
+          redirect: `/?auth=1&returnTo=/invite/${(req.params.linkToken as string)}`,
           eventId: event.id,
         });
         return;
@@ -55,7 +55,7 @@ export function createInviteRouter(pool: Pool): Router {
       });
 
       // Create notification for the invitee
-      notifyEventInvited(pool, event.id, userId, event.title, req.params.linkToken).catch((err) =>
+      notifyEventInvited(pool, event.id, userId, event.title, (req.params.linkToken as string)).catch((err) =>
         console.error('Failed to create invite notification:', err)
       );
     } catch (error) {

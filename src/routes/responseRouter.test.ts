@@ -17,6 +17,10 @@ vi.mock('../repositories/userRepository', () => ({
   getUserById: vi.fn(),
 }));
 
+vi.mock('../lib/supabaseAdmin', () => ({
+  getSupabaseAdmin: vi.fn().mockReturnValue(null),
+}));
+
 import { getEventById } from '../repositories/eventRepository';
 import {
   createResponse,

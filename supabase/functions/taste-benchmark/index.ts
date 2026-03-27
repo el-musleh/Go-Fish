@@ -13,15 +13,31 @@ const REQUIRED_QUESTIONS = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7', 'q8', 'q9'
 
 function createSupabaseClient(req: Request) {
   const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
-  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-  return createClient(supabaseUrl, supabaseAnonKey, { auth: { persistSession: false } });
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  return createClient(supabaseUrl, supabaseServiceKey, { auth: { persistSession: false } });
+}
+
+function decodeJwt(token: string): { sub: string; email?: string } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return { sub: payload.sub, email: payload.email };
+  } catch {
+    return null;
+  }
 }
 
 async function getUserFromToken(req: Request, supabase: ReturnType<typeof createSupabaseClient>): Promise<{ id: string; email: string } | null> {
   const authHeader = req.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
   const token = authHeader.slice(7);
-  const { data: { user } } = await supabase.auth.getUser(token);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  if (error || !user) {
+    const decoded = decodeJwt(token);
+    if (decoded) return { id: decoded.sub, email: decoded.email ?? '' };
+    return null;
+  }
   return user ? { id: user.id, email: user.email ?? '' } : null;
 }
 

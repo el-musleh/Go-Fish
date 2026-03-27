@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node node_modules/vite/bin/vite.js",
+    "test": "node node_modules/vitest/vitest.mjs --run",
     "build": "node node_modules/typescript/bin/tsc && node node_modules/vite/bin/vite.js build",
     "preview": "node node_modules/vite/bin/vite.js preview",
     "lint": "node node_modules/eslint/bin/eslint.js src --max-warnings=0",

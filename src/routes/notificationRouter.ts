@@ -151,7 +151,7 @@ export function createNotificationRouter(pool: Pool): Router {
   router.patch('/:id/read', requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId as string;
-      const notificationId = req.params.id;
+      const notificationId = req.params.id as string;
 
       // Verify ownership
       const notification = await getNotificationById(pool, notificationId);
@@ -199,7 +199,7 @@ export function createNotificationRouter(pool: Pool): Router {
   router.delete('/:id', requireAuth, async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId as string;
-      const notificationId = req.params.id;
+      const notificationId = req.params.id as string;
 
       const success = await deleteNotification(pool, notificationId, userId);
       if (!success) {

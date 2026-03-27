@@ -8,6 +8,10 @@ vi.mock('../repositories/tasteBenchmarkRepository', () => ({
   createTasteBenchmark: vi.fn(),
   getTasteBenchmarkByUserId: vi.fn(),
 }));
+
+vi.mock('../lib/supabaseAdmin', () => ({
+  getSupabaseAdmin: vi.fn().mockReturnValue(null),
+}));
 vi.mock('../repositories/userRepository', () => ({
   updateUser: vi.fn(),
 }));

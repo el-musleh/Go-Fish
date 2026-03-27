@@ -85,7 +85,7 @@ describe('sendNotificationEmails', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env = { ...originalEnv, EMAIL_FROM: 'Go Fish <hello@example.com>' };
+    process.env = { ...originalEnv };
   });
 
   afterEach(() => {
@@ -122,7 +122,7 @@ describe('sendNotificationEmails', () => {
     expect(updateEmailLogStatus).toHaveBeenCalledTimes(3);
     expect(mockTransport.send).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: 'Go Fish <hello@example.com>',
+        from: 'Go Fish <noreply@gofish.ink>',
         to: 'user-a@test.com',
         subject: 'Go Fish: Bowling Night',
       })

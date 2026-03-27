@@ -234,7 +234,7 @@ export function createEventRouter(pool: Pool): Router {
   router.get('/:eventId', async (req: Request, res: Response, next: NextFunction) => {
     try {
       res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-      const event = await getEventById(pool, req.params.eventId);
+      const event = await getEventById(pool, (req.params.eventId as string));
 
       if (!event) {
         res.status(404).json({ error: 'not_found', message: 'Event not found.' });
@@ -258,7 +258,7 @@ export function createEventRouter(pool: Pool): Router {
    */
   router.get('/:eventId/suggestions', async (req: Request, res: Response) => {
     try {
-      const event = await getEventById(pool, req.params.eventId);
+      const event = await getEventById(pool, (req.params.eventId as string));
       if (!event) {
         res.status(404).json({ error: 'not_found', message: 'Event not found.' });
         return;
@@ -291,7 +291,7 @@ export function createEventRouter(pool: Pool): Router {
   router.post('/:eventId/end-window', async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId as string;
-      const event = await getEventById(pool, req.params.eventId);
+      const event = await getEventById(pool, (req.params.eventId as string));
 
       if (!event) {
         res.status(404).json({ error: 'not_found', message: 'Event not found.' });
@@ -320,7 +320,7 @@ export function createEventRouter(pool: Pool): Router {
    */
   router.post('/:eventId/link', async (req: Request, res: Response) => {
     try {
-      const event = await getEventById(pool, req.params.eventId);
+      const event = await getEventById(pool, (req.params.eventId as string));
 
       if (!event) {
         res.status(404).json({ error: 'not_found', message: 'Event not found.' });
@@ -356,7 +356,7 @@ export function createEventRouter(pool: Pool): Router {
   router.post('/:eventId/generate', async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId as string;
-      const event = await getEventById(pool, req.params.eventId);
+      const event = await getEventById(pool, (req.params.eventId as string));
 
       if (!event) {
         res.status(404).json({ error: 'not_found', message: 'Event not found.' });
@@ -392,14 +392,14 @@ export function createEventRouter(pool: Pool): Router {
    */
   router.get('/:eventId/options', async (req: Request, res: Response) => {
     try {
-      const event = await getEventById(pool, req.params.eventId);
+      const event = await getEventById(pool, (req.params.eventId as string));
 
       if (!event) {
         res.status(404).json({ error: 'not_found', message: 'Event not found.' });
         return;
       }
 
-      const options = await getActivityOptionsByEventId(pool, req.params.eventId);
+      const options = await getActivityOptionsByEventId(pool, (req.params.eventId as string));
       res.json({ options: normalizeActivityOptions(options) });
     } catch (error) {
       console.error('Error fetching activity options:', error);
@@ -422,7 +422,7 @@ export function createEventRouter(pool: Pool): Router {
         return;
       }
 
-      const event = await getEventById(pool, req.params.eventId);
+      const event = await getEventById(pool, (req.params.eventId as string));
 
       if (!event) {
         res.status(404).json({ error: 'not_found', message: 'Event not found.' });
@@ -499,7 +499,7 @@ export function createEventRouter(pool: Pool): Router {
   router.delete('/:eventId', async (req: Request, res: Response, next: NextFunction) => {
     try {
       const userId = (req as any).userId as string;
-      const event = await getEventById(pool, req.params.eventId);
+      const event = await getEventById(pool, (req.params.eventId as string));
 
       if (!event) {
         res.status(404).json({ error: 'not_found', message: 'Event not found.' });
@@ -528,7 +528,7 @@ export function createEventRouter(pool: Pool): Router {
   router.get('/:eventId/respondents', async (req: Request, res: Response) => {
     try {
       const userId = (req as any).userId as string;
-      const event = await getEventById(pool, req.params.eventId);
+      const event = await getEventById(pool, (req.params.eventId as string));
       if (!event) { res.status(404).json({ error: 'not_found' }); return; }
       if (event.inviter_id !== userId) { res.status(403).json({ error: 'forbidden' }); return; }
 
