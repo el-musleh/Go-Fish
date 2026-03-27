@@ -34,48 +34,109 @@ function decodeJwt(token: string): { sub: string; email?: string } | null {
   }
 }
 
+/**
+ * Get user from token with 4-layer fallback:
+ * 1. Decode JWT → extract email → lookup by email
+ * 2. Use Supabase auth.getUser() → get email → lookup by email
+ * 3. Use x-user-id header → lookup by local ID
+ * 4. Use x-user-id header → create user if not exists
+ */
 async function getUserFromToken(req: Request, supabase: SupabaseClient): Promise<{ id: string; email: string } | null> {
   const authHeader = req.headers.get('x-session-token');
   const userIdHeader = req.headers.get('x-user-id');
   
-  // If we have a session token, try to use it
+  // Layer 1: Decode JWT and look up by email
   if (authHeader) {
     const token = authHeader;
     
-    // Try to decode JWT directly - faster and more reliable
+    // Try to decode JWT directly
     const decoded = decodeJwt(token);
-    if (decoded && decoded.sub) {
-      return { id: decoded.sub, email: decoded.email ?? '' };
+    if (decoded && decoded.email) {
+      const email = decoded.email.toLowerCase();
+      // Look up user by email in our table
+      const { data: userByEmail } = await supabase
+        .from('user')
+        .select('id, email')
+        .eq('email', email)
+        .single();
+      if (userByEmail) {
+        console.log('Layer 1 success: found user by email from JWT');
+        return { id: userByEmail.id, email: userByEmail.email };
+      }
     }
     
-    // Fallback: try Supabase auth
+    // Layer 2: Use Supabase auth to get user info and look up by email
     try {
       const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) return { id: user.id, email: user.email ?? '' };
-    } catch {
-      // ignore
+      if (user && user.email) {
+        const email = user.email.toLowerCase();
+        // Look up user by email in our table
+        const { data: userByEmail } = await supabase
+          .from('user')
+          .select('id, email')
+          .eq('email', email)
+          .single();
+        if (userByEmail) {
+          console.log('Layer 2 success: found user by email from Supabase auth');
+          return { id: userByEmail.id, email: userByEmail.email };
+        }
+      }
+    } catch (e) {
+      console.error('Layer 2 error:', e);
     }
   }
   
-  // Fallback: use x-user-id header if available (set by client from localStorage)
+  // Layer 3: Use x-user-id header to look up by local ID
   if (userIdHeader) {
-    const { data: user } = await supabase
+    const { data: userById } = await supabase
       .from('user')
-      .select('email')
+      .select('id, email')
       .eq('id', userIdHeader)
       .single();
-    if (user) {
-      return { id: userIdHeader, email: user.email ?? '' };
+    if (userById) {
+      console.log('Layer 3 success: found user by local ID');
+      return { id: userById.id, email: userById.email ?? '' };
     }
+    // If x-user-id provided but user doesn't exist, return the ID anyway
+    // This handles the case where user was just created
+    console.log('Layer 3: user ID provided but not found in table');
     return { id: userIdHeader, email: '' };
   }
   
+  console.log('All auth layers failed: no valid credentials');
   return null;
 }
 
+/**
+ * Get existing user or create new one with proper auth tracking
+ */
 async function getOrCreateUser(req: Request, supabase: SupabaseClient): Promise<{ id: string; email: string }> {
+  // First try to get user from token
   const user = await getUserFromToken(req, supabase);
-  if (user) return user;
+  if (user && user.email) return user;
+  
+  // Get auth info from token for creating/updating user
+  const authHeader = req.headers.get('x-session-token');
+  const userIdHeader = req.headers.get('x-user-id');
+  
+  let authId: string | null = null;
+  let authProvider: 'google' | 'email' = 'email';
+  
+  // Try to get auth_id and provider from Supabase auth
+  if (authHeader) {
+    try {
+      const { data: { user: supabaseUser } } = await supabase.auth.getUser(authHeader);
+      if (supabaseUser) {
+        authId = supabaseUser.id;
+        // Detect provider from app_metadata
+        const provider = supabaseUser.app_metadata?.provider ?? 'email';
+        authProvider = provider === 'google' ? 'google' : 'email';
+        console.log('Detected auth provider:', authProvider, 'auth_id:', authId);
+      }
+    } catch (e) {
+      console.error('Error getting user from auth:', e);
+    }
+  }
   
   // For email-only login, get email from request body
   const body = await req.json().catch(() => ({}));
@@ -88,7 +149,7 @@ async function getOrCreateUser(req: Request, supabase: SupabaseClient): Promise<
     });
   }
   
-  // Look up or create user in our table
+  // Look up existing user by email
   const { data: existingUser } = await supabase
     .from('user')
     .select('*')
@@ -96,17 +157,35 @@ async function getOrCreateUser(req: Request, supabase: SupabaseClient): Promise<
     .single();
   
   if (existingUser) {
+    // Update auth_id if not set and we have it
+    if (authId && !existingUser.auth_id) {
+      await supabase
+        .from('user')
+        .update({ 
+          auth_id: authId, 
+          auth_provider: authProvider,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingUser.id);
+      console.log('Updated user with auth_id:', authId);
+    }
     return { id: existingUser.id, email: existingUser.email };
   }
   
-  // Create new user
+  // Create new user with auth_id and proper provider
   const { data: newUser, error: createError } = await supabase
     .from('user')
-    .insert({ email, auth_provider: 'email' })
+    .insert({ 
+      email, 
+      auth_provider: authProvider,
+      auth_id: authId,
+      updated_at: new Date().toISOString()
+    })
     .select()
     .single();
   
   if (createError) throw createError;
+  console.log('Created new user with auth_provider:', authProvider, 'auth_id:', authId);
   return { id: newUser.id, email: newUser.email };
 }
 

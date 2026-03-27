@@ -15,8 +15,30 @@ export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseServic
 });
 
 /**
+ * Decode JWT token to extract payload
+ */
+function decodeJwt(token: string): { sub: string; email?: string } | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    while (payload.length % 4) payload += '=';
+    const decoded = JSON.parse(atob(payload));
+    return { sub: decoded.sub, email: decoded.email };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Get the authenticated user from the x-session-token header or x-user-id header
  * Returns null if no valid credentials provided
+ * 
+ * 4-layer fallback:
+ * 1. Decode JWT → extract email → lookup by email
+ * 2. Use Supabase auth.getUser() → get email → lookup by email  
+ * 3. Use x-user-id header → lookup by local ID
+ * 4. Use x-user-id header → return ID if not found
  */
 export async function getAuthenticatedUser(
   req: Request
@@ -24,26 +46,54 @@ export async function getAuthenticatedUser(
   const authHeader = req.headers.get('x-session-token');
   const userIdHeader = req.headers.get('x-user-id');
 
-  // Try session token first
+  // Layer 1: Decode JWT and look up by email
   if (authHeader) {
     const token = authHeader;
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-
-    if (!error && user) {
-      return { id: user.id, email: user.email ?? '' };
+    
+    // Try to decode JWT directly
+    const decoded = decodeJwt(token);
+    if (decoded && decoded.email) {
+      const email = decoded.email.toLowerCase();
+      const { data: userByEmail } = await supabase
+        .from('user')
+        .select('id, email')
+        .eq('email', email)
+        .single();
+      if (userByEmail) {
+        return { id: userByEmail.id, email: userByEmail.email };
+      }
+    }
+    
+    // Layer 2: Use Supabase auth to get user info and look up by email
+    try {
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user && user.email) {
+        const email = user.email.toLowerCase();
+        const { data: userByEmail } = await supabase
+          .from('user')
+          .select('id, email')
+          .eq('email', email)
+          .single();
+        if (userByEmail) {
+          return { id: userByEmail.id, email: userByEmail.email };
+        }
+      }
+    } catch (e) {
+      console.error('Auth error:', e);
     }
   }
 
-  // Fallback: use x-user-id header if available
+  // Layer 3: Use x-user-id header to look up by local ID
   if (userIdHeader) {
-    const { data: user } = await supabase
+    const { data: userById } = await supabase
       .from('user')
-      .select('email')
+      .select('id, email')
       .eq('id', userIdHeader)
       .single();
-    if (user) {
-      return { id: userIdHeader, email: user.email ?? '' };
+    if (userById) {
+      return { id: userById.id, email: userById.email ?? '' };
     }
+    // Layer 4: Return the ID anyway if provided (user might be in process of creation)
     return { id: userIdHeader, email: '' };
   }
 

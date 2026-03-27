@@ -30,20 +30,57 @@ function decodeJwt(token: string): { sub: string; email?: string } | null {
 
 async function getUserFromToken(req: Request, supabase: ReturnType<typeof createSupabaseClient>): Promise<{ id: string; email: string } | null> {
   const authHeader = req.headers.get('x-session-token');
-  if (!authHeader?.startsWith('Bearer ')) return null;
-  const token = authHeader.slice(7);
+  const userIdHeader = req.headers.get('x-user-id');
   
-  const decoded = decodeJwt(token);
-  if (decoded && decoded.sub) {
-    return { id: decoded.sub, email: decoded.email ?? '' };
+  // Layer 1: Decode JWT and look up by email
+  if (authHeader) {
+    const token = authHeader;
+    
+    const decoded = decodeJwt(token);
+    if (decoded && decoded.email) {
+      const email = decoded.email.toLowerCase();
+      const { data: userByEmail } = await supabase
+        .from('user')
+        .select('id, email')
+        .eq('email', email)
+        .single();
+      if (userByEmail) {
+        return { id: userByEmail.id, email: userByEmail.email };
+      }
+    }
+    
+    // Layer 2: Use Supabase auth to get user info and look up by email
+    try {
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user && user.email) {
+        const email = user.email.toLowerCase();
+        const { data: userByEmail } = await supabase
+          .from('user')
+          .select('id, email')
+          .eq('email', email)
+          .single();
+        if (userByEmail) {
+          return { id: userByEmail.id, email: userByEmail.email };
+        }
+      }
+    } catch (e) {
+      console.error('getUserFromToken error:', e);
+    }
   }
   
-  try {
-    const { data: { user } } = await supabase.auth.getUser(token);
-    if (user) return { id: user.id, email: user.email ?? '' };
-  } catch {
-    // ignore
+  // Layer 3: Use x-user-id header to look up by local ID
+  if (userIdHeader) {
+    const { data: userById } = await supabase
+      .from('user')
+      .select('id, email')
+      .eq('id', userIdHeader)
+      .single();
+    if (userById) {
+      return { id: userById.id, email: userById.email ?? '' };
+    }
+    return { id: userIdHeader, email: '' };
   }
+  
   return null;
 }
 

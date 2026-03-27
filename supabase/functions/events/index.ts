@@ -48,36 +48,55 @@ async function getUserFromToken(req: Request, supabase: SupabaseClient): Promise
   const authHeader = req.headers.get('x-session-token');
   const userIdHeader = req.headers.get('x-user-id');
   
-  // Try session token first
+  // Layer 1: Decode JWT and look up by email
   if (authHeader) {
     const token = authHeader;
     
     // Try to decode JWT directly
     const decoded = decodeJwt(token);
-    if (decoded && decoded.sub) {
-      return { id: decoded.sub, email: decoded.email ?? '' };
+    if (decoded && decoded.email) {
+      const email = decoded.email.toLowerCase();
+      const { data: userByEmail } = await supabase
+        .from('user')
+        .select('id, email')
+        .eq('email', email)
+        .single();
+      if (userByEmail) {
+        return { id: userByEmail.id, email: userByEmail.email };
+      }
     }
     
-    // Fallback: try Supabase auth
+    // Layer 2: Use Supabase auth to get user info and look up by email
     try {
       const { data: { user } } = await supabase.auth.getUser(token);
-      if (user) return { id: user.id, email: user.email ?? '' };
+      if (user && user.email) {
+        const email = user.email.toLowerCase();
+        const { data: userByEmail } = await supabase
+          .from('user')
+          .select('id, email')
+          .eq('email', email)
+          .single();
+        if (userByEmail) {
+          return { id: userByEmail.id, email: userByEmail.email };
+        }
+      }
     } catch (e) {
       console.error('getUserFromToken: getUser error:', e);
     }
   }
   
-  // Fallback: use x-user-id header if available
+  // Layer 3: Use x-user-id header to look up by local ID
   if (userIdHeader) {
     try {
-      const { data: user } = await supabase
+      const { data: userById } = await supabase
         .from('user')
-        .select('email')
+        .select('id, email')
         .eq('id', userIdHeader)
         .single();
-      if (user) {
-        return { id: userIdHeader, email: user.email ?? '' };
+      if (userById) {
+        return { id: userById.id, email: userById.email ?? '' };
       }
+      // Return ID anyway if provided
       return { id: userIdHeader, email: '' };
     } catch (e) {
       console.error('getUserFromToken: x-user-id lookup error:', e);
