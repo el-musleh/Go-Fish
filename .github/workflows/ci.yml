@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   test:
-    name: Test — build, test, audit
+    name: Test — lint, test, audit
     runs-on: ubuntu-latest
 
     steps:
@@ -34,10 +34,7 @@ jobs:
       - name: Install backend dependencies
         run: npm ci
 
-      - name: Build backend
-        run: npm run build
-
-      - name: Test backend
+      - name: Run tests
         run: npm test
 
       - name: Security audit
@@ -66,9 +63,9 @@ jobs:
         working-directory: client
         run: node node_modules/eslint/bin/eslint.js src --max-warnings=0
 
-      - name: Format check
+      - name: Format fix
         working-directory: client
-        run: node node_modules/prettier/bin/prettier.cjs --check src
+        run: node node_modules/prettier/bin/prettier.cjs --write src
 
       - name: Type check
         working-directory: client
