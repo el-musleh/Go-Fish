@@ -56,15 +56,29 @@ import {
 
 // ── Protected Route Wrapper ────────────────────────────────────────────────────
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
+function RequireAuth({
+  children,
+  bootstrapping,
+}: {
+  children: React.ReactNode;
+  bootstrapping: boolean;
+}) {
   const navigate = useNavigate();
   const userId = getCurrentUserId();
 
   useEffect(() => {
-    if (!userId) {
+    if (!bootstrapping && !userId) {
       navigate('/', { replace: true });
     }
-  }, [userId, navigate]);
+  }, [userId, navigate, bootstrapping]);
+
+  if (bootstrapping) {
+    return (
+      <div className="gf-page-center">
+        <LoadingSpinner size="lg" />
+      </div>
+    );
+  }
 
   if (!userId) return null;
   return <>{children}</>;
@@ -411,7 +425,7 @@ export default function App() {
                 <Route
                   path="/notifications"
                   element={
-                    <RequireAuth>
+                    <RequireAuth bootstrapping={authBootstrapping}>
                       <NotificationsPage />
                     </RequireAuth>
                   }
@@ -419,26 +433,37 @@ export default function App() {
                 <Route
                   path="/settings"
                   element={
-                    <Settings
-                      theme={theme}
-                      onThemeChange={setTheme}
-                      onSignOut={() => setSignOutConfirmOpen(true)}
-                      onSignIn={() => setAuthOpen(true)}
-                    />
+                    <RequireAuth bootstrapping={authBootstrapping}>
+                      <Settings
+                        theme={theme}
+                        onThemeChange={setTheme}
+                        onSignOut={() => setSignOutConfirmOpen(true)}
+                        onSignIn={() => setAuthOpen(true)}
+                      />
+                    </RequireAuth>
                   }
                 />
                 <Route
                   path="/benchmark"
                   element={
-                    <Settings
-                      theme={theme}
-                      onThemeChange={setTheme}
-                      onSignOut={() => setSignOutConfirmOpen(true)}
-                      onSignIn={() => setAuthOpen(true)}
-                    />
+                    <RequireAuth bootstrapping={authBootstrapping}>
+                      <Settings
+                        theme={theme}
+                        onThemeChange={setTheme}
+                        onSignOut={() => setSignOutConfirmOpen(true)}
+                        onSignIn={() => setAuthOpen(true)}
+                      />
+                    </RequireAuth>
                   }
                 />
-                <Route path="/events/new" element={<EventCreationForm />} />
+                <Route
+                  path="/events/new"
+                  element={
+                    <RequireAuth bootstrapping={authBootstrapping}>
+                      <EventCreationForm />
+                    </RequireAuth>
+                  }
+                />
                 <Route path="/events/:eventId" element={<EventDetail />} />
                 <Route path="/invite/:linkToken" element={<InvitationResolver />} />
                 <Route path="/events/:eventId/respond" element={<EventResponseForm />} />

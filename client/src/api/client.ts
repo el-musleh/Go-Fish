@@ -70,7 +70,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     session = (await supabase.auth.getSession()).data.session;
   }
   if (session?.access_token) {
-    headers['x-session-token'] = session.access_token;
+    headers['Authorization'] = `Bearer ${session.access_token}`;
   }
   if (currentUserId) {
     headers['x-user-id'] = currentUserId;

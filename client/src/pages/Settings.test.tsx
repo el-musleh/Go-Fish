@@ -5,14 +5,24 @@ import { MemoryRouter } from 'react-router-dom';
 import Settings from './Settings';
 
 // Mock api client
-vi.mock('../api/client', () => ({
-  api: {
-    get: vi.fn(),
-    patch: vi.fn(),
-    post: vi.fn(),
-  },
-  getCurrentUserId: vi.fn(() => '00000000-0000-0000-0000-000000000001'),
-}));
+vi.mock('../api/client', async () => {
+  const actual = await vi.importActual('../api/client');
+  return {
+    ...(actual as object),
+    api: {
+      get: vi.fn(),
+      patch: vi.fn(),
+      post: vi.fn(),
+    },
+    getCurrentUserId: vi.fn(() => '00000000-0000-0000-0000-000000000001'),
+    getNotificationPreferences: vi.fn().mockResolvedValue({
+      email_on_event_confirmed: true,
+      email_on_new_rsvp: true,
+      email_on_options_ready: true,
+    }),
+    updateNotificationPreferences: vi.fn().mockImplementation((prefs) => Promise.resolve(prefs)),
+  };
+});
 
 import { api } from '../api/client';
 

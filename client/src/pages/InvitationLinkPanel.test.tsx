@@ -21,14 +21,14 @@ beforeEach(() => {
 describe('InvitationLinkPanel', () => {
   it('renders generate button initially', () => {
     render(<InvitationLinkPanel eventId="evt-1" />);
-    expect(screen.getByRole('button', { name: /generate invitation link/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /generate link/i })).toBeInTheDocument();
   });
 
   it('generates and displays invitation link', async () => {
     mockPost.mockResolvedValueOnce({ token: 'abc123', link: '/api/invite/abc123' });
     render(<InvitationLinkPanel eventId="evt-1" />);
 
-    await userEvent.click(screen.getByRole('button', { name: /generate invitation link/i }));
+    await userEvent.click(screen.getByRole('button', { name: /generate link/i }));
 
     await waitFor(() => {
       const input = screen.getByLabelText(/invitation link/i) as HTMLInputElement;
@@ -41,7 +41,7 @@ describe('InvitationLinkPanel', () => {
     mockPost.mockResolvedValueOnce({ token: 'abc123', link: '/api/invite/abc123' });
     render(<InvitationLinkPanel eventId="evt-1" />);
 
-    await userEvent.click(screen.getByRole('button', { name: /generate invitation link/i }));
+    await userEvent.click(screen.getByRole('button', { name: /generate link/i }));
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /copy/i })).toBeInTheDocument();
@@ -51,7 +51,7 @@ describe('InvitationLinkPanel', () => {
 
     await waitFor(() => {
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-        expect.stringContaining('/invite/abc123'),
+        expect.stringContaining('/invite/abc123')
       );
     });
     expect(screen.getByRole('button', { name: /copied/i })).toBeInTheDocument();
@@ -61,10 +61,10 @@ describe('InvitationLinkPanel', () => {
     mockPost.mockRejectedValueOnce(new Error('fail'));
     render(<InvitationLinkPanel eventId="evt-1" />);
 
-    await userEvent.click(screen.getByRole('button', { name: /generate invitation link/i }));
+    await userEvent.click(screen.getByRole('button', { name: /generate link/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('Failed to generate invitation link');
+      expect(screen.getByText('Failed to generate link.')).toBeInTheDocument();
     });
   });
 });

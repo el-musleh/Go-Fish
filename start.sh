@@ -3,10 +3,13 @@
 # start.sh — one-command dev launcher for Go Fish
 #
 # Usage:
-#   ./start.sh          start all services
-#   ./start.sh stop     stop database container (processes stop on Ctrl+C)
+#   ./start.sh           start all services
+#   ./start.sh --quick   skip type checks
+#   ./start.sh --test    run tests before starting
+#   ./start.sh --lint    run lint before starting
+#   ./start.sh stop      stop all running services
 #
-# Requirements: Node.js 18+, npm, Docker (with Compose plugin or standalone)
+# Requirements: Node.js 18+, npm, Docker
 # ---------------------------------------------------------------------------
 set -euo pipefail
 
@@ -18,52 +21,165 @@ SESSION_PID_FILE="$LOG_DIR/start.pid"
 BACKEND_PID=""
 FRONTEND_PID=""
 TAIL_PID=""
+DOCKER_COMPOSE="docker compose"
+_CLEANED_UP=false
 
-# ── Colors (only when connected to a real terminal) ────────────────────────
+# ── Flags ───────────────────────────────────────────────────────────────────
+RUN_TESTS=false
+RUN_LINT=false
+QUICK_START=false
+for arg in "$@"; do
+  case $arg in
+    --test)  RUN_TESTS=true ;;
+    --lint)  RUN_LINT=true ;;
+    --quick) QUICK_START=true ;;
+    stop)    : ;;
+    *)       echo "Unknown argument: $arg" >&2; exit 1 ;;
+  esac
+done
+
+# ── Colors ──────────────────────────────────────────────────────────────────
 if [ -t 1 ] && [ "${TERM:-dumb}" != "dumb" ]; then
-  GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'
+  GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'
   BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
 else
-  GREEN=''; YELLOW=''; RED=''; BOLD=''; DIM=''; NC=''
+  GREEN=''; YELLOW=''; RED=''; BLUE=''; BOLD=''; DIM=''; NC=''
 fi
 
 log()  { echo -e "${GREEN}[go-fish]${NC} $1"; }
+info() { echo -e "${BLUE}[go-fish]${NC} $1"; }
 warn() { echo -e "${YELLOW}[go-fish] WARN:${NC} $1"; }
-die()  { echo -e "${RED}[go-fish] ERROR:${NC} $1" >&2; exit 1; }
+die()  {
+  set +e
+  echo -e "\n${RED}${BOLD}✖ ERROR:${NC} ${RED}$1${NC}" >&2
+  if [ -n "${2:-}" ] && [ -f "$2" ]; then
+    echo -e "${DIM}--- last 15 lines of $2 ---${NC}" >&2
+    tail -n 15 "$2" | sed 's/^/  /' >&2
+  fi
+  exit 1
+}
 step() { echo -e "\n${BOLD}── $1 ──${NC}"; }
 
-# ── Graceful shutdown on Ctrl+C or exit ───────────────────────────────────
+# ── Kill a process and all its descendants ──────────────────────────────────
+# Prevents zombie ts-node/vite child processes after Ctrl+C.
+kill_tree() {
+  local pid="${1:-}"
+  [ -z "$pid" ] || ! kill -0 "$pid" 2>/dev/null && return 0
+  local children
+  children=$(pgrep -P "$pid" 2>/dev/null || true)
+  for child in $children; do
+    kill_tree "$child"
+  done
+  kill -TERM "$pid" 2>/dev/null || true
+}
+
+# ── Graceful shutdown — runs exactly once ───────────────────────────────────
 cleanup() {
+  [ "$_CLEANED_UP" = true ] && return
+  _CLEANED_UP=true
+  set +e  # never let cleanup errors abort the rest of shutdown
   echo ""
   log "Shutting down..."
-  [ -n "${SESSION_PID_FILE:-}" ] && rm -f "$SESSION_PID_FILE" 2>/dev/null || true
-  [ -n "$BACKEND_PID" ]  && kill "$BACKEND_PID"  2>/dev/null || true
-  [ -n "$FRONTEND_PID" ] && kill "$FRONTEND_PID" 2>/dev/null || true
-  [ -n "$TAIL_PID" ]     && kill "$TAIL_PID"     2>/dev/null || true
-  ${DOCKER_COMPOSE:-docker compose} stop db 2>/dev/null || true
-  log "Done. Logs saved in logs/"
+  rm -f "$SESSION_PID_FILE"
+  [ -n "$TAIL_PID"     ] && kill "$TAIL_PID"     2>/dev/null
+  kill_tree "$BACKEND_PID"
+  kill_tree "$FRONTEND_PID"
+  [ -n "$DOCKER_COMPOSE" ] && $DOCKER_COMPOSE stop db >/dev/null 2>&1
+  log "Done."
 }
 trap cleanup EXIT INT TERM
 
-# ── Stop command ───────────────────────────────────────────────────────────
+# ── Port helpers ─────────────────────────────────────────────────────────────
+pids_on_port() {
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null
+  elif command -v ss >/dev/null 2>&1; then
+    ss -tlnp 2>/dev/null \
+      | awk -v p="$1" '$4 ~ ":"p"$" {match($NF,/pid=([0-9]+)/,a); if(a[1]) print a[1]}'
+  fi
+}
+
+free_port() {
+  local pids
+  pids=$(pids_on_port "$1") || true
+  [ -z "$pids" ] && return
+  warn "Port $1 in use (PIDs: $pids) — freeing..."
+  echo "$pids" | xargs kill    2>/dev/null || true; sleep 1
+  pids=$(pids_on_port "$1") || true
+  [ -n "$pids" ] && echo "$pids" | xargs kill -9 2>/dev/null || true; sleep 1
+  [ -n "$(pids_on_port "$1")" ] && \
+    die "Cannot free port $1.\n  Try: sudo kill -9 \$(lsof -t -i:$1)"
+}
+
+# ── Dependency staleness check ───────────────────────────────────────────────
+needs_install() {
+  local dir="$1" lockfile="$2"
+  [ ! -d "$dir/node_modules" ] && return 0
+  [ ! -f "$dir/node_modules/.install-stamp" ] && return 0
+  [ "$lockfile" -nt "$dir/node_modules/.install-stamp" ] && return 0
+  return 1
+}
+
+# ── Readiness wait helpers ───────────────────────────────────────────────────
+wait_http() {
+  local url="$1" pid="$2" timeout="${3:-30}"
+  for i in $(seq 1 "$timeout"); do
+    curl -sf "$url" >/dev/null 2>&1 && return 0
+    kill -0 "$pid" 2>/dev/null || return 1  # process died
+    sleep 1
+  done
+  return 1
+}
+
+wait_log() {
+  local pattern="$1" file="$2" pid="$3" timeout="${4:-30}"
+  for i in $(seq 1 "$timeout"); do
+    grep -q "$pattern" "$file" 2>/dev/null && return 0
+    kill -0 "$pid" 2>/dev/null || return 1  # process died
+    sleep 1
+  done
+  return 1
+}
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Stop command
+# ═══════════════════════════════════════════════════════════════════════════
 if [ "${1:-}" = "stop" ]; then
-  log "Stopping database container..."
-  docker compose stop db 2>/dev/null || docker-compose stop db 2>/dev/null || true
-  log "Stopped. (Kill any running npm processes manually if needed.)"
+  mkdir -p "$LOG_DIR"
+  if [ -f "$SESSION_PID_FILE" ]; then
+    old_pid=$(cat "$SESSION_PID_FILE" 2>/dev/null || true)
+    if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
+      log "Stopping session (PID $old_pid)..."
+      kill "$old_pid" 2>/dev/null || true
+      # Wait for its EXIT trap to run cleanup (stops Docker + kills children)
+      for _ in $(seq 1 6); do
+        kill -0 "$old_pid" 2>/dev/null || break
+        sleep 1
+      done
+    fi
+    rm -f "$SESSION_PID_FILE"
+    log "All services stopped."
+  else
+    # No tracked session — just stop Docker directly
+    if docker compose version >/dev/null 2>&1; then
+      docker compose stop db >/dev/null 2>&1 && log "Database stopped."
+    fi
+    log "No active session found."
+  fi
+  trap - EXIT
   exit 0
 fi
 
-# ── Kill any previous start.sh session ────────────────────────────────────
-# If a previous session is still running its cleanup will stop the DB, which
-# would send 57P01 to the new backend's idle pool connections and crash it.
-# Kill the old session first and wait for its cleanup to finish.
+# ═══════════════════════════════════════════════════════════════════════════
+# Kill any previous session
+# ═══════════════════════════════════════════════════════════════════════════
 mkdir -p "$LOG_DIR"
 if [ -f "$SESSION_PID_FILE" ]; then
   old_pid=$(cat "$SESSION_PID_FILE" 2>/dev/null || true)
   if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
     warn "Previous session still running (PID $old_pid) — stopping it first..."
     kill "$old_pid" 2>/dev/null || true
-    sleep 2  # give its cleanup trap time to stop the DB
+    sleep 2
   fi
   rm -f "$SESSION_PID_FILE"
 fi
@@ -72,198 +188,152 @@ echo $$ > "$SESSION_PID_FILE"
 # ═══════════════════════════════════════════════════════════════════════════
 # 1. Prerequisites
 # ═══════════════════════════════════════════════════════════════════════════
-step "Checking prerequisites"
+step "Prerequisites"
 
-command -v node   >/dev/null 2>&1 || die "Node.js not found.\n  → Install from https://nodejs.org (v18 or newer required)"
-command -v npm    >/dev/null 2>&1 || die "npm not found.\n  → It comes with Node.js: https://nodejs.org"
-command -v docker >/dev/null 2>&1 || die "Docker not found.\n  → Install from https://docs.docker.com/get-docker/"
-command -v curl   >/dev/null 2>&1 || die "curl not found.\n  → Install with: sudo apt install curl  (or brew install curl on macOS)"
+command -v node   >/dev/null 2>&1 || die "Node.js not found. Install: https://nodejs.org"
+command -v npm    >/dev/null 2>&1 || die "npm not found. Install: https://nodejs.org"
+command -v docker >/dev/null 2>&1 || die "Docker not found. Install: https://docs.docker.com/get-docker/"
 
-# Node version check (require 18+)
 NODE_MAJOR=$(node -e "process.stdout.write(process.versions.node.split('.')[0])")
-[ "$NODE_MAJOR" -ge 18 ] || die "Node.js 18+ required (you have $(node --version)).\n  → Update at https://nodejs.org"
+[ "$NODE_MAJOR" -ge 18 ] || die "Node.js 18+ required (you have $(node --version))"
 
-# Prefer the newer 'docker compose' plugin; fall back to 'docker-compose'
 if docker compose version >/dev/null 2>&1; then
   DOCKER_COMPOSE="docker compose"
 elif command -v docker-compose >/dev/null 2>&1; then
   DOCKER_COMPOSE="docker-compose"
 else
-  die "Docker Compose not found.\n  → Install Docker Desktop or the Compose plugin: https://docs.docker.com/compose/install/"
+  die "Docker Compose not found. Install: https://docs.docker.com/compose/install/"
 fi
 
-# Make sure the Docker daemon is actually running
-docker info >/dev/null 2>&1 || die "Docker daemon is not running.\n  → Start Docker Desktop (or run: sudo systemctl start docker)"
+docker info >/dev/null 2>&1 || die "Docker daemon is not running.\n  Start it: sudo systemctl start docker"
 
-log "${DIM}node $(node --version) · npm $(npm --version) · $($DOCKER_COMPOSE version --short 2>/dev/null || echo compose)${NC}"
+log "node $(node -v) · npm $(npm -v) · $($DOCKER_COMPOSE version --short 2>/dev/null)"
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 2. Port conflict check (auto-kill stale processes)
+# 2. Port check
 # ═══════════════════════════════════════════════════════════════════════════
-pids_on_port() {
-  if command -v lsof >/dev/null 2>&1; then
-    lsof -iTCP:"$1" -sTCP:LISTEN -t 2>/dev/null
-  elif command -v ss >/dev/null 2>&1; then
-    ss -tlnp 2>/dev/null | awk -v port="$1" -F 'pid=' '$0 ~ ":" port " " {split($2, a, ","); print a[1]}'
-  fi
-}
-
-free_port() {
-  local port="$1"
-  local pids
-  pids=$(pids_on_port "$port") || true
-  if [ -n "$pids" ]; then
-    warn "Port $port in use (PIDs: $pids) — killing..."
-    echo "$pids" | xargs kill 2>/dev/null || true
-    sleep 1
-    pids=$(pids_on_port "$port") || true
-    if [ -n "$pids" ]; then
-      echo "$pids" | xargs kill -9 2>/dev/null || true
-      sleep 1
-    fi
-    if [ -n "$(pids_on_port "$port")" ]; then
-      die "Could not free port $port. Try: sudo kill -9 \$(lsof -iTCP:$port -sTCP:LISTEN -t)"
-    fi
-    log "Port $port is now free"
-  fi
-}
-
 for port in 3000 5173 5433; do
   free_port "$port"
 done
 
 # ═══════════════════════════════════════════════════════════════════════════
-# 3. Environment (.env)
+# 3. Environment
 # ═══════════════════════════════════════════════════════════════════════════
-step "Environment"
+step "Environment & Deps"
 
 if [ ! -f .env ]; then
-  if [ -f .env.example ]; then
-    cp .env.example .env
-    warn ".env created from .env.example — fill in OPENROUTER_API_KEY and RESEND_API_KEY before using those features."
-  else
-    die ".env file not found and no .env.example to copy from.\n  → Create a .env file (see .env.example in the repo for reference)."
+  [ -f .env.example ] || die ".env not found. Create one (see .env.example)."
+  cp .env.example .env
+  warn ".env created from .env.example — fill in API keys before using AI/email features."
+fi
+
+# Warn about unset optional keys (not fatal — features degrade gracefully)
+for var in OPENROUTER_API_KEY RESEND_API_KEY; do
+  grep -qE "^${var}=.+" .env 2>/dev/null || warn "${var} not set — related features disabled."
+done
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 4. Dependencies (only reinstall when lockfile changed)
+# ═══════════════════════════════════════════════════════════════════════════
+if needs_install "." "package-lock.json"; then
+  info "Installing backend dependencies..."
+  npm install --ignore-scripts 2>&1 | grep -v "^npm warn" || true
+  touch node_modules/.install-stamp
+  # --ignore-scripts skips the prepare hook; set up husky manually
+  [ -d .git ] && node node_modules/husky/bin.js 2>/dev/null || true
+  [ -d .git ] && chmod +x .husky/pre-commit 2>/dev/null || true
+else
+  log "Backend deps up to date"
+fi
+
+if needs_install "client" "client/package-lock.json"; then
+  info "Installing frontend dependencies..."
+  (cd client && npm install --legacy-peer-deps 2>&1 | grep -v "^npm warn" || true)
+  touch client/node_modules/.install-stamp
+else
+  log "Frontend deps up to date"
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════
+# 5. Validation (skip with --quick)
+# ═══════════════════════════════════════════════════════════════════════════
+if [ "$QUICK_START" = false ]; then
+  step "Validation"
+
+  if [ "$RUN_LINT" = true ]; then
+    info "Linting..."
+    (cd client && node node_modules/eslint/bin/eslint.js src --max-warnings=0) \
+      || warn "Lint errors — run: cd client && npm run lint"
   fi
-else
-  log ".env found"
+
+  # Use --noEmit: only checks types, no JS output (much faster than npm run build)
+  info "Type checking backend..."
+  node node_modules/typescript/bin/tsc --noEmit > "$LOG_DIR/tsc-backend.log" 2>&1 \
+    || die "Backend TypeScript errors." "$LOG_DIR/tsc-backend.log"
+
+  info "Type checking frontend..."
+  (cd client && node node_modules/typescript/bin/tsc --noEmit) > "$LOG_DIR/tsc-frontend.log" 2>&1 \
+    || die "Frontend TypeScript errors." "$LOG_DIR/tsc-frontend.log"
+
+  if [ "$RUN_TESTS" = true ]; then
+    info "Running tests..."
+    npm test > "$LOG_DIR/test.log" 2>&1 \
+      || die "Tests failed." "$LOG_DIR/test.log"
+  fi
+
+  log "Validation passed"
 fi
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 4. Dependencies
-# ═══════════════════════════════════════════════════════════════════════════
-step "Dependencies"
-
-if [ ! -d node_modules ] || [ package-lock.json -nt node_modules/.package-lock-stamp ]; then
-  log "Installing backend dependencies..."
-  npm install --ignore-scripts
-  touch node_modules/.package-lock-stamp
-else
-  log "Backend dependencies ${DIM}(already installed)${NC}"
-fi
-
-if [ ! -d client/node_modules ] || [ client/package-lock.json -nt client/node_modules/.package-lock-stamp ]; then
-  log "Installing frontend dependencies..."
-  (cd client && npm install --legacy-peer-deps && touch node_modules/.package-lock-stamp)
-else
-  log "Frontend dependencies ${DIM}(already installed)${NC}"
-fi
-
-# ── Git hooks ──────────────────────────────────────────────────────────────
-if [ -d .git ]; then
-  node node_modules/husky/bin.js 2>/dev/null || true
-  chmod +x .husky/pre-commit 2>/dev/null || true
-  log "Git hooks installed"
-fi
-
-# ═══════════════════════════════════════════════════════════════════════════
-# 5. Frontend type check
-# ═══════════════════════════════════════════════════════════════════════════
-step "Frontend type check"
-
-log "Checking TypeScript..."
-if ! (cd client && node node_modules/typescript/bin/tsc --noEmit 2>&1); then
-  die "Frontend has TypeScript errors — fix them before starting.\n  → Run: cd client && node node_modules/typescript/bin/tsc --noEmit"
-fi
-log "TypeScript check passed"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 6. Database
 # ═══════════════════════════════════════════════════════════════════════════
-step "Database"
+step "Starting Services"
 
-log "Starting Postgres container..."
-$DOCKER_COMPOSE up -d db
+info "Database..."
+$DOCKER_COMPOSE up -d db >/dev/null 2>&1
 
-log "Waiting for Postgres to accept connections..."
-retries=30
-until $DOCKER_COMPOSE exec -T db pg_isready -U gofish -d gofish -q 2>/dev/null; do
-  retries=$((retries - 1))
-  if [ "$retries" -eq 0 ]; then
-    die "Postgres did not become ready.\n  → Check container logs: $DOCKER_COMPOSE logs db"
-  fi
+for i in $(seq 1 30); do
+  $DOCKER_COMPOSE exec -T db pg_isready -U gofish -d gofish -q 2>/dev/null && break
+  [ "$i" -eq 30 ] && die "Postgres did not become ready.\n  Check: $DOCKER_COMPOSE logs db"
   sleep 1
 done
-log "Postgres is ready"
+log "Postgres ready"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 7. Backend
 # ═══════════════════════════════════════════════════════════════════════════
-step "Backend"
-
-mkdir -p "$LOG_DIR"
-log "Starting backend (port 3000)..."
+info "Backend..."
 npm run dev > "$LOG_DIR/backend.log" 2>&1 &
 BACKEND_PID=$!
 
-log "Waiting for backend to respond..."
-retries=30
-until curl -sf http://localhost:3000/health >/dev/null 2>&1; do
-  if ! kill -0 "$BACKEND_PID" 2>/dev/null; then
-    die "Backend crashed on startup.\n  → Check logs: $LOG_DIR/backend.log\n\n$(tail -20 "$LOG_DIR/backend.log")"
-  fi
-  retries=$((retries - 1))
-  if [ "$retries" -eq 0 ]; then
-    die "Backend did not start in time.\n  → Check logs: $LOG_DIR/backend.log"
-  fi
-  sleep 1
-done
-log "Backend is ready"
+if ! wait_http "http://localhost:3000/health" "$BACKEND_PID"; then
+  die "Backend crashed on startup." "$LOG_DIR/backend.log"
+fi
+log "Backend ready"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 8. Frontend
 # ═══════════════════════════════════════════════════════════════════════════
-step "Frontend"
-
-log "Starting frontend (port 5173)..."
+info "Frontend..."
 (cd client && npm run dev) > "$LOG_DIR/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 
-log "Waiting for Vite to be ready..."
-retries=20
-until grep -q "ready in" "$LOG_DIR/frontend.log" 2>/dev/null; do
-  if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
-    die "Frontend crashed on startup.\n  → Check logs: $LOG_DIR/frontend.log\n\n$(tail -20 "$LOG_DIR/frontend.log")"
-  fi
-  retries=$((retries - 1))
-  if [ "$retries" -eq 0 ]; then
-    die "Frontend did not start in time.\n  → Check logs: $LOG_DIR/frontend.log"
-  fi
-  sleep 1
-done
+# "Local:" appears in Vite's ready output across all versions
+if ! wait_log "Local:" "$LOG_DIR/frontend.log" "$FRONTEND_PID"; then
+  die "Frontend crashed on startup." "$LOG_DIR/frontend.log"
+fi
+log "Frontend ready"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Ready
 # ═══════════════════════════════════════════════════════════════════════════
-echo ""
-echo -e "${GREEN}${BOLD}  Go Fish is running!${NC}"
-echo -e "${DIM}  ──────────────────────────────────────${NC}"
+echo -e "\n${GREEN}${BOLD}✨ Go Fish is ready!${NC}"
+echo -e "${DIM}──────────────────────────────────────${NC}"
 echo -e "  Frontend  →  ${BOLD}http://localhost:5173${NC}"
 echo -e "  Backend   →  ${BOLD}http://localhost:3000${NC}"
-echo -e "  Database  →  ${DIM}localhost:5433${NC}"
-echo -e "${DIM}  ──────────────────────────────────────${NC}"
-echo -e "  Logs →  ${DIM}$LOG_DIR/${NC}"
-echo -e "  Press ${BOLD}Ctrl+C${NC} to stop all services"
-echo ""
+echo -e "${DIM}──────────────────────────────────────${NC}"
+echo -e "  Logs: tail -f logs/backend.log logs/frontend.log"
+echo -e "  Press ${BOLD}Ctrl+C${NC} to stop\n"
 
 tail -f "$LOG_DIR/backend.log" "$LOG_DIR/frontend.log" &
 TAIL_PID=$!
