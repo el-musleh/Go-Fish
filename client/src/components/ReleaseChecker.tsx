@@ -3,6 +3,8 @@ import { ExternalLink, RefreshCw, X } from 'lucide-react';
 
 const GITHUB_REPO = 'el-musleh/Go-Fish';
 const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0';
+const CACHE_KEY = 'gofish_latest_release';
+const CACHE_DURATION = 60 * 60 * 1000; // 1 hour in milliseconds
 
 interface GitHubRelease {
   tag_name: string;
@@ -10,6 +12,35 @@ interface GitHubRelease {
   body: string;
   published_at: string;
   html_url: string;
+}
+
+interface CachedRelease {
+  data: GitHubRelease;
+  timestamp: number;
+}
+
+function getCachedRelease(): GitHubRelease | null {
+  try {
+    const cached = sessionStorage.getItem(CACHE_KEY);
+    if (!cached) return null;
+    const parsed: CachedRelease = JSON.parse(cached);
+    if (Date.now() - parsed.timestamp > CACHE_DURATION) {
+      sessionStorage.removeItem(CACHE_KEY);
+      return null;
+    }
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedRelease(data: GitHubRelease): void {
+  try {
+    const cached: CachedRelease = { data, timestamp: Date.now() };
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify(cached));
+  } catch {
+    // Ignore storage errors
+  }
 }
 
 interface ReleaseCheckerProps {
@@ -23,7 +54,16 @@ export function ReleaseChecker({ onDismiss }: ReleaseCheckerProps) {
   const [dismissed, setDismissed] = useState(false);
   const [showReleaseNotes, setShowReleaseNotes] = useState(false);
 
-  const checkForUpdates = async () => {
+  const checkForUpdates = async (force = false) => {
+    // Check cache first unless force is true
+    if (!force) {
+      const cached = getCachedRelease();
+      if (cached) {
+        setLatestRelease(cached);
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -37,6 +77,7 @@ export function ReleaseChecker({ onDismiss }: ReleaseCheckerProps) {
       }
       const data = await response.json();
       setLatestRelease(data);
+      setCachedRelease(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to check for updates');
     } finally {
@@ -44,9 +85,14 @@ export function ReleaseChecker({ onDismiss }: ReleaseCheckerProps) {
     }
   };
 
-  // Check on mount
+  // Check on mount (use cache if available)
   useEffect(() => {
-    checkForUpdates();
+    const cached = getCachedRelease();
+    if (cached) {
+      setLatestRelease(cached);
+    } else {
+      checkForUpdates();
+    }
   }, []);
 
   const isNewVersion = latestRelease
@@ -162,7 +208,20 @@ export function VersionInfo() {
   const [error, setError] = useState<string | null>(null);
   const [lastChecked, setLastChecked] = useState<Date | null>(null);
 
-  const checkForUpdates = async () => {
+  const checkForUpdates = async (force = false) => {
+    // Check cache first unless force is true
+    if (!force) {
+      const cached = getCachedRelease();
+      if (cached) {
+        setLatestRelease(cached);
+        const cachedTime = sessionStorage.getItem(`${CACHE_KEY}_time`);
+        if (cachedTime) {
+          setLastChecked(new Date(parseInt(cachedTime)));
+        }
+        return;
+      }
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -176,6 +235,7 @@ export function VersionInfo() {
       }
       const data = await response.json();
       setLatestRelease(data);
+      setCachedRelease(data);
       setLastChecked(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to check for updates');
@@ -183,6 +243,11 @@ export function VersionInfo() {
       setLoading(false);
     }
   };
+
+  // Load from cache on mount
+  useEffect(() => {
+    checkForUpdates();
+  }, []);
 
   const isNewVersion = latestRelease
     ? latestRelease.tag_name
@@ -228,7 +293,7 @@ export function VersionInfo() {
         <p style={{ fontSize: '0.8rem', color: 'var(--color-error)', margin: 0 }}>{error}</p>
       )}
       <button
-        onClick={checkForUpdates}
+        onClick={() => checkForUpdates(true)}
         disabled={loading}
         className="gf-button gf-button--ghost"
         style={{ alignSelf: 'flex-start', fontSize: '0.85rem' }}
