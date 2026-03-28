@@ -1111,7 +1111,8 @@ function PrivacySection({
 
 function ShortcutsSection({ onShowOnboarding }: { onShowOnboarding: () => void }) {
   const shortcuts = [
-    { key: 'N', description: 'Create new event' },
+    { key: 'C', description: 'Create new event' },
+    { key: 'T', description: 'Go to dashboard' },
     { key: 'S', description: 'Focus search bar' },
     { key: '?', description: 'Show keyboard shortcuts' },
     { key: 'Esc', description: 'Close modal/dialog' },

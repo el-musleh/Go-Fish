@@ -2,7 +2,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useNavigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft } from 'lucide-react';
 import { api } from '../api/client';
 import { toast } from '../components/Toaster';
 import ValidatedInput from '../components/ValidatedInput';
@@ -43,6 +43,10 @@ export default function EventCreationForm() {
 
   return (
     <div className="gf-stack gf-stack--xl">
+      <button type="button" className="gf-back-btn" onClick={() => navigate(-1)}>
+        <ArrowLeft size={18} />
+        Back
+      </button>
       <StepIndicator steps={STEPS} currentStep={0} />
 
       <div className="gf-card">

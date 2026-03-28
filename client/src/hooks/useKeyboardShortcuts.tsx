@@ -26,7 +26,7 @@ export function useKeyboardShortcuts(
       }
 
       if (scopes.includes('global')) {
-        if (e.key === 'n' && !e.metaKey && !e.ctrlKey) {
+        if (e.key === 'c' && !e.metaKey && !e.ctrlKey) {
           e.preventDefault();
           onNewEvent();
         }
@@ -49,7 +49,8 @@ export function useKeyboardShortcuts(
 
 export function KeyboardShortcutsHelp({ onClose }: { onClose: () => void }) {
   const shortcuts = [
-    { key: 'N', description: 'Create new event' },
+    { key: 'C', description: 'Create new event' },
+    { key: 'T', description: 'Go to dashboard' },
     { key: 'S', description: 'Focus search bar' },
     { key: '?', description: 'Show this help' },
     { key: 'Esc', description: 'Close dialog' },
@@ -87,7 +88,8 @@ export function KeyboardShortcutsHelp({ onClose }: { onClose: () => void }) {
 }
 
 export const KEYBOARD_SHORTCUTS_INFO = [
-  { key: 'N', description: 'Create new event' },
+  { key: 'C', description: 'Create new event' },
+  { key: 'T', description: 'Go to dashboard' },
   { key: 'S', description: 'Focus search bar' },
   { key: '?', description: 'Show keyboard shortcuts' },
 ];

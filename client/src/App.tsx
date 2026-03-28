@@ -1,16 +1,8 @@
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { useState, useEffect, useRef } from 'react';
-import {
-  BrowserRouter,
-  Routes,
-  Route,
-  Link,
-  NavLink,
-  useNavigate,
-  useLocation,
-} from 'react-router-dom';
-import { Plus, Settings as SettingsIcon, LayoutGrid } from 'lucide-react';
+import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
+import { Settings as SettingsIcon, LayoutGrid } from 'lucide-react';
 import {
   api,
   clearCurrentUser,
@@ -127,9 +119,13 @@ function AppShell({
       if (e.key === 'Escape') {
         setShowShortcuts(false);
       }
-      if (e.key === 'n' && !e.metaKey && !e.ctrlKey && userId) {
+      if (e.key === 'c' && !e.metaKey && !e.ctrlKey && userId) {
         e.preventDefault();
         navigate('/events/new');
+      }
+      if (e.key === 't' && !e.metaKey && !e.ctrlKey && userId) {
+        e.preventDefault();
+        navigate('/dashboard');
       }
       if (e.key === 's' && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
@@ -161,18 +157,6 @@ function AppShell({
             >
               <LayoutGrid size={20} />
             </Link>
-          )}
-          {userId && (
-            <NavLink
-              to="/events/new"
-              className={({ isActive }) =>
-                `gf-nav-link gf-nav-link--icon${isActive ? ' gf-nav-link--active' : ''}`
-              }
-              title="New event (N)"
-              aria-label="New event"
-            >
-              <Plus size={20} />
-            </NavLink>
           )}
         </nav>
         <div className="gf-topbar__actions">

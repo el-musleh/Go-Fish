@@ -1,7 +1,8 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, type ReactNode } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Trash2 } from 'lucide-react';
 import { api, ApiError, getCurrentUserId } from '../api/client';
+import ConfirmationDialog from '../components/ConfirmationDialog';
 import OptionGenerationState from '../components/OptionGenerationState';
 import ShareEvent from '../components/ShareEvent';
 
@@ -71,8 +72,10 @@ export default function EventDetail() {
   const [respondents, setRespondents] = useState<Respondent[]>([]);
   const [options, setOptions] = useState<ActivityOption[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<ReactNode>('');
   const [working, setWorking] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   const isCreator = event?.inviter_id === getCurrentUserId();
 
@@ -134,12 +137,27 @@ export default function EventDetail() {
       const updated = await api.get<EventData>(`/events/${eventId}`);
       setEvent(updated);
     } catch (err) {
-      // If the backend scheduler automatically triggered generation at the exact same time, gracefully handle the 409 Conflict
       if (err instanceof ApiError && err.status === 409) {
         api
           .get<EventData>(`/events/${eventId}`)
           .then(setEvent)
           .catch(() => {});
+      } else if (
+        err instanceof ApiError &&
+        err.body &&
+        typeof err.body === 'object' &&
+        'error' in err.body &&
+        err.body.error === 'NEEDS_API_KEY'
+      ) {
+        setError(
+          <span>
+            Add your API key in{' '}
+            <a href="/settings?tab=infrastructure" style={{ color: 'var(--color-primary)' }}>
+              Settings
+            </a>{' '}
+            to generate suggestions.
+          </span>
+        );
       } else {
         setError('Generation failed. Please try again.');
       }
@@ -148,35 +166,32 @@ export default function EventDetail() {
     }
   }, [eventId]);
 
-  const autoGenerateAttempted = useRef<string | null>(null);
-  useEffect(() => {
-    if (!eventId) {
-      autoGenerateAttempted.current = null;
-      return;
+  const handleDelete = useCallback(async () => {
+    if (!eventId) return;
+    setDeleting(true);
+    try {
+      await api.delete(`/events/${eventId}`);
+      navigate('/dashboard');
+    } catch {
+      setDeleting(false);
+      setConfirmingDelete(false);
     }
-    if (autoGenerateAttempted.current !== eventId) {
-      autoGenerateAttempted.current = null;
-    }
-  }, [eventId]);
-
-  useEffect(() => {
-    if (
-      !eventId ||
-      !isCreator ||
-      event?.status !== 'collecting' ||
-      !expired ||
-      working ||
-      autoGenerateAttempted.current === eventId
-    ) {
-      return;
-    }
-    autoGenerateAttempted.current = eventId;
-    handleGenerate();
-  }, [event?.status, eventId, expired, handleGenerate, isCreator, working]);
+  }, [eventId, navigate]);
 
   if (loading) return <p className="gf-muted">Loading event...</p>;
   if (error && !event) return <p className="gf-feedback gf-feedback--error">{error}</p>;
   if (!event) return <p className="gf-muted">Event not found.</p>;
+
+  const statusChip =
+    event.status === 'finalized'
+      ? { label: 'Confirmed', cls: 'gf-status-chip--finalized' }
+      : event.status === 'generating'
+        ? { label: 'Generating', cls: 'gf-status-chip--generating' }
+        : event.status === 'options_ready'
+          ? { label: 'Pick activity', cls: 'gf-status-chip--ready' }
+          : expired
+            ? { label: 'Ready', cls: 'gf-status-chip--ready' }
+            : { label: 'Collecting', cls: 'gf-status-chip--collecting' };
 
   // Finalized
   if (event.status === 'finalized') {
@@ -188,7 +203,12 @@ export default function EventDetail() {
           Back
         </button>
         <div>
-          <h2 className="gf-section-title">{event.title}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 className="gf-section-title" style={{ margin: 0 }}>
+              {event.title}
+            </h2>
+            <span className={`gf-status-chip ${statusChip.cls}`}>{statusChip.label}</span>
+          </div>
           {event.location_city && (
             <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>
               &#128205; {event.location_city}
@@ -237,7 +257,14 @@ export default function EventDetail() {
           <ArrowLeft size={18} />
           Back
         </button>
-        <h2 className="gf-section-title">{event.title}</h2>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 className="gf-section-title" style={{ margin: 0 }}>
+              {event.title}
+            </h2>
+            <span className={`gf-status-chip ${statusChip.cls}`}>{statusChip.label}</span>
+          </div>
+        </div>
         <OptionGenerationState
           detail={
             isCreator
@@ -258,7 +285,12 @@ export default function EventDetail() {
           Back
         </button>
         <div>
-          <h2 className="gf-section-title">{event.title}</h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 className="gf-section-title" style={{ margin: 0 }}>
+              {event.title}
+            </h2>
+            <span className={`gf-status-chip ${statusChip.cls}`}>{statusChip.label}</span>
+          </div>
           {event.location_city && (
             <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>
               &#128205; {event.location_city}
@@ -296,7 +328,12 @@ export default function EventDetail() {
         Back
       </button>
       <div>
-        <h2 className="gf-section-title">{event.title}</h2>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2 className="gf-section-title" style={{ margin: 0 }}>
+            {event.title}
+          </h2>
+          <span className={`gf-status-chip ${statusChip.cls}`}>{statusChip.label}</span>
+        </div>
         {event.description && <p className="gf-muted">{event.description}</p>}
         {event.location_city && (
           <p className="gf-muted" style={{ marginTop: 6, fontSize: '0.9rem' }}>
@@ -305,52 +342,22 @@ export default function EventDetail() {
         )}
       </div>
 
-      {isCreator ? (
-        <div className="gf-stack gf-stack--sm">
-          <div className="gf-row-between">
-            <div className="gf-stack gf-stack--sm">
-              <span className={`gf-countdown${expired ? ' gf-countdown--expired' : ''}`}>
-                {expired ? 'Generating...' : formatRemaining(remaining)}
-              </span>
-              <span className="gf-countdown__label">
-                {expired ? 'Response window closed' : 'remaining'}
-              </span>
-            </div>
-            <div className="gf-actions" style={{ alignSelf: 'center' }}>
-              <button
-                type="button"
-                className="gf-button gf-button--primary"
-                disabled={working || expired}
-                onClick={handleGenerate}
-              >
-                {working || expired
-                  ? 'Generating...'
-                  : `End window & generate${respondents.length > 0 ? ` (${respondents.length} responded)` : ''}`}
-              </button>
-            </div>
-          </div>
-          <ShareEvent
-            eventId={event.id}
-            eventTitle={event.title}
-            eventCity={event.location_city}
-            inline
-          />
-        </div>
-      ) : (
+      <div className="gf-stack gf-stack--sm" style={{ alignItems: 'center' }}>
+        <span className={`gf-countdown${expired ? ' gf-countdown--expired' : ''}`}>
+          {expired ? 'Ready' : formatRemaining(remaining)}
+        </span>
+        <span className="gf-countdown__label">
+          {expired ? 'Response window closed' : 'remaining'}
+        </span>
+      </div>
+
+      {!isCreator && (
         <div className="gf-card gf-text-center" style={{ padding: '32px 20px' }}>
           <h3 className="gf-card-title">Waiting for the group...</h3>
-          <p className="gf-muted" style={{ marginBottom: '24px' }}>
+          <p className="gf-muted">
             The organizer is still collecting responses. Options will be generated once the time is
             up.
           </p>
-          <div className="gf-stack gf-stack--sm" style={{ alignItems: 'center' }}>
-            <span className={`gf-countdown${expired ? ' gf-countdown--expired' : ''}`}>
-              {expired ? 'Generating...' : formatRemaining(remaining)}
-            </span>
-            <span className="gf-countdown__label">
-              {expired ? 'Response window closed' : 'remaining'}
-            </span>
-          </div>
         </div>
       )}
 
@@ -382,7 +389,53 @@ export default function EventDetail() {
         </div>
       )}
 
+      {isCreator && (
+        <ShareEvent
+          eventId={event.id}
+          eventTitle={event.title}
+          eventCity={event.location_city}
+          inline
+        />
+      )}
+
+      {isCreator && (
+        <button
+          type="button"
+          className="gf-button gf-button--primary"
+          disabled={working}
+          onClick={handleGenerate}
+        >
+          {working
+            ? 'Generating...'
+            : expired
+              ? 'Generate now'
+              : `End window & generate${respondents.length > 0 ? ` (${respondents.length} responded)` : ''}`}
+        </button>
+      )}
+
+      {isCreator && (
+        <button
+          type="button"
+          className="gf-button gf-button--danger"
+          disabled={deleting}
+          onClick={() => setConfirmingDelete(true)}
+        >
+          <Trash2 size={15} /> Delete event
+        </button>
+      )}
+
       {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
+
+      <ConfirmationDialog
+        open={confirmingDelete}
+        onClose={() => setConfirmingDelete(false)}
+        onConfirm={handleDelete}
+        title="Delete Event"
+        description="Are you sure you want to permanently delete this event? This action cannot be undone."
+        confirmText="Delete"
+        isDestructive
+        isLoading={deleting}
+      />
     </div>
   );
 }

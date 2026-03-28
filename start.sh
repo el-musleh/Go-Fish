@@ -312,6 +312,25 @@ if ! wait_http "http://localhost:3000/health" "$BACKEND_PID"; then
 fi
 log "Backend ready"
 
+# Test AI endpoints
+info "Testing AI endpoints..."
+AI_HEALTH=$(curl -sf "http://localhost:3000/api/ai/health" 2>&1 || echo '{"error":"failed"}')
+if echo "$AI_HEALTH" | grep -q '"status":"ok"'; then
+  log "AI health: OK"
+else
+  warn "AI health: FAILED"
+fi
+
+# Test AI test endpoint
+AI_TEST=$(curl -sf -X POST "http://localhost:3000/api/ai/test" \
+  -H "Content-Type: application/json" \
+  -d '{"provider":"test","model":"test","apiKey":"test"}' 2>&1 || echo '{"error":"failed"}')
+if echo "$AI_TEST" | grep -q '"success":true'; then
+  log "AI test endpoint: OK"
+else
+  warn "AI test endpoint: FAILED"
+fi
+
 # ═══════════════════════════════════════════════════════════════════════════
 # 8. Frontend
 # ═══════════════════════════════════════════════════════════════════════════

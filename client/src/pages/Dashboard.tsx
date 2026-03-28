@@ -5,18 +5,17 @@ import {
   MapPin,
   Calendar,
   Navigation,
-  Trash2,
   Search,
   CalendarPlus,
   ChevronDown,
   ChevronRight,
   Loader2,
-  ExternalLink,
+  Plus,
 } from 'lucide-react';
-import { api, ApiError, getCurrentUserId } from '../api/client';
-import ConfirmationDialog from '../components/ConfirmationDialog';
+import { api, getCurrentUserId } from '../api/client';
 import EmptyState from '../components/EmptyState';
 import { SkeletonCard } from '../components/SkeletonLoader';
+import ShareEvent from '../components/ShareEvent';
 import { getCalendarOptions, type CalendarEvent } from '../lib/calendar';
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -110,24 +109,13 @@ function formatRemaining(ms: number) {
 
 // ── State-specific detail components ──────────────────────────────────────────
 
-/**
- * TimelineDetailCollecting
- * Shown when event status is "collecting"
- * - Countdown timer
- * - Share button (for organizers)
- * - Respondents list with date chips
- * - "Waiting" message (for participants)
- */
-function TimelineDetailCollecting({ event, onDelete }: TimelineDetailProps) {
+function TimelineDetailCollecting({ event }: TimelineDetailProps) {
   const navigate = useNavigate();
   const isOrganizer = event.inviter_id === getCurrentUserId();
 
   const [now, setNow] = useState(() => Date.now());
   const [respondents, setRespondents] = useState<Respondent[]>([]);
-  const [loadingRespondents, setLoadingRespondents] = useState(true);
-  const [working, setWorking] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [isConfirmingDelete, setConfirmingDelete] = useState(false);
+  const [loadingRespondents, setLoadingRespondents] = useState(isOrganizer);
 
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
@@ -135,10 +123,7 @@ function TimelineDetailCollecting({ event, onDelete }: TimelineDetailProps) {
   }, []);
 
   useEffect(() => {
-    if (!isOrganizer) {
-      setLoadingRespondents(false);
-      return;
-    }
+    if (!isOrganizer) return;
     api
       .get<{ respondents: Respondent[] }>(`/events/${event.id}/respondents`)
       .then((d) => setRespondents(d.respondents))
@@ -151,54 +136,8 @@ function TimelineDetailCollecting({ event, onDelete }: TimelineDetailProps) {
     : 0;
   const expired = remaining <= 0;
 
-  const handleGenerateOptions = useCallback(async () => {
-    if (working) return;
-    setWorking(true);
-    try {
-      await api.post(`/events/${event.id}/generate`);
-    } catch (err) {
-      if (!(err instanceof ApiError && err.status === 409)) {
-        console.error('Failed to trigger generation:', err);
-      }
-    } finally {
-      setWorking(false);
-    }
-  }, [event.id, working]);
-
-  const autoGenerateAttempted = useRef(false);
-  useEffect(() => {
-    if (isOrganizer && !expired && !working && !autoGenerateAttempted.current) {
-      return;
-    }
-    if (isOrganizer && expired && !working && !autoGenerateAttempted.current) {
-      autoGenerateAttempted.current = true;
-      handleGenerateOptions();
-    }
-  }, [isOrganizer, expired, working, handleGenerateOptions]);
-
-  function handlePromptDelete() {
-    setConfirmingDelete(true);
-  }
-
-  async function handleConfirmDelete() {
-    setDeleting(true);
-    try {
-      await api.delete(`/events/${event.id}`);
-      onDelete?.(event.id);
-    } catch {
-      setDeleting(false);
-      setConfirmingDelete(false);
-    }
-  }
-
   return (
-    <div
-      className="gf-card gf-timeline-detail-card"
-      style={{
-        opacity: deleting ? 0.5 : 1,
-        pointerEvents: deleting ? 'none' : 'auto',
-      }}
-    >
+    <div className="gf-card gf-timeline-detail-card">
       {/* Header */}
       <div className="gf-timeline-detail-header">
         <div>
@@ -209,48 +148,27 @@ function TimelineDetailCollecting({ event, onDelete }: TimelineDetailProps) {
             </p>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className={`gf-status-chip ${STATUS_LABELS.collecting.cls}`}>Collecting</span>
-          <button
-            type="button"
-            onClick={() => navigate(`/events/${event.id}`)}
-            className="gf-timeline-detail-expand"
-            title="View full event"
-            aria-label="View full event"
-          >
-            <ExternalLink size={14} />
-          </button>
-        </div>
+        <span
+          className={`gf-status-chip ${expired ? 'gf-status-chip--ready' : STATUS_LABELS.collecting.cls}`}
+        >
+          {expired ? 'Ready' : 'Collecting'}
+        </span>
       </div>
 
-      {/* Countdown Section */}
+      {/* Countdown */}
       <div className="gf-timeline-detail-countdown">
         <span className={`gf-countdown${expired ? ' gf-countdown--expired' : ''}`}>
-          {expired ? 'Generating...' : formatRemaining(remaining)}
+          {expired ? 'Ready' : formatRemaining(remaining)}
         </span>
         <span className="gf-countdown__label">
           {expired ? 'Response window closed' : 'remaining'}
         </span>
       </div>
 
-      {/* Organizer View: Share & Respondents */}
+      {/* Organizer View */}
       {isOrganizer ? (
         <div className="gf-stack gf-stack--sm">
-          {/* Share prompt */}
-          <div className="gf-timeline-detail-share">
-            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
-              Share with your group to collect RSVPs
-            </p>
-            <button
-              type="button"
-              className="gf-button gf-button--secondary"
-              onClick={() => navigate(`/events/${event.id}`)}
-            >
-              Share Invite
-            </button>
-          </div>
-
-          {/* Respondents List */}
+          {/* Respondents */}
           <div className="gf-timeline-detail-section">
             <h4 className="gf-timeline-detail-section-title">
               <Users size={14} /> Respondents ({respondents.length})
@@ -288,97 +206,36 @@ function TimelineDetailCollecting({ event, onDelete }: TimelineDetailProps) {
             )}
           </div>
 
-          {/* End window button */}
-          <button
-            type="button"
-            className="gf-button gf-button--secondary"
-            disabled={working}
-            onClick={handleGenerateOptions}
-          >
-            {working ? 'Generating…' : 'End window & generate'}
-          </button>
+          {/* Compact Share */}
+          <ShareEvent eventId={event.id} eventTitle={event.title} compact />
         </div>
       ) : (
-        /* Participant View */
         <div className="gf-timeline-detail-waiting">
           <p className="gf-muted" style={{ fontSize: '0.9rem' }}>
             Waiting for the group... The organizer will pick a time once responses are collected.
           </p>
-          <button
-            type="button"
-            className="gf-button gf-button--primary"
-            onClick={() => navigate(`/events/${event.id}`)}
-          >
-            View Details
-          </button>
         </div>
       )}
 
-      {/* Actions */}
-      {isOrganizer && (
-        <div className="gf-timeline-detail-actions">
-          <button
-            type="button"
-            className="gf-button gf-button--ghost gf-inline-icon"
-            style={{ color: 'var(--danger, #e53e3e)' }}
-            onClick={handlePromptDelete}
-          >
-            <Trash2 size={14} /> Delete
-          </button>
-        </div>
-      )}
-
-      <ConfirmationDialog
-        open={isConfirmingDelete}
-        onClose={() => setConfirmingDelete(false)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Event"
-        description="Are you sure you want to permanently delete this event? This action cannot be undone."
-        confirmText="Delete"
-        isDestructive
-        isLoading={deleting}
-      />
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '8px 0' }} />
+      <button
+        type="button"
+        className="gf-button gf-button--secondary"
+        style={{ width: '100%' }}
+        onClick={() => navigate(`/events/${event.id}`)}
+      >
+        View full event
+      </button>
     </div>
   );
 }
 
-/**
- * TimelineDetailReady
- * Shown when event status is "options_ready"
- * - "Options ready" message
- * - CTA to pick activity (for organizers)
- * - "Waiting" message (for participants)
- */
-function TimelineDetailReady({ event, onDelete }: TimelineDetailProps) {
+function TimelineDetailReady({ event }: TimelineDetailProps) {
   const navigate = useNavigate();
   const isOrganizer = event.inviter_id === getCurrentUserId();
 
-  const [deleting, setDeleting] = useState(false);
-  const [isConfirmingDelete, setConfirmingDelete] = useState(false);
-
-  function handlePromptDelete() {
-    setConfirmingDelete(true);
-  }
-
-  async function handleConfirmDelete() {
-    setDeleting(true);
-    try {
-      await api.delete(`/events/${event.id}`);
-      onDelete?.(event.id);
-    } catch {
-      setDeleting(false);
-      setConfirmingDelete(false);
-    }
-  }
-
   return (
-    <div
-      className="gf-card gf-timeline-detail-card"
-      style={{
-        opacity: deleting ? 0.5 : 1,
-        pointerEvents: deleting ? 'none' : 'auto',
-      }}
-    >
+    <div className="gf-card gf-timeline-detail-card">
       {/* Header */}
       <div className="gf-timeline-detail-header">
         <div>
@@ -389,18 +246,7 @@ function TimelineDetailReady({ event, onDelete }: TimelineDetailProps) {
             </p>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className={`gf-status-chip ${STATUS_LABELS.options_ready.cls}`}>Ready</span>
-          <button
-            type="button"
-            onClick={() => navigate(`/events/${event.id}`)}
-            className="gf-timeline-detail-expand"
-            title="View full event"
-            aria-label="View full event"
-          >
-            <ExternalLink size={14} />
-          </button>
-        </div>
+        <span className={`gf-status-chip ${STATUS_LABELS.options_ready.cls}`}>Ready</span>
       </div>
 
       {/* Content */}
@@ -414,7 +260,6 @@ function TimelineDetailReady({ event, onDelete }: TimelineDetailProps) {
         </p>
       </div>
 
-      {/* CTA */}
       {isOrganizer ? (
         <button
           type="button"
@@ -429,50 +274,25 @@ function TimelineDetailReady({ event, onDelete }: TimelineDetailProps) {
         </p>
       )}
 
-      {/* Actions */}
-      {isOrganizer && (
-        <div className="gf-timeline-detail-actions">
-          <button
-            type="button"
-            className="gf-button gf-button--ghost gf-inline-icon"
-            style={{ color: 'var(--danger, #e53e3e)' }}
-            onClick={handlePromptDelete}
-          >
-            <Trash2 size={14} /> Delete
-          </button>
-        </div>
-      )}
-
-      <ConfirmationDialog
-        open={isConfirmingDelete}
-        onClose={() => setConfirmingDelete(false)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Event"
-        description="Are you sure you want to permanently delete this event? This action cannot be undone."
-        confirmText="Delete"
-        isDestructive
-        isLoading={deleting}
-      />
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '8px 0' }} />
+      <button
+        type="button"
+        className="gf-button gf-button--secondary"
+        style={{ width: '100%' }}
+        onClick={() => navigate(`/events/${event.id}`)}
+      >
+        View full event
+      </button>
     </div>
   );
 }
 
-/**
- * TimelineDetailConfirmed
- * Shown when event status is "finalized"
- * - Selected activity info
- * - Add to Calendar dropdown
- * - Map & Navigation button
- * - View confirmation CTA
- */
-function TimelineDetailConfirmed({ event, onDelete }: TimelineDetailProps) {
+function TimelineDetailConfirmed({ event }: TimelineDetailProps) {
   const navigate = useNavigate();
   const isOrganizer = event.inviter_id === getCurrentUserId();
 
   const [showCalendarDropdown, setShowCalendarDropdown] = useState(false);
   const calendarDropdownRef = useRef<HTMLDivElement>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [isConfirmingDelete, setConfirmingDelete] = useState(false);
 
   const selectedActivity = event.selected_activity;
   const suggestedDate = selectedActivity?.suggested_date || event.preferred_date;
@@ -501,29 +321,8 @@ function TimelineDetailConfirmed({ event, onDelete }: TimelineDetailProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showCalendarDropdown]);
 
-  function handlePromptDelete() {
-    setConfirmingDelete(true);
-  }
-
-  async function handleConfirmDelete() {
-    setDeleting(true);
-    try {
-      await api.delete(`/events/${event.id}`);
-      onDelete?.(event.id);
-    } catch {
-      setDeleting(false);
-      setConfirmingDelete(false);
-    }
-  }
-
   return (
-    <div
-      className="gf-card gf-timeline-detail-card"
-      style={{
-        opacity: deleting ? 0.5 : 1,
-        pointerEvents: deleting ? 'none' : 'auto',
-      }}
-    >
+    <div className="gf-card gf-timeline-detail-card">
       {/* Header */}
       <div className="gf-timeline-detail-header">
         <div>
@@ -534,18 +333,7 @@ function TimelineDetailConfirmed({ event, onDelete }: TimelineDetailProps) {
             </p>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className={`gf-status-chip ${STATUS_LABELS.finalized.cls}`}>Confirmed</span>
-          <button
-            type="button"
-            onClick={() => navigate(`/events/${event.id}`)}
-            className="gf-timeline-detail-expand"
-            title="View full event"
-            aria-label="View full event"
-          >
-            <ExternalLink size={14} />
-          </button>
-        </div>
+        <span className={`gf-status-chip ${STATUS_LABELS.finalized.cls}`}>Confirmed</span>
       </div>
 
       {/* Selected Activity */}
@@ -566,7 +354,6 @@ function TimelineDetailConfirmed({ event, onDelete }: TimelineDetailProps) {
         </p>
       )}
 
-      {/* Description */}
       {event.description && (
         <div className="gf-timeline-detail-section">
           <h4 className="gf-timeline-detail-section-title">Description</h4>
@@ -576,7 +363,6 @@ function TimelineDetailConfirmed({ event, onDelete }: TimelineDetailProps) {
         </div>
       )}
 
-      {/* Actions */}
       <div className="gf-timeline-detail-confirmed-actions">
         <button
           type="button"
@@ -627,44 +413,23 @@ function TimelineDetailConfirmed({ event, onDelete }: TimelineDetailProps) {
         </button>
       </div>
 
-      {/* Organizer delete */}
-      {isOrganizer && (
-        <div className="gf-timeline-detail-actions">
-          <button
-            type="button"
-            className="gf-button gf-button--ghost gf-inline-icon"
-            style={{ color: 'var(--danger, #e53e3e)' }}
-            onClick={handlePromptDelete}
-          >
-            <Trash2 size={14} /> Delete
-          </button>
-        </div>
-      )}
-
-      <ConfirmationDialog
-        open={isConfirmingDelete}
-        onClose={() => setConfirmingDelete(false)}
-        onConfirm={handleConfirmDelete}
-        title="Delete Event"
-        description="Are you sure you want to permanently delete this event? This action cannot be undone."
-        confirmText="Delete"
-        isDestructive
-        isLoading={deleting}
-      />
+      <hr style={{ border: 'none', borderTop: '1px solid var(--border)', margin: '8px 0' }} />
+      <button
+        type="button"
+        className="gf-button gf-button--secondary"
+        style={{ width: '100%' }}
+        onClick={() => navigate(`/events/${event.id}`)}
+      >
+        View full event
+      </button>
     </div>
   );
 }
 
-/**
- * TimelineDetailGenerating
- * Shown when event status is "generating"
- * - Loading animation
- * - Status message
- */
 function TimelineDetailGenerating({ event, onCloseMobile }: TimelineDetailProps) {
   const navigate = useNavigate();
   const isOrganizer = event.inviter_id === getCurrentUserId();
-  void onCloseMobile; // Used for future mobile close button
+  void onCloseMobile;
 
   return (
     <div className="gf-card gf-timeline-detail-card">
@@ -678,21 +443,9 @@ function TimelineDetailGenerating({ event, onCloseMobile }: TimelineDetailProps)
             </p>
           )}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span className={`gf-status-chip ${STATUS_LABELS.generating.cls}`}>Generating</span>
-          <button
-            type="button"
-            onClick={() => navigate(`/events/${event.id}`)}
-            className="gf-timeline-detail-expand"
-            title="View full event"
-            aria-label="View full event"
-          >
-            <ExternalLink size={14} />
-          </button>
-        </div>
+        <span className={`gf-status-chip ${STATUS_LABELS.generating.cls}`}>Generating</span>
       </div>
 
-      {/* Loading State */}
       <div className="gf-timeline-detail-generating">
         <div className="gf-timeline-detail-generating__spinner">
           <Loader2 size={32} className="gf-loading-spinner__icon" />
@@ -716,10 +469,6 @@ function TimelineDetailGenerating({ event, onCloseMobile }: TimelineDetailProps)
   );
 }
 
-/**
- * TimelineDetail
- * Routes to the appropriate state-specific component based on event.status
- */
 function TimelineDetail({ event, onDelete, onCloseMobile }: TimelineDetailProps) {
   switch (event.status) {
     case 'collecting':
@@ -754,21 +503,15 @@ function getFriendlyDateLabel(dateStr: string): { label: string; sublabel: strin
   const nextWeek = new Date(today);
   nextWeek.setDate(nextWeek.getDate() + 7);
 
-  if (d < today) {
-    return { label: 'Past', sublabel: prettyDateFull(dateStr) };
-  }
-  if (d.getTime() === today.getTime()) {
-    return { label: 'Today', sublabel: prettyDateFull(dateStr) };
-  }
-  if (d.getTime() === tomorrow.getTime()) {
+  if (d < today) return { label: 'Past', sublabel: prettyDateFull(dateStr) };
+  if (d.getTime() === today.getTime()) return { label: 'Today', sublabel: prettyDateFull(dateStr) };
+  if (d.getTime() === tomorrow.getTime())
     return { label: 'Tomorrow', sublabel: prettyDateFull(dateStr) };
-  }
-  if (d < nextWeek) {
+  if (d < nextWeek)
     return {
       label: d.toLocaleDateString('en-US', { weekday: 'long' }),
       sublabel: prettyDateFull(dateStr),
     };
-  }
   return {
     label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
     sublabel: prettyDateFull(dateStr),
@@ -831,9 +574,9 @@ function TimelineView({
   const [animating, setAnimating] = useState(false);
   const [lastUpdatedTimestamp, setLastUpdatedTimestamp] = useState(() => Date.now());
   const [isMobile, setIsMobile] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Detect mobile viewport
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth <= 720);
     checkMobile();
@@ -846,10 +589,31 @@ function TimelineView({
     return () => clearTimeout(timer);
   }, [events.length]);
 
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  const isExpiredCollecting = useCallback(
+    (e: EventItem) =>
+      e.status === 'collecting' &&
+      !!e.response_window_end &&
+      new Date(e.response_window_end).getTime() <= now,
+    [now]
+  );
+
   const filteredEvents = useMemo(() => {
     if (statusFilter === 'all') return events;
+    if (statusFilter === 'options_ready')
+      return events.filter((e) => e.status === 'options_ready' || isExpiredCollecting(e));
+    if (statusFilter === 'collecting')
+      return events.filter(
+        (e) =>
+          e.status === 'collecting' &&
+          (!e.response_window_end || new Date(e.response_window_end).getTime() > now)
+      );
     return events.filter((e) => e.status === statusFilter);
-  }, [events, statusFilter]);
+  }, [events, statusFilter, now, isExpiredCollecting]);
 
   const grouped = useMemo(() => groupByDate(filteredEvents), [filteredEvents]);
   const selected = events.find((e) => e.id === selectedId) ?? filteredEvents[0] ?? null;
@@ -858,10 +622,7 @@ function TimelineView({
     (id: string) => {
       setAnimating(true);
       setSelectedId(id);
-      // On mobile, also expand the selected card
-      if (isMobile) {
-        setExpandedMobileId(id);
-      }
+      if (isMobile) setExpandedMobileId(id);
       setTimeout(() => setAnimating(false), 150);
     },
     [isMobile]
@@ -876,9 +637,7 @@ function TimelineView({
     }
   };
 
-  const handleCloseMobile = () => {
-    setExpandedMobileId(null);
-  };
+  const handleCloseMobile = () => setExpandedMobileId(null);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -905,11 +664,22 @@ function TimelineView({
 
   return (
     <div className="gf-timeline-layout">
-      {/* Left: event list grouped by date */}
       <div className="gf-timeline-list">
-        <h2 className="gf-section-title" style={{ marginBottom: '4px' }}>
-          Timeline
-        </h2>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '4px',
+          }}
+        >
+          <h2 className="gf-section-title" style={{ margin: 0 }}>
+            Timeline
+          </h2>
+          <Link to="/events/new" className="gf-button gf-button--primary" style={{ gap: '6px' }}>
+            <Plus size={16} /> New event
+          </Link>
+        </div>
         <p className="gf-muted" style={{ fontSize: '0.85rem', marginBottom: '16px' }}>
           View and manage your events at a glance
         </p>
@@ -977,7 +747,9 @@ function TimelineView({
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {evs.map((ev) => {
-                    const s = STATUS_LABELS[ev.status] || { label: ev.status, cls: '' };
+                    const s = isExpiredCollecting(ev)
+                      ? { label: 'Ready', cls: 'gf-status-chip--ready' }
+                      : STATUS_LABELS[ev.status] || { label: ev.status, cls: '' };
                     const isExpanded = expandedMobileId === ev.id;
 
                     return (
@@ -1039,7 +811,6 @@ function TimelineView({
                           </div>
                         </button>
 
-                        {/* Mobile accordion content */}
                         {isMobile && isExpanded && (
                           <div className="gf-timeline-card__expanded-content">
                             <TimelineDetail
@@ -1066,7 +837,6 @@ function TimelineView({
         </p>
       </div>
 
-      {/* Right: detail panel (desktop only) */}
       {!isMobile && (
         <div className={animating ? 'gf-timeline-detail--animating' : ''}>
           {selected ? (

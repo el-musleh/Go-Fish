@@ -9,6 +9,7 @@ interface ShareEventProps {
   eventTitle: string;
   eventCity?: string;
   inline?: boolean;
+  compact?: boolean;
 }
 
 function generateShareText(
@@ -131,12 +132,14 @@ export default function ShareEvent({
   eventTitle,
   eventCity,
   inline = false,
+  compact = false,
 }: ShareEventProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [tone, setTone] = useState<ShareTone>('fun');
   const [inviteLink, setInviteLink] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   const handleGenerateLink = useCallback(async () => {
     setGenerating(true);
@@ -151,10 +154,21 @@ export default function ShareEvent({
   }, [eventId]);
 
   useEffect(() => {
-    if ((inline || isOpen) && !inviteLink && !generating) {
+    if ((inline || isOpen || compact) && !inviteLink && !generating) {
       handleGenerateLink();
     }
-  }, [inline, isOpen, inviteLink, generating, handleGenerateLink]);
+  }, [inline, isOpen, compact, inviteLink, generating, handleGenerateLink]);
+
+  async function handleCopyLink() {
+    if (!inviteLink) return;
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch {
+      // Clipboard API not available
+    }
+  }
 
   async function handleNativeShare() {
     if (!inviteLink) return;
@@ -195,6 +209,67 @@ export default function ShareEvent({
     ? generateShareText(tone, eventTitle, eventCity, inviteLink)
     : 'Generating invite link...';
   const hasNativeShare = typeof navigator !== 'undefined' && !!navigator.share;
+
+  if (compact) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+        <p
+          style={{
+            margin: 0,
+            fontSize: '0.75rem',
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            letterSpacing: '0.07em',
+            color: 'var(--muted)',
+          }}
+        >
+          Share invite
+        </p>
+        <div
+          className="gf-share-platforms"
+          style={{ justifyContent: 'flex-start', gap: '8px', flexWrap: 'wrap' }}
+        >
+          {SOCIAL_PLATFORMS.map((platform) => (
+            <button
+              key={platform.id}
+              type="button"
+              className="gf-share-platform-btn"
+              onClick={() => handlePlatformShare(platform)}
+              title={platform.name}
+              style={
+                {
+                  '--platform-color': platform.bgColor,
+                  minWidth: '56px',
+                  padding: '10px',
+                } as React.CSSProperties
+              }
+              disabled={!inviteLink}
+            >
+              {platform.icon}
+              <span className="gf-share-platform-name">{platform.name}</span>
+            </button>
+          ))}
+          <button
+            type="button"
+            className="gf-share-platform-btn"
+            onClick={handleCopyLink}
+            title="Copy link"
+            style={
+              {
+                '--platform-color': 'var(--accent)',
+                minWidth: '56px',
+                padding: '10px',
+              } as React.CSSProperties
+            }
+            disabled={!inviteLink}
+          >
+            {copiedLink ? <Check size={22} /> : <LinkIcon size={22} />}
+            <span className="gf-share-platform-name">{copiedLink ? 'Copied!' : 'Copy Link'}</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!inline && !isOpen) {
     return (
@@ -316,8 +391,6 @@ export default function ShareEvent({
           )}
         </button>
       </div>
-
-      {generating && <p className="gf-share-generating">Generating invite link...</p>}
     </>
   );
 
