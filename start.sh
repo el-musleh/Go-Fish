@@ -109,6 +109,7 @@ free_port() {
   [ -n "$pids" ] && echo "$pids" | xargs kill -9 2>/dev/null || true; sleep 1
   [ -n "$(pids_on_port "$1")" ] && \
     die "Cannot free port $1.\n  Try: sudo kill -9 \$(lsof -t -i:$1)"
+  return 0
 }
 
 # ── Dependency staleness check ───────────────────────────────────────────────
