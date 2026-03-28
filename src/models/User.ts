@@ -6,5 +6,6 @@ export interface User {
   has_taste_benchmark: boolean;
   ai_api_key: string | null;
   ai_model: string | null;
+  ai_provider: string | null;
   created_at: Date;
 }

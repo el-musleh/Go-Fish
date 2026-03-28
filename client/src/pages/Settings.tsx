@@ -16,6 +16,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import ValidatedInput from '../components/ValidatedInput';
 import Onboarding from '../components/Onboarding';
 import { ModelSelector } from '../components/ModelSelector';
+import { ProviderSelector } from '../components/ProviderSelector';
 import {
   Loader2,
   User,
@@ -478,8 +479,13 @@ function InfrastructureSection({
   onUpdate,
 }: {
   profile: UserProfile;
-  onUpdate: (data: { ai_api_key: string | null; ai_model: string | null }) => Promise<void>;
+  onUpdate: (data: {
+    ai_api_key: string | null;
+    ai_model: string | null;
+    ai_provider: string | null;
+  }) => Promise<void>;
 }) {
+  const [selectedProvider, setSelectedProvider] = useState(profile.ai_provider || 'openrouter');
   const [selectedModel, setSelectedModel] = useState(profile.ai_model || '');
   const {
     register,
@@ -524,6 +530,7 @@ function InfrastructureSection({
     await onUpdate({
       ai_api_key: data.ai_api_key?.trim() || null,
       ai_model: selectedModel || null,
+      ai_provider: selectedProvider || null,
     });
   };
 
@@ -571,19 +578,10 @@ function InfrastructureSection({
 
             <div className="gf-field">
               <label className="gf-field__label">AI Provider</label>
-              <div
-                className="gf-input"
-                style={{
-                  opacity: 0.7,
-                  background: 'var(--bg-surface)',
-                  cursor: 'not-allowed',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                }}
-              >
-                <Cpu size={16} /> OpenRouter (LangChain)
-              </div>
+              <ProviderSelector
+                selectedProvider={selectedProvider}
+                onSelect={setSelectedProvider}
+              />
             </div>
 
             <ValidatedInput
@@ -1204,10 +1202,12 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
   const handleUpdateInfrastructure = async (data: {
     ai_api_key: string | null;
     ai_model: string | null;
+    ai_provider: string | null;
   }) => {
     const cleanData = {
       ai_api_key: data.ai_api_key?.trim() || null,
       ai_model: data.ai_model || null,
+      ai_provider: data.ai_provider || null,
     };
     const promise = api.patch<UserProfile>('/auth/me', cleanData);
     toast.promise(promise, {

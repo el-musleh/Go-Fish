@@ -11,18 +11,12 @@ export interface OpenRouterModelConfig {
 }
 
 export function resolveOpenRouterApiKey(apiKey?: string): string {
-  const resolved =
-    apiKey ??
-    process.env.DEEPSEEK_API_KEY ??
-    process.env.OPENROUTER_API_KEY ??
-    process.env.GOOGLE_API_KEY ??
-    process.env.GEMINI_API_KEY;
-  if (!resolved) {
-    throw new Error(
-      'No AI API key configured. Set OPENROUTER_API_KEY, DEEPSEEK_API_KEY, GOOGLE_API_KEY, or GEMINI_API_KEY in your environment.'
-    );
+  if (apiKey) {
+    return apiKey;
   }
-  return resolved;
+  throw new Error(
+    'No API key found. Please add your API key in Settings to generate activity suggestions.'
+  );
 }
 
 export function resolveOpenRouterModelName(model?: string): string {

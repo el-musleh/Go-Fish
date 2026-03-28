@@ -81,3 +81,28 @@ Commits follow **Conventional Commits**: `feat:`, `fix:`, `refactor:`, `chore:`,
 The pre-commit hook (Husky + lint-staged) runs on `client/` staged files, auto-fixing and formatting `.ts/.tsx/.css/.json` before every commit.
 
 CI runs on every pull request. Merging to `main` triggers automatic deployment: backend to Railway, frontend to Vercel.
+
+## Git Merge Best Practices
+
+**NEVER use `git checkout --theirs .` or `git checkout --theirs <files>` to resolve merge conflicts.** This command replaces ALL files with the remote version, which can cause:
+- Lost local features and implementations
+- Broken builds due to missing dependencies
+- Removed components and utilities
+- Inconsistent state across the codebase
+
+**Instead, resolve conflicts properly:**
+
+1. **For each conflict**, use `git checkout --ours <file>` for files you want to keep local changes in, or manually edit to keep both changes
+2. **After resolving**, mark as resolved: `git add <resolved-files>`
+3. **Never revert all changes** - fix lint errors individually rather than discarding entire features
+4. **Test after merge**: Always run `npm run build` (backend) and `cd client && npm run build` (frontend) before committing
+
+**If you've made a mistake:**
+- `git reflog` shows recent HEAD changes
+- Find the last good state: `git reflog | head -20`
+- Reset to a known good commit: `git reset --hard <good-commit-hash>`
+
+**Finding the last working commit:**
+- Look for commits with passing CI (green checks)
+- Check commit messages for working features
+- The commit hash `ca6a6da` is a known working state with AI model selection
