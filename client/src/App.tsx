@@ -2,7 +2,7 @@ import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/react';
 import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Link, useNavigate, useLocation } from 'react-router-dom';
-import { Settings as SettingsIcon, LayoutGrid } from 'lucide-react';
+import { Settings as SettingsIcon, House } from 'lucide-react';
 import {
   api,
   clearCurrentUser,
@@ -156,7 +156,7 @@ function AppShell({
               title="Dashboard"
               aria-label="Dashboard"
             >
-              <LayoutGrid size={20} />
+              <House size={20} />
             </Link>
           )}
         </nav>
