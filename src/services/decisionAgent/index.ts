@@ -56,10 +56,11 @@ export async function generateActivityOptions(
   participantAvailability: ParticipantAvailability[],
   apiKey?: string,
   eventContext?: EventContext,
-  realWorldContext?: RealWorldContext
+  realWorldContext?: RealWorldContext,
+  model?: string
 ): Promise<GeneratedOption[]> {
   const resolvedApiKey = resolveOpenRouterApiKey(apiKey);
-  let activeModel = resolveOpenRouterModelName();
+  let activeModel = resolveOpenRouterModelName(model);
   let lastError: Error | undefined;
 
   const runtime = createPlanningRuntime(

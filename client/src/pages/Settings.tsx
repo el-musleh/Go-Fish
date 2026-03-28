@@ -15,6 +15,7 @@ import { toast } from '../components/Toaster';
 import LoadingSpinner from '../components/LoadingSpinner';
 import ValidatedInput from '../components/ValidatedInput';
 import Onboarding from '../components/Onboarding';
+import { ModelSelector } from '../components/ModelSelector';
 import {
   Loader2,
   User,
@@ -28,6 +29,7 @@ import {
   Cpu,
   Moon,
   Sun,
+  AlertCircle,
   Palette,
   Bell,
   Globe,
@@ -476,15 +478,56 @@ function InfrastructureSection({
   onUpdate,
 }: {
   profile: UserProfile;
-  onUpdate: (data: { ai_api_key: string | null }) => Promise<void>;
+  onUpdate: (data: { ai_api_key: string | null; ai_model: string | null }) => Promise<void>;
 }) {
+  const [selectedModel, setSelectedModel] = useState(profile.ai_model || '');
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
+    setError,
+    clearErrors,
   } = useForm({
     defaultValues: { ai_api_key: profile.ai_api_key || '' },
   });
+
+  // Validate API key format
+  const validateApiKey = (key: string): string | undefined => {
+    if (!key.trim()) return undefined; // Empty is OK (use default)
+
+    // OpenRouter keys start with sk-or-v1-
+    if (key.startsWith('sk-or-v1-')) return undefined;
+
+    // DeepSeek keys start with sk-
+    if (key.startsWith('sk-')) return undefined;
+
+    // Google/Gemini keys start with AIza
+    if (key.startsWith('AIza')) return undefined;
+
+    // Anthropic keys start with sk-ant-
+    if (key.startsWith('sk-ant-')) return undefined;
+
+    return 'Invalid API key format. Key should start with sk-, sk-or-v1-, AIza, or sk-ant-';
+  };
+
+  const handleApiKeyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const key = e.target.value;
+    const validationError = validateApiKey(key);
+    if (validationError) {
+      setError('ai_api_key', { message: validationError });
+    } else {
+      clearErrors('ai_api_key');
+    }
+  };
+
+  const handleFormSubmit = async (data: { ai_api_key: string }) => {
+    await onUpdate({
+      ai_api_key: data.ai_api_key?.trim() || null,
+      ai_model: selectedModel || null,
+    });
+  };
+
+  const hasApiKey = !!profile.ai_api_key;
 
   return (
     <div className="gf-stack gf-stack--xl">
@@ -496,7 +539,36 @@ function InfrastructureSection({
         </p>
 
         <div className="gf-card" style={{ marginTop: '12px' }}>
-          <form onSubmit={handleSubmit(onUpdate)} className="gf-stack">
+          <form onSubmit={handleSubmit(handleFormSubmit)} className="gf-stack">
+            {/* API Key Status Indicator */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 12px',
+                background: hasApiKey ? 'rgba(34, 197, 94, 0.1)' : 'var(--bg-subtle)',
+                borderRadius: '8px',
+                border: hasApiKey ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid var(--border)',
+              }}
+            >
+              {hasApiKey ? (
+                <CheckCircle2 size={18} style={{ color: 'var(--color-success)' }} />
+              ) : (
+                <AlertCircle size={18} style={{ color: 'var(--text-muted)' }} />
+              )}
+              <span
+                style={{
+                  fontSize: '0.9rem',
+                  color: hasApiKey ? 'var(--color-success)' : 'var(--text-muted)',
+                }}
+              >
+                {hasApiKey
+                  ? 'Your API key is configured'
+                  : 'Using service default (no API key set)'}
+              </span>
+            </div>
+
             <div className="gf-field">
               <label className="gf-field__label">AI Provider</label>
               <div
@@ -520,11 +592,22 @@ function InfrastructureSection({
               error={errors.ai_api_key}
               placeholder="sk-or-v1-..."
               type="password"
+              onChange={handleApiKeyChange}
             />
 
             <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
               Your key is stored securely and used only for your event generations. Leave empty to
               use the service default.
+            </p>
+
+            {/* Model Selector */}
+            <ModelSelector
+              currentModel={selectedModel}
+              onSelect={(model) => setSelectedModel(model)}
+            />
+            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
+              Select the AI model to use for generating activity suggestions. Recommended models are
+              shown first.
             </p>
 
             <div className="gf-actions">
@@ -1118,8 +1201,14 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
     });
   };
 
-  const handleUpdateInfrastructure = async (data: { ai_api_key: string | null }) => {
-    const cleanData = { ai_api_key: data.ai_api_key?.trim() || null };
+  const handleUpdateInfrastructure = async (data: {
+    ai_api_key: string | null;
+    ai_model: string | null;
+  }) => {
+    const cleanData = {
+      ai_api_key: data.ai_api_key?.trim() || null,
+      ai_model: data.ai_model || null,
+    };
     const promise = api.patch<UserProfile>('/auth/me', cleanData);
     toast.promise(promise, {
       loading: 'Updating infrastructure settings...',

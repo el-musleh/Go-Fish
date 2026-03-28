@@ -25,7 +25,7 @@ export async function getUserByEmail(pool: Pool, email: string): Promise<User | 
 export async function updateUser(
   pool: Pool,
   id: string,
-  data: Partial<Pick<User, 'name' | 'has_taste_benchmark' | 'ai_api_key'>>
+  data: Partial<Pick<User, 'name' | 'has_taste_benchmark' | 'ai_api_key' | 'ai_model'>>
 ): Promise<User | null> {
   const setClauses: string[] = [];
   const values: unknown[] = [];
@@ -42,6 +42,10 @@ export async function updateUser(
   if (data.ai_api_key !== undefined) {
     setClauses.push('ai_api_key = $' + paramIdx++);
     values.push(data.ai_api_key);
+  }
+  if (data.ai_model !== undefined) {
+    setClauses.push('ai_model = $' + paramIdx++);
+    values.push(data.ai_model);
   }
 
   if (setClauses.length === 0) return getUserById(pool, id);

@@ -382,6 +382,18 @@ export function createEventRouter(pool: Pool): Router {
       res.json({ options: normalizeActivityOptions(options) });
     } catch (error) {
       console.error('Error triggering generation:', error);
+      
+      // Check if it's an API key error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('No AI API key') || errorMessage.includes('API key')) {
+        res.status(503).json({ 
+          error: 'NEEDS_API_KEY', 
+          message: 'AI generation requires an API key. Please configure your API key in Settings → Infrastructure.',
+          link: '/settings?tab=infrastructure'
+        });
+        return;
+      }
+      
       res.status(503).json({ error: 'generation_failed', message: 'Activity generation is temporarily unavailable. Please try again shortly.' });
     }
   });

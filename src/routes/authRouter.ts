@@ -35,9 +35,9 @@ export function createAuthRouter(pool: Pool): Router {
   router.patch('/me', requireAuth, async (req, res, next: NextFunction) => {
     try {
       const userId = (req as any).userId;
-      const { name, ai_api_key } = req.body;
+      const { name, ai_api_key, ai_model } = req.body;
       console.log(`[Debug] Updating profile for user: ${userId}`);
-      const user = await updateUser(pool, userId, { name, ai_api_key });
+      const user = await updateUser(pool, userId, { name, ai_api_key, ai_model });
       if (!user) {
         res.status(404).json({ error: 'user_not_found', message: 'User not found.' });
         return;

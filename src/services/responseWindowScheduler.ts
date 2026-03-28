@@ -18,6 +18,7 @@ const activeTimers = new Map<string, ReturnType<typeof setTimeout>>();
 export interface SchedulerDeps {
   pool: Pool;
   apiKey?: string;
+  model?: string;
 }
 
 /**
@@ -58,19 +59,19 @@ export function cancelScheduledTimer(eventId: string): boolean {
 
 /**
  * Early trigger: called when all invitees have responded before the window expires.
- * Cancels the scheduled timer and immediately triggers generation.
+ * Cancels the scheduled timer. Generation is now manual-only via the organizer.
  */
 export async function triggerEarly(
   eventId: string,
-  deps: SchedulerDeps
+  _deps: SchedulerDeps
 ): Promise<void> {
   cancelScheduledTimer(eventId);
-  await triggerGeneration(eventId, deps);
 }
 
 /**
- * Handle response window expiry by generating options from the current data,
- * even if nobody responded. The agent falls back to draft planning slots.
+ * Handle response window expiry. Generation is now manual-only via the organizer,
+ * so this is a no-op — the event stays in 'collecting' until the organizer clicks
+ * "Generate now".
  */
 export async function handleWindowExpiry(
   eventId: string,
@@ -83,7 +84,7 @@ export async function handleWindowExpiry(
     return; // Event already processed or doesn't exist
   }
 
-  await triggerGeneration(eventId, deps);
+  // No-op: organizer triggers generation manually
 }
 
 /**
@@ -95,7 +96,7 @@ export async function triggerGeneration(
   eventId: string,
   deps: SchedulerDeps
 ): Promise<GeneratedOption[]> {
-  const { pool, apiKey } = deps;
+  const { pool, apiKey, model } = deps;
 
   // Fetch event for context (title/description)
   const event = await getEventById(pool, eventId);
@@ -105,10 +106,14 @@ export async function triggerGeneration(
 
   // Use user's custom API key if available and no override apiKey provided in deps
   let effectiveApiKey = apiKey;
-  if (!effectiveApiKey) {
+  let effectiveModel = model;
+  if (!effectiveApiKey || !effectiveModel) {
     const inviter = await getUserById(pool, event.inviter_id);
-    if (inviter?.ai_api_key) {
+    if (!effectiveApiKey && inviter?.ai_api_key) {
       effectiveApiKey = inviter.ai_api_key;
+    }
+    if (!effectiveModel && inviter?.ai_model) {
+      effectiveModel = inviter.ai_model;
     }
   }
 
@@ -185,7 +190,8 @@ export async function triggerGeneration(
       participantAvailability,
       effectiveApiKey,
       eventContext,
-      realWorldContext
+      realWorldContext,
+      effectiveModel
     );
 
     // Store generated options in parallel
