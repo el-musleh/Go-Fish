@@ -1,3 +1,4 @@
+import { ChatOpenAI } from "@langchain/openai";
 import { ChatOpenRouter } from "@langchain/openrouter";
 
 export const DEFAULT_MODEL = 'deepseek-chat';
@@ -6,6 +7,7 @@ export const FALLBACK_MODEL = 'deepseek-reasoner';
 export interface OpenRouterModelConfig {
   apiKey?: string;
   model?: string;
+  provider?: string;
   temperature?: number;
   maxTokens?: number;
 }
@@ -49,13 +51,41 @@ export function extractJson(text: string): string {
   throw new Error('Unmatched braces in model output — JSON object is incomplete');
 }
 
-export function createChatOpenRouterModel(config: OpenRouterModelConfig = {}): ChatOpenRouter {
-  return new ChatOpenRouter({
-    apiKey: resolveOpenRouterApiKey(config.apiKey),
-    model: resolveOpenRouterModelName(config.model),
+export function createChatOpenRouterModel(config: OpenRouterModelConfig = {}): ChatOpenRouter | ChatOpenAI {
+  const apiKey = resolveOpenRouterApiKey(config.apiKey);
+  const model = resolveOpenRouterModelName(config.model);
+  const baseConfig = {
     maxRetries: 0,
     temperature: config.temperature ?? 0.2,
     maxTokens: config.maxTokens ?? 2048,
+  };
+
+  // DeepSeek has an OpenAI-compatible API — use it directly with the user's native key
+  if (config.provider === 'deepseek') {
+    return new ChatOpenAI({
+      ...baseConfig,
+      apiKey,
+      model,
+      configuration: { baseURL: 'https://api.deepseek.com/v1' },
+    });
+  }
+
+  // OpenAI native API
+  if (config.provider === 'openai') {
+    // OpenRouter model IDs use 'openai/gpt-4o' format; strip the prefix for native API
+    const nativeModel = model.startsWith('openai/') ? model.slice('openai/'.length) : model;
+    return new ChatOpenAI({
+      ...baseConfig,
+      apiKey,
+      model: nativeModel,
+    });
+  }
+
+  // Default: route through OpenRouter (supports anthropic, google, meta, mistralai, etc.)
+  return new ChatOpenRouter({
+    ...baseConfig,
+    apiKey,
+    model,
   });
 }
 

@@ -64,7 +64,7 @@ async function generateAndSave(pool: Pool, event: { id: string; inviter_id: stri
     title: event.title,
     description: event.description,
     location_city: event.location_city,
-  }, inviter?.ai_api_key ?? undefined);
+  }, inviter?.ai_api_key ?? undefined, inviter?.ai_provider ?? undefined);
   await saveEventSuggestions(pool, event.id, suggestions);
   return suggestions;
 }
@@ -383,12 +383,19 @@ export function createEventRouter(pool: Pool): Router {
     } catch (error) {
       console.error('Error triggering generation:', error);
       
-      // Check if it's an API key error
+      // Check if it's an API key / authentication error
       const errorMessage = error instanceof Error ? error.message : String(error);
-      if (errorMessage.includes('No AI API key') || errorMessage.includes('API key')) {
-        res.status(503).json({ 
-          error: 'NEEDS_API_KEY', 
-          message: 'AI generation requires an API key. Please configure your API key in Settings → Infrastructure.',
+      const isAuthError =
+        errorMessage.includes('No AI API key') ||
+        errorMessage.includes('API key') ||
+        errorMessage.includes('Authentication') ||
+        errorMessage.includes('authentication') ||
+        errorMessage.includes('Unauthorized') ||
+        errorMessage.includes('401');
+      if (isAuthError) {
+        res.status(503).json({
+          error: 'NEEDS_API_KEY',
+          message: 'AI generation requires a valid API key. Please check your API key in Settings → Infrastructure.',
           link: '/settings?tab=infrastructure'
         });
         return;

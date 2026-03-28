@@ -19,6 +19,7 @@ export interface SchedulerDeps {
   pool: Pool;
   apiKey?: string;
   model?: string;
+  provider?: string;
 }
 
 /**
@@ -96,7 +97,7 @@ export async function triggerGeneration(
   eventId: string,
   deps: SchedulerDeps
 ): Promise<GeneratedOption[]> {
-  const { pool, apiKey, model } = deps;
+  const { pool, apiKey, model, provider } = deps;
 
   // Fetch event for context (title/description)
   const event = await getEventById(pool, eventId);
@@ -104,16 +105,20 @@ export async function triggerGeneration(
     throw new Error(`Event ${eventId} not found for generation.`);
   }
 
-  // Use user's custom API key if available and no override apiKey provided in deps
+  // Use user's custom API key/model/provider if not overridden by deps
   let effectiveApiKey = apiKey;
   let effectiveModel = model;
-  if (!effectiveApiKey || !effectiveModel) {
+  let effectiveProvider = provider;
+  if (!effectiveApiKey || !effectiveModel || !effectiveProvider) {
     const inviter = await getUserById(pool, event.inviter_id);
     if (!effectiveApiKey && inviter?.ai_api_key) {
       effectiveApiKey = inviter.ai_api_key;
     }
     if (!effectiveModel && inviter?.ai_model) {
       effectiveModel = inviter.ai_model;
+    }
+    if (!effectiveProvider && inviter?.ai_provider) {
+      effectiveProvider = inviter.ai_provider;
     }
   }
 
@@ -184,14 +189,15 @@ export async function triggerGeneration(
       }
     }
 
-    // Generate activity options via OpenRouter
+    // Generate activity options using the user's configured AI provider
     const options = await generateActivityOptions(
       benchmarks,
       participantAvailability,
       effectiveApiKey,
       eventContext,
       realWorldContext,
-      effectiveModel
+      effectiveModel,
+      effectiveProvider ?? undefined
     );
 
     // Store generated options in parallel

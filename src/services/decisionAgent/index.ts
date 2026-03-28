@@ -57,7 +57,8 @@ export async function generateActivityOptions(
   apiKey?: string,
   eventContext?: EventContext,
   realWorldContext?: RealWorldContext,
-  model?: string
+  model?: string,
+  provider?: string
 ): Promise<GeneratedOption[]> {
   const resolvedApiKey = resolveOpenRouterApiKey(apiKey);
   let activeModel = resolveOpenRouterModelName(model);
@@ -72,7 +73,7 @@ export async function generateActivityOptions(
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      return await runPlanningAgent(runtime, resolvedApiKey, activeModel);
+      return await runPlanningAgent(runtime, resolvedApiKey, activeModel, provider);
     } catch (error) {
       if (shouldUseFallbackModel(error, activeModel)) {
         activeModel = FALLBACK_MODEL;

@@ -157,7 +157,8 @@ export function validateAndHydrateOptions(
 export async function runPlanningAgent(
   runtime: AgentRuntimeState,
   apiKey?: string,
-  modelName?: string
+  modelName?: string,
+  provider?: string
 ): Promise<GeneratedOption[]> {
   if (runtime.overlaps.length === 0) {
     throw new Error('No valid overlapping time windows are available');
@@ -166,7 +167,7 @@ export async function runPlanningAgent(
   const AGENT_TIMEOUT_MS = 60_000;
 
   const agentApp = createReactAgent({
-    llm: createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.2 }),
+    llm: createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.2, provider }),
     tools: [...createAgentTools(runtime)],
     messageModifier: createAgentPrompt(runtime),
   });
@@ -188,7 +189,7 @@ export async function runPlanningAgent(
 
   // Use manual JSON extraction instead of .withStructuredOutput() for
   // compatibility with models that don't support JSON schema response_format.
-  const finalizer = createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.1 });
+  const finalizer = createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.1, provider });
 
   const finalizerController = new AbortController();
   const finalizerTimer = setTimeout(() => finalizerController.abort(), AGENT_TIMEOUT_MS);

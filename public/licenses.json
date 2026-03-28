@@ -1,0 +1,308 @@
+[
+  {
+    "name": "@eslint/js",
+    "version": "10.0.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@hookform/resolvers",
+    "version": "5.2.2",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@langchain/langgraph",
+    "version": "1.2.6",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@langchain/openrouter",
+    "version": "0.1.8",
+    "license": "MIT",
+    "publisher": "LangChain"
+  },
+  {
+    "name": "@radix-ui/react-dialog",
+    "version": "1.1.15",
+    "license": "MIT",
+    "publisher": "Radix UI"
+  },
+  {
+    "name": "@supabase/supabase-js",
+    "version": "2.100.1",
+    "license": "Apache 2.0",
+    "publisher": "Supabase"
+  },
+  {
+    "name": "@tailwindcss/vite",
+    "version": "4.2.2",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@testing-library/dom",
+    "version": "10.4.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@testing-library/jest-dom",
+    "version": "6.9.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@testing-library/react",
+    "version": "16.3.2",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@testing-library/user-event",
+    "version": "14.6.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@types/express",
+    "version": "5.0.6",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@types/node",
+    "version": "20.11.0",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@types/pg",
+    "version": "8.20.0",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@types/react",
+    "version": "19.2.14",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@types/react-dom",
+    "version": "19.2.3",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@types/supertest",
+    "version": "7.2.0",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@vercel/analytics",
+    "version": "2.0.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@vercel/speed-insights",
+    "version": "2.0.0",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "@vitejs/plugin-react",
+    "version": "6.0.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "clsx",
+    "version": "2.1.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "dotenv",
+    "version": "17.3.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "eslint",
+    "version": "10.1.0",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "eslint-config-prettier",
+    "version": "10.1.8",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "eslint-plugin-react-hooks",
+    "version": "7.0.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "eslint-plugin-react-refresh",
+    "version": "0.5.2",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "express",
+    "version": "5.2.1",
+    "license": "MIT",
+    "publisher": "Express Team"
+  },
+  {
+    "name": "express-rate-limit",
+    "version": "8.3.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "fast-check",
+    "version": "3.15.0",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "globals",
+    "version": "17.4.0",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "husky",
+    "version": "9.1.7",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "jsdom",
+    "version": "29.0.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "langchain",
+    "version": "1.2.37",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "lint-staged",
+    "version": "16.4.0",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "lucide-react",
+    "version": "1.7.0",
+    "license": "ISC",
+    "publisher": "Lucide"
+  },
+  {
+    "name": "pg",
+    "version": "8.20.0",
+    "license": "MIT",
+    "publisher": "Brian Carlson"
+  },
+  {
+    "name": "prettier",
+    "version": "3.8.1",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "react",
+    "version": "19.2.4",
+    "license": "MIT",
+    "publisher": "Meta (Facebook)"
+  },
+  {
+    "name": "react-dom",
+    "version": "19.2.4",
+    "license": "MIT",
+    "publisher": "Meta (Facebook)"
+  },
+  {
+    "name": "react-hook-form",
+    "version": "7.72.0",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "react-router-dom",
+    "version": "7.13.2",
+    "license": "MIT",
+    "publisher": "React Router Team"
+  },
+  {
+    "name": "sonner",
+    "version": "2.0.7",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "supertest",
+    "version": "7.2.2",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "tailwind-merge",
+    "version": "3.5.0",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "tailwindcss",
+    "version": "4.2.2",
+    "license": "MIT",
+    "publisher": "Tailwind Labs"
+  },
+  {
+    "name": "ts-node",
+    "version": "10.9.2",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "typescript",
+    "version": "6.0.2",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "typescript-eslint",
+    "version": "8.57.2",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "vite",
+    "version": "8.0.3",
+    "license": "MIT",
+    "publisher": "Vite Team"
+  },
+  {
+    "name": "vitest",
+    "version": "4.1.2",
+    "license": "Unknown",
+    "publisher": null
+  },
+  {
+    "name": "zod",
+    "version": "4.3.6",
+    "license": "Unknown",
+    "publisher": null
+  }
+]

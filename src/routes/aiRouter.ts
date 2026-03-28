@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { Pool } from 'pg';
-import { ChatOpenRouter } from '@langchain/openrouter';
+import { createChatOpenRouterModel } from '../services/decisionAgent/model';
 
 export function createAiRouter(_pool: Pool): Router {
   const router = Router();
@@ -10,24 +10,15 @@ export function createAiRouter(_pool: Pool): Router {
     res.json({ status: 'ok', message: 'AI router is working' });
   });
 
-  // Test endpoint - simple test without auth
-  router.post('/test', (req: Request, res: Response) => {
-    console.log('[AI Test] Received request body:', req.body);
-    res.json({ 
-      success: true, 
-      message: 'Test endpoint working! API key: ' + (req.body?.apiKey ? 'provided' : 'not provided')
-    });
-  });
-
-  // Real test endpoint with AI call
+  // Real test endpoint — verifies the API key and model work with the selected provider
   router.post('/test-real', async (req: Request, res: Response) => {
     try {
       const { provider, model, apiKey } = req.body;
 
-      console.log('[AI Test Real] Starting test with:', { 
-        provider, 
-        model: model ? 'set' : 'not set', 
-        apiKey: apiKey ? 'provided' : 'not provided' 
+      console.log('[AI Test] Starting test with:', {
+        provider: provider ?? 'not set',
+        model: model ? 'set' : 'not set',
+        apiKey: apiKey ? 'provided' : 'not provided',
       });
 
       if (!apiKey) {
@@ -40,18 +31,22 @@ export function createAiRouter(_pool: Pool): Router {
         return;
       }
 
-      const chatModel = new ChatOpenRouter({
-        model: model,
-        apiKey: apiKey,
+      const chatModel = createChatOpenRouterModel({
+        apiKey,
+        model,
+        provider,
         temperature: 0.1,
         maxTokens: 10,
       });
 
-      console.log('[AI Test Real] Invoking model...');
+      console.log('[AI Test] Invoking model...');
       const response = await chatModel.invoke('Respond with just "OK" if you can read this.');
-      console.log('[AI Test Real] Response received:', response.content);
+      console.log('[AI Test] Response received.');
 
-      const content = typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+      const content =
+        typeof response.content === 'string'
+          ? response.content
+          : JSON.stringify(response.content);
 
       res.json({
         success: true,
@@ -59,17 +54,17 @@ export function createAiRouter(_pool: Pool): Router {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
-      console.error('[AI Test Real] Error:', message);
-      
+      console.error('[AI Test] Error:', message);
+
       let userMessage = message;
-      if (message.includes('401') || message.includes('authentication')) {
-        userMessage = 'Invalid API key.';
+      if (message.includes('401') || message.includes('authentication') || message.includes('Authentication') || message.includes('Unauthorized')) {
+        userMessage = 'Invalid API key or authentication failed.';
       } else if (message.includes('403')) {
-        userMessage = 'API key does not have permission.';
+        userMessage = 'API key does not have permission for this model.';
       } else if (message.includes('429')) {
-        userMessage = 'Rate limit exceeded.';
-      } else if (message.includes('404')) {
-        userMessage = 'Model not found.';
+        userMessage = 'Rate limit exceeded. Try again later.';
+      } else if (message.includes('404') || message.includes('not found') || message.includes('model')) {
+        userMessage = `Model not found: "${req.body?.model}". Check the model ID.`;
       }
 
       res.status(400).json({ success: false, message: userMessage });

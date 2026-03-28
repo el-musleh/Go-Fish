@@ -9,7 +9,8 @@
     "start": "NODE_ENV=production node dist/index.js",
     "dev": "node node_modules/ts-node/dist/bin.js src/index.ts",
     "test": "node node_modules/vitest/vitest.mjs --run",
-    "prepare": "node node_modules/husky/bin.js 2>/dev/null || true"
+    "prepare": "node node_modules/husky/bin.js 2>/dev/null || true",
+    "licenses": "node scripts/generate-licenses.js && cp public/licenses.json client/public/licenses.json"
   },
   "dependencies": {
     "@langchain/langgraph": "^1.2.6",

@@ -17,6 +17,8 @@ import ValidatedInput from '../components/ValidatedInput';
 import Onboarding from '../components/Onboarding';
 import { ModelSelector } from '../components/ModelSelector';
 import { ProviderSelector } from '../components/ProviderSelector';
+import { VersionInfo } from '../components/ReleaseChecker';
+import { LicenseList } from '../components/LicenseList';
 import {
   Loader2,
   User,
@@ -42,6 +44,8 @@ import {
   Keyboard,
   Sparkles,
   Info,
+  Bug,
+  ExternalLink,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { type Theme } from '../lib/theme';
@@ -490,12 +494,15 @@ function InfrastructureSection({
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors, isSubmitting },
     setError,
     clearErrors,
   } = useForm({
     defaultValues: { ai_api_key: profile.ai_api_key || '' },
   });
+
+  const currentApiKey = watch('ai_api_key');
 
   // Validate API key format
   const validateApiKey = (key: string): string | undefined => {
@@ -547,15 +554,24 @@ function InfrastructureSection({
   const [isTesting, setIsTesting] = useState(false);
 
   const handleTestConnection = async () => {
+    const keyToTest = currentApiKey?.trim() || profile.ai_api_key;
+    if (!keyToTest) {
+      toast.error('Enter an API key first.');
+      return;
+    }
+    if (!selectedModel) {
+      toast.error('Select a model first.');
+      return;
+    }
     setIsTesting(true);
     try {
-      const response = await api.post<{ success: boolean; message: string }>('/ai/test', {
+      const response = await api.post<{ success: boolean; message: string }>('/ai/test-real', {
         provider: selectedProvider,
         model: selectedModel,
-        apiKey: profile.ai_api_key,
+        apiKey: keyToTest,
       });
       if (response.success) {
-        toast.success(response.message || 'Connection successful! Your AI settings are working.');
+        toast.success(response.message || 'Connection successful!');
       } else {
         toast.error(response.message || 'Connection failed. Please check your settings.');
       }
@@ -570,15 +586,15 @@ function InfrastructureSection({
     }
   };
 
-  const hasApiKey = !!profile.ai_api_key;
+  const hasApiKey = !!(currentApiKey?.trim() || profile.ai_api_key);
 
   return (
     <div className="gf-stack gf-stack--xl">
       <section className="gf-stack">
         <h2 className="gf-card-title">AI Configuration</h2>
         <p className="gf-muted">
-          By default, Go Fish uses our managed AI provider (OpenRouter). Provide your own key to use
-          your own usage quotas.
+          Connect your own AI provider to generate activity suggestions. DeepSeek and OpenAI keys
+          are used directly; all other providers route through OpenRouter.
         </p>
 
         <div className="gf-card" style={{ marginTop: '12px' }}>
@@ -609,8 +625,8 @@ function InfrastructureSection({
                   <span
                     style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}
                   >
-                    You're using Go Fish's shared AI service. Add your own API key below to use your
-                    own usage quotas and avoid rate limits.
+                    An API key is required for AI generation. Add your provider key below — DeepSeek
+                    and OpenAI keys work directly, others require an OpenRouter key.
                   </span>
                 </div>
               </div>
@@ -634,10 +650,10 @@ function InfrastructureSection({
               label="API Key"
               registration={register('ai_api_key')}
               error={errors.ai_api_key}
-              placeholder="sk-or-v1-... (or leave empty to use service default)"
+              placeholder="sk-... (DeepSeek / OpenAI) or sk-or-v1-... (OpenRouter)"
               type="password"
               onChange={handleApiKeyChange}
-              hint="Your key is stored securely and used only for your AI requests. Leave empty to use the service default."
+              hint="Your key is stored securely and used only for your own AI requests."
             />
 
             <div className="gf-actions">
@@ -1449,6 +1465,28 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
             <span style={{ flex: 1 }}>Data & Storage</span>
             {activeTab === 'data' && <ChevronRight size={16} />}
           </button>
+          <button
+            className={clsx(
+              'gf-settings-nav-item',
+              activeTab === 'about' && 'gf-settings-nav-item--active'
+            )}
+            onClick={() => handleTabChange('about')}
+          >
+            <Info size={20} />
+            <span style={{ flex: 1 }}>About</span>
+            {activeTab === 'about' && <ChevronRight size={16} />}
+          </button>
+          <a
+            href="https://github.com/el-musleh/Go-Fish/issues"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="gf-settings-nav-item"
+            style={{ textDecoration: 'none', color: 'inherit' }}
+          >
+            <Bug size={20} />
+            <span style={{ flex: 1 }}>Report Bug</span>
+            <ExternalLink size={14} />
+          </a>
           <button className="gf-settings-nav-item gf-settings-nav-item--danger" onClick={onSignOut}>
             <LogOut size={20} />
             <span style={{ flex: 1 }}>Sign Out</span>
@@ -1483,6 +1521,84 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
             <PrivacySection preferences={preferences.privacy} onSave={handleSavePrivacy} />
           )}
           {activeTab === 'data' && <DataSection info={storageInfo} />}
+          {activeTab === 'about' && (
+            <div className="gf-stack">
+              <header>
+                <h1 className="gf-section-title">About Go Fish</h1>
+                <p className="gf-muted">
+                  Learn more about Go Fish and the open source software we use.
+                </p>
+              </header>
+
+              {/* Release Notes Section */}
+              <section className="gf-stack">
+                <h2 className="gf-card-title">Release Notes</h2>
+                <p className="gf-muted">
+                  Stay up to date with the latest features and improvements.
+                </p>
+                <div className="gf-card" style={{ marginTop: '12px' }}>
+                  <VersionInfo />
+                </div>
+              </section>
+
+              {/* Open Source Licenses Section */}
+              <section className="gf-stack">
+                <h2 className="gf-card-title">Open Source Licenses</h2>
+                <p className="gf-muted">Go Fish uses these open source packages.</p>
+                <div className="gf-card" style={{ marginTop: '12px' }}>
+                  <LicenseList />
+                </div>
+              </section>
+
+              {/* Project License Section */}
+              <section className="gf-stack">
+                <h2 className="gf-card-title">License</h2>
+                <p className="gf-muted">Go Fish is open source under the MIT license.</p>
+                <div className="gf-card" style={{ marginTop: '12px' }}>
+                  <div className="gf-stack gf-stack--sm">
+                    <div className="gf-detail-row">
+                      <span className="gf-detail-row__label">Project License</span>
+                      <span className="gf-detail-row__value">MIT</span>
+                    </div>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
+                      Copyright © 2025 Go Fish. See LICENSE file for details.
+                    </p>
+                  </div>
+                </div>
+              </section>
+
+              {/* Report Bug / Suggestion Section */}
+              <section className="gf-stack">
+                <h2 className="gf-card-title">Report Bug or Suggest Feature</h2>
+                <p className="gf-muted">
+                  Help us improve Go Fish by reporting bugs or suggesting new features.
+                </p>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
+                  <a
+                    href="https://github.com/el-musleh/Go-Fish/issues"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="gf-button gf-button--primary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    <Bug size={18} />
+                    Report a Bug
+                    <ExternalLink size={14} />
+                  </a>
+                  <a
+                    href="https://github.com/el-musleh/Go-Fish/issues"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="gf-button gf-button--secondary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    Suggest a Feature
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
+              </section>
+            </div>
+          )}
         </main>
       </div>
       {showOnboarding && <Onboarding onComplete={() => setShowOnboarding(false)} />}

@@ -13,6 +13,7 @@ import {
 } from '../repositories/notificationRepository';
 import {
   getUserPreferences,
+  createDefaultUserPreferences,
   updateUserPreferences,
   type UpdateUserPreferencesData,
 } from '../repositories/userPreferencesRepository';
@@ -225,7 +226,6 @@ export function createNotificationRouter(pool: Pool): Router {
 
       // Create default preferences if none exist
       if (!prefs) {
-        const { createDefaultUserPreferences } = await import('../repositories/userPreferencesRepository.js');
         prefs = await createDefaultUserPreferences(pool, userId);
       }
 
