@@ -10,6 +10,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
   },
+  build: {
+    chunkSizeWarningLimit: 1000,
+  },
   server: {
     port: 5173,
     proxy: {
