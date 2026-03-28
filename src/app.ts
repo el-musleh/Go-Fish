@@ -8,6 +8,7 @@ import { createInviteRouter } from './routes/inviteRouter';
 import { createResponseRouter } from './routes/responseRouter';
 import { createAuthRouter } from './routes/authRouter';
 import { createNotificationRouter } from './routes/notificationRouter';
+import { createAiRouter } from './routes/aiRouter';
 
 const app = express();
 
@@ -28,6 +29,7 @@ export function mountRoutes(pool: Pool): void {
   app.use('/api/invite', createInviteRouter(pool));
   app.use('/api/events/:eventId/responses', createResponseRouter(pool));
   app.use('/api/notifications', createNotificationRouter(pool));
+  app.use('/api/ai', createAiRouter(pool));
 
   // Return 404 for unmatched /api/* routes before falling through to the SPA
   app.use(/^\/api\/.*$/, (_req, res) => {

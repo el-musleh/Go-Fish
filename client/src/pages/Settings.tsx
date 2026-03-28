@@ -30,7 +30,6 @@ import {
   Cpu,
   Moon,
   Sun,
-  AlertCircle,
   Palette,
   Bell,
   Globe,
@@ -42,6 +41,7 @@ import {
   LogOut,
   Keyboard,
   Sparkles,
+  Info,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { type Theme } from '../lib/theme';
@@ -534,6 +534,42 @@ function InfrastructureSection({
     });
   };
 
+  const handleReset = async () => {
+    await onUpdate({
+      ai_api_key: null,
+      ai_model: null,
+      ai_provider: null,
+    });
+    setSelectedProvider('openrouter');
+    setSelectedModel('');
+  };
+
+  const [isTesting, setIsTesting] = useState(false);
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    try {
+      const response = await api.post<{ success: boolean; message: string }>('/ai/test', {
+        provider: selectedProvider,
+        model: selectedModel,
+        apiKey: profile.ai_api_key,
+      });
+      if (response.success) {
+        toast.success(response.message || 'Connection successful! Your AI settings are working.');
+      } else {
+        toast.error(response.message || 'Connection failed. Please check your settings.');
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Connection failed. Please check your API key and try again.';
+      toast.error(message);
+    } finally {
+      setIsTesting(false);
+    }
+  };
+
   const hasApiKey = !!profile.ai_api_key;
 
   return (
@@ -547,34 +583,38 @@ function InfrastructureSection({
 
         <div className="gf-card" style={{ marginTop: '12px' }}>
           <form onSubmit={handleSubmit(handleFormSubmit)} className="gf-stack">
-            {/* API Key Status Indicator */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                padding: '10px 12px',
-                background: hasApiKey ? 'rgba(34, 197, 94, 0.1)' : 'var(--bg-subtle)',
-                borderRadius: '8px',
-                border: hasApiKey ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid var(--border)',
-              }}
-            >
-              {hasApiKey ? (
-                <CheckCircle2 size={18} style={{ color: 'var(--color-success)' }} />
-              ) : (
-                <AlertCircle size={18} style={{ color: 'var(--text-muted)' }} />
-              )}
-              <span
+            {/* API Key Status - Show at top when no API key */}
+            {!hasApiKey && (
+              <div
                 style={{
-                  fontSize: '0.9rem',
-                  color: hasApiKey ? 'var(--color-success)' : 'var(--text-muted)',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '12px',
+                  padding: '14px 16px',
+                  background: 'rgba(var(--accent-rgb), 0.08)',
+                  borderRadius: '8px',
+                  border: '1px solid rgba(var(--accent-rgb), 0.2)',
                 }}
               >
-                {hasApiKey
-                  ? 'Your API key is configured'
-                  : 'Using service default (no API key set)'}
-              </span>
-            </div>
+                <Info
+                  size={20}
+                  style={{ color: 'var(--accent)', flexShrink: 0, marginTop: '2px' }}
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span
+                    style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-primary)' }}
+                  >
+                    No API Key Configured
+                  </span>
+                  <span
+                    style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.5 }}
+                  >
+                    You're using Go Fish's shared AI service. Add your own API key below to use your
+                    own usage quotas and avoid rate limits.
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="gf-field">
               <label className="gf-field__label">AI Provider</label>
@@ -584,42 +624,50 @@ function InfrastructureSection({
               />
             </div>
 
-            <ValidatedInput
-              label="Manual API Key (Optional)"
-              registration={register('ai_api_key')}
-              error={errors.ai_api_key}
-              placeholder="sk-or-v1-..."
-              type="password"
-              onChange={handleApiKeyChange}
-            />
-
-            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
-              Your key is stored securely and used only for your event generations. Leave empty to
-              use the service default.
-            </p>
-
-            {/* Model Selector */}
             <ModelSelector
               currentModel={selectedModel}
               onSelect={(model) => setSelectedModel(model)}
+              provider={selectedProvider}
             />
-            <p className="gf-muted" style={{ fontSize: '0.85rem' }}>
-              Select the AI model to use for generating activity suggestions. Recommended models are
-              shown first.
-            </p>
+
+            <ValidatedInput
+              label="API Key"
+              registration={register('ai_api_key')}
+              error={errors.ai_api_key}
+              placeholder="sk-or-v1-... (or leave empty to use service default)"
+              type="password"
+              onChange={handleApiKeyChange}
+              hint="Your key is stored securely and used only for your AI requests. Leave empty to use the service default."
+            />
 
             <div className="gf-actions">
               <button
                 type="submit"
                 className="gf-button gf-button--primary"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isTesting}
               >
-                {isSubmitting ? (
-                  <Loader2 size={20} className="animate-spin" />
-                ) : (
-                  'Update AI Settings'
-                )}
+                {isSubmitting ? <Loader2 size={20} className="animate-spin" /> : 'Save AI Settings'}
               </button>
+              {hasApiKey && (
+                <>
+                  <button
+                    type="button"
+                    className="gf-button gf-button--secondary"
+                    onClick={handleTestConnection}
+                    disabled={isSubmitting || isTesting}
+                  >
+                    {isTesting ? <Loader2 size={16} className="animate-spin" /> : 'Test Connection'}
+                  </button>
+                  <button
+                    type="button"
+                    className="gf-button gf-button--ghost"
+                    onClick={handleReset}
+                    disabled={isSubmitting || isTesting}
+                  >
+                    Reset
+                  </button>
+                </>
+              )}
             </div>
           </form>
         </div>

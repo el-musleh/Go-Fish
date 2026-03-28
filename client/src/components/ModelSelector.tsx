@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
 import { X, Search, ChevronDown, Loader2, AlertCircle } from 'lucide-react';
 
 // Cache for OpenRouter models - stored in sessionStorage
@@ -19,24 +20,102 @@ interface OpenRouterModel {
 interface ModelSelectorProps {
   currentModel: string;
   onSelect: (model: string) => void;
+  provider?: string;
 }
 
-// Recommended default models to show first
-const RECOMMENDED_MODELS = [
-  {
-    id: 'deepseek-chat',
-    name: 'DeepSeek Chat',
-    description: 'Fast & cost-effective for general tasks',
-  },
-  {
-    id: 'google/gemini-2.0-flash-001',
-    name: 'Gemini 2.0 Flash',
-    description: 'Latest Google model, great performance',
-  },
+type RecommendedModel = {
+  id: string;
+  name: string;
+  description: string;
+};
+
+// Recommended models by provider
+const RECOMMENDED_MODELS_BY_PROVIDER: Record<string, RecommendedModel[]> = {
+  google: [
+    {
+      id: 'google/gemini-2.0-flash-001',
+      name: 'Gemini 2.0 Flash',
+      description: 'Latest Google model, fast & versatile',
+    },
+    {
+      id: 'google/gemini-1.5-flash-002',
+      name: 'Gemini 1.5 Flash',
+      description: 'Great context window, fast responses',
+    },
+    { id: 'google/gemini-pro', name: 'Gemini Pro', description: 'Balanced performance & quality' },
+  ],
+  anthropic: [
+    {
+      id: 'anthropic/claude-3.5-sonnet',
+      name: 'Claude 3.5 Sonnet',
+      description: 'Best reasoning & analysis',
+    },
+    {
+      id: 'anthropic/claude-3-opus',
+      name: 'Claude 3 Opus',
+      description: 'Highest quality, slower',
+    },
+    { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', description: 'Fast & efficient' },
+  ],
+  deepseek: [
+    { id: 'deepseek-chat', name: 'DeepSeek Chat', description: 'Fast & cost-effective' },
+    {
+      id: 'deepseek-reasoner',
+      name: 'DeepSeek Reasoner',
+      description: 'Advanced reasoning capabilities',
+    },
+  ],
+  openai: [
+    { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', description: 'Fast & affordable' },
+    { id: 'openai/gpt-4o', name: 'GPT-4o', description: 'Latest OpenAI model' },
+    { id: 'openai/gpt-4-turbo', name: 'GPT-4 Turbo', description: 'Great all-around model' },
+  ],
+  cohere: [
+    { id: 'cohere/command-r-plus', name: 'Command R+', description: 'Advanced reasoning & tools' },
+    { id: 'cohere/command-r', name: 'Command R', description: 'Balanced performance' },
+  ],
+  meta: [
+    {
+      id: 'meta-llama/llama-3.1-70b-instruct',
+      name: 'Llama 3.1 70B',
+      description: 'Open source, high quality',
+    },
+    {
+      id: 'meta-llama/llama-3.1-8b-instruct',
+      name: 'Llama 3.1 8B',
+      description: 'Fast & efficient',
+    },
+  ],
+  mistralai: [
+    {
+      id: 'mistralai/mixtral-8x7b-instruct',
+      name: 'Mixtral 8x7B',
+      description: 'Mixture of experts',
+    },
+    { id: 'mistralai/mistral-small', name: 'Mistral Small', description: 'Fast & capable' },
+  ],
+  perplexity: [
+    {
+      id: 'perplexity/llama-3.1-sonar-small-128k-online',
+      name: 'Sonar Small Online',
+      description: 'Fast with web search',
+    },
+    {
+      id: 'perplexity/llama-3.1-sonar-large-128k-online',
+      name: 'Sonar Large Online',
+      description: 'Best with web search',
+    },
+  ],
+};
+
+// Default recommendations when provider doesn't match or is openrouter
+const RECOMMENDED_MODELS_DEFAULT: RecommendedModel[] = [
+  { id: 'deepseek-chat', name: 'DeepSeek Chat', description: 'Fast & cost-effective' },
+  { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash', description: 'Great performance' },
   {
     id: 'anthropic/claude-3.5-sonnet',
     name: 'Claude 3.5 Sonnet',
-    description: 'High quality reasoning & analysis',
+    description: 'High quality reasoning',
   },
 ];
 
@@ -94,32 +173,64 @@ async function fetchModels(): Promise<OpenRouterModel[]> {
   }
 }
 
-export function ModelSelector({ currentModel, onSelect }: ModelSelectorProps) {
+export function ModelSelector({ currentModel, onSelect, provider }: ModelSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [allModels, setAllModels] = useState<OpenRouterModel[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Filter models based on search query
+  // Filter models based on search query and provider
   const filteredModels = useMemo(() => {
-    if (!searchQuery.trim()) return allModels;
+    let models = allModels;
+
+    // Filter by provider if selected
+    if (provider && provider !== 'openrouter') {
+      models = models.filter((m) => {
+        const providerPrefix =
+          provider === 'anthropic'
+            ? 'anthropic'
+            : provider === 'google'
+              ? 'google'
+              : provider === 'deepseek'
+                ? 'deepseek'
+                : provider === 'openai'
+                  ? 'openai'
+                  : provider === 'cohere'
+                    ? 'cohere'
+                    : provider === 'meta'
+                      ? 'meta'
+                      : provider === 'mistralai'
+                        ? 'mistral'
+                        : provider === 'perplexity'
+                          ? 'perplexity'
+                          : null;
+        return providerPrefix ? m.id.toLowerCase().startsWith(providerPrefix) : true;
+      });
+    }
+
+    if (!searchQuery.trim()) return models;
     const query = searchQuery.toLowerCase();
-    return allModels.filter(
+    return models.filter(
       (m) =>
         m.id.toLowerCase().includes(query) ||
         m.name?.toLowerCase().includes(query) ||
         m.description?.toLowerCase().includes(query)
     );
-  }, [allModels, searchQuery]);
+  }, [allModels, searchQuery, provider]);
 
-  // Get recommended models that are in the full list
+  // Get recommended models based on provider
   const displayRecommended = useMemo(() => {
-    return RECOMMENDED_MODELS.map((rec) => {
+    const providerKey = provider && provider !== 'openrouter' ? provider : null;
+    const recommendations = providerKey
+      ? RECOMMENDED_MODELS_BY_PROVIDER[providerKey] || RECOMMENDED_MODELS_DEFAULT
+      : RECOMMENDED_MODELS_DEFAULT;
+
+    return recommendations.slice(0, 3).map((rec) => {
       const fullModel = allModels.find((m) => m.id === rec.id);
       return fullModel || rec;
     });
-  }, [allModels]);
+  }, [allModels, provider]);
 
   const handleOpen = async () => {
     setIsOpen(true);
@@ -165,84 +276,50 @@ export function ModelSelector({ currentModel, onSelect }: ModelSelectorProps) {
       </div>
 
       {/* Modal */}
-      {isOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(0, 0, 0, 0.5)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-          }}
-          onClick={() => setIsOpen(false)}
-        >
-          <div
-            style={{
-              background: 'var(--bg-surface)',
-              borderRadius: '12px',
-              width: '90%',
-              maxWidth: '500px',
-              maxHeight: '80vh',
-              display: 'flex',
-              flexDirection: 'column',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            }}
-            onClick={(e) => e.stopPropagation()}
+      <Dialog.Root open={isOpen} onOpenChange={setIsOpen}>
+        <Dialog.Portal>
+          <Dialog.Overlay className="gf-dialog-overlay" />
+          <Dialog.Content
+            className="gf-dialog"
+            style={{ width: 'min(700px, 95%)', maxHeight: '80vh' }}
           >
-            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Dialog.Title className="gf-card-title" style={{ margin: 0 }}>
+                Select AI Model
+              </Dialog.Title>
+              <Dialog.Close asChild>
+                <button type="button" className="gf-dialog__close" aria-label="Close">
+                  <X size={18} />
+                </button>
+              </Dialog.Close>
+            </div>
+
+            {/* Search */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '16px 20px',
-                borderBottom: '1px solid var(--border)',
+                gap: '8px',
+                background: 'var(--bg-subtle)',
+                borderRadius: '8px',
+                padding: '10px 14px',
               }}
             >
-              <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 600 }}>Select AI Model</h3>
-              <button
-                onClick={() => setIsOpen(false)}
+              <Search size={18} style={{ color: 'var(--text-muted)' }} />
+              <input
+                type="text"
+                placeholder="Search models..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
-                  background: 'none',
                   border: 'none',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  color: 'var(--text-muted)',
+                  background: 'transparent',
+                  outline: 'none',
+                  flex: 1,
+                  fontSize: '1rem',
+                  color: 'var(--text-primary)',
                 }}
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Search */}
-            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  background: 'var(--bg-subtle)',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                }}
-              >
-                <Search size={16} style={{ color: 'var(--text-muted)' }} />
-                <input
-                  type="text"
-                  placeholder="Search models..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    outline: 'none',
-                    flex: 1,
-                    fontSize: '0.95rem',
-                  }}
-                />
-              </div>
+              />
             </div>
 
             {/* Content */}
@@ -306,9 +383,7 @@ export function ModelSelector({ currentModel, onSelect }: ModelSelectorProps) {
                               justifyContent: 'space-between',
                               padding: '10px 12px',
                               background:
-                                currentModel === model.id
-                                  ? 'var(--color-primary)'
-                                  : 'var(--bg-subtle)',
+                                currentModel === model.id ? 'var(--accent)' : 'var(--bg-subtle)',
                               color: currentModel === model.id ? 'white' : 'var(--text-primary)',
                               border: 'none',
                               borderRadius: '8px',
@@ -374,9 +449,7 @@ export function ModelSelector({ currentModel, onSelect }: ModelSelectorProps) {
                                 justifyContent: 'space-between',
                                 padding: '10px 12px',
                                 background:
-                                  currentModel === model.id
-                                    ? 'var(--color-primary)'
-                                    : 'var(--bg-subtle)',
+                                  currentModel === model.id ? 'var(--accent)' : 'var(--bg-subtle)',
                                 color: currentModel === model.id ? 'white' : 'var(--text-primary)',
                                 border: 'none',
                                 borderRadius: '8px',
@@ -435,9 +508,9 @@ export function ModelSelector({ currentModel, onSelect }: ModelSelectorProps) {
                 </>
               )}
             </div>
-          </div>
-        </div>
-      )}
+          </Dialog.Content>
+        </Dialog.Portal>
+      </Dialog.Root>
     </div>
   );
 }

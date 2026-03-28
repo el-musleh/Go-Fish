@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
-import { ChevronDown, Search, Check } from 'lucide-react';
+import { ChevronDown, Search, Check, X } from 'lucide-react';
 
 interface ProviderSelectorProps {
   selectedProvider: string;
@@ -60,39 +60,44 @@ export function ProviderSelector({ selectedProvider, onSelect }: ProviderSelecto
         <Dialog.Overlay className="gf-dialog-overlay" />
         <Dialog.Content
           className="gf-dialog"
-          style={{ width: 'min(400px, 100%)', maxHeight: '60vh' }}
+          style={{ width: 'min(700px, 95%)', maxHeight: '80vh' }}
         >
-          <Dialog.Title className="gf-card-title" style={{ marginBottom: '16px' }}>
-            Select AI Provider
-          </Dialog.Title>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Dialog.Title className="gf-card-title" style={{ margin: 0 }}>
+              Select AI Provider
+            </Dialog.Title>
+            <Dialog.Close asChild>
+              <button type="button" className="gf-dialog__close" aria-label="Close">
+                <X size={18} />
+              </button>
+            </Dialog.Close>
+          </div>
 
-          <div style={{ marginBottom: '16px' }}>
-            <div
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: 'var(--bg-subtle)',
+              borderRadius: '8px',
+              padding: '10px 14px',
+            }}
+          >
+            <Search size={18} style={{ color: 'var(--text-muted)' }} />
+            <input
+              type="text"
+              placeholder="Search providers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: 'var(--bg-subtle)',
-                borderRadius: '8px',
-                padding: '8px 12px',
+                border: 'none',
+                background: 'transparent',
+                outline: 'none',
+                flex: 1,
+                fontSize: '1rem',
+                color: 'var(--text-primary)',
               }}
-            >
-              <Search size={16} style={{ color: 'var(--text-muted)' }} />
-              <input
-                type="text"
-                placeholder="Search providers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  border: 'none',
-                  background: 'transparent',
-                  outline: 'none',
-                  flex: 1,
-                  fontSize: '0.95rem',
-                  color: 'var(--text-primary)',
-                }}
-              />
-            </div>
+            />
           </div>
 
           <div
@@ -100,7 +105,7 @@ export function ProviderSelector({ selectedProvider, onSelect }: ProviderSelecto
               display: 'flex',
               flexDirection: 'column',
               gap: '4px',
-              maxHeight: '300px',
+              maxHeight: '400px',
               overflowY: 'auto',
             }}
           >
@@ -113,22 +118,24 @@ export function ProviderSelector({ selectedProvider, onSelect }: ProviderSelecto
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '12px',
+                  padding: '14px 16px',
                   background:
-                    selectedProvider === provider.id ? 'var(--color-primary)' : 'var(--bg-subtle)',
+                    selectedProvider === provider.id ? 'var(--accent)' : 'var(--bg-subtle)',
                   border:
                     selectedProvider === provider.id
-                      ? '2px solid var(--color-primary)'
+                      ? '2px solid var(--accent)'
                       : '2px solid transparent',
                   borderRadius: '8px',
                   cursor: 'pointer',
                   textAlign: 'left',
-                  color: 'var(--text-primary)',
+                  color: selectedProvider === provider.id ? 'white' : 'var(--text-primary)',
+                  fontWeight: 500,
+                  transition: 'all 150ms ease',
                 }}
               >
-                <span style={{ fontWeight: 500 }}>{provider.name}</span>
+                <span>{provider.name}</span>
                 {selectedProvider === provider.id && (
-                  <Check size={18} style={{ color: 'var(--color-primary)', flexShrink: 0 }} />
+                  <Check size={18} style={{ color: 'white', flexShrink: 0 }} />
                 )}
               </button>
             ))}
@@ -139,25 +146,6 @@ export function ProviderSelector({ selectedProvider, onSelect }: ProviderSelecto
               No providers found
             </p>
           )}
-
-          <Dialog.Close asChild>
-            <button
-              type="button"
-              style={{
-                position: 'absolute',
-                top: '12px',
-                right: '12px',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '4px',
-                borderRadius: '4px',
-              }}
-              aria-label="Close"
-            >
-              ×
-            </button>
-          </Dialog.Close>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
