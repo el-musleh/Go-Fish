@@ -11,6 +11,8 @@ import {
   ChevronUp,
   Loader2,
   Plus,
+  SlidersHorizontal,
+  X,
 } from 'lucide-react';
 import { api, getCurrentUserId } from '../api/client';
 import EmptyState from '../components/EmptyState';
@@ -647,6 +649,8 @@ function TimelineView({
     return null;
   });
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [hidePast, setHidePast] = useState(true);
+  const [showViewSettings, setShowViewSettings] = useState(false);
   const [lastUpdatedTimestamp, setLastUpdatedTimestamp] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
   const listRef = useRef<HTMLDivElement>(null);
@@ -704,8 +708,15 @@ function TimelineView({
     [filteredEvents, dateDisplayStyle, dateFormat]
   );
 
+  const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
+
+  const visibleGroups = useMemo(
+    () => (hidePast ? grouped.filter((g) => g.rawDate === null || g.rawDate >= todayStr) : grouped),
+    [grouped, hidePast, todayStr]
+  );
+
   // Flat list in the exact visual order (date-sorted groups, events within each group)
-  const orderedEvents = useMemo(() => grouped.flatMap((g) => g.events), [grouped]);
+  const orderedEvents = useMemo(() => visibleGroups.flatMap((g) => g.events), [visibleGroups]);
 
   const handleToggle = useCallback((id: string) => {
     setExpandedId((prev) => (prev === id ? null : id));
@@ -799,18 +810,85 @@ function TimelineView({
             }}
           />
         </div>
-        <div className="gf-timeline-filters" style={{ marginBottom: '16px' }}>
-          {filterButtons.map((btn) => (
-            <button
-              key={btn.value}
-              type="button"
-              className={`gf-timeline-filter-btn${statusFilter === btn.value ? ' gf-timeline-filter-btn--active' : ''}`}
-              onClick={() => setStatusFilter(btn.value)}
-            >
-              {btn.label}
-            </button>
-          ))}
+        <div
+          className="gf-timeline-filters"
+          style={{ marginBottom: '16px', justifyContent: 'space-between' }}
+        >
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {filterButtons.map((btn) => (
+              <button
+                key={btn.value}
+                type="button"
+                className={`gf-timeline-filter-btn${statusFilter === btn.value ? ' gf-timeline-filter-btn--active' : ''}`}
+                onClick={() => setStatusFilter(btn.value)}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="gf-timeline-filter-btn"
+            onClick={() => setShowViewSettings(true)}
+            title="View settings"
+            aria-label="Open view settings"
+          >
+            <SlidersHorizontal size={14} />
+          </button>
         </div>
+
+        {showViewSettings && (
+          <>
+            <div className="gf-dialog-overlay" onClick={() => setShowViewSettings(false)} />
+            <div className="gf-dialog" role="dialog" aria-modal="true" aria-label="View settings">
+              <button
+                type="button"
+                className="gf-dialog__close"
+                onClick={() => setShowViewSettings(false)}
+                aria-label="Close"
+              >
+                <X size={16} />
+              </button>
+              <div>
+                <h2 className="gf-card-title" style={{ margin: 0 }}>
+                  View Settings
+                </h2>
+                <p className="gf-muted" style={{ fontSize: '0.85rem', marginTop: '4px' }}>
+                  Customise how events appear in your timeline.
+                </p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    color: 'var(--muted)',
+                  }}
+                >
+                  Display
+                </p>
+                <label className="gf-toggle">
+                  <input
+                    type="checkbox"
+                    className="gf-toggle__input"
+                    checked={!hidePast}
+                    onChange={() => setHidePast((p) => !p)}
+                  />
+                  <span className="gf-toggle__switch" />
+                  <span className="gf-toggle__label-group">
+                    <span className="gf-toggle__label">Show past events</span>
+                    <span className="gf-toggle__description">
+                      Include events whose date has already passed in the timeline.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </>
+        )}
         {filteredEvents.length === 0 ? (
           <EmptyState
             icon={<CalendarPlus size={48} />}
@@ -830,7 +908,7 @@ function TimelineView({
           />
         ) : (
           <div ref={listRef}>
-            {grouped.map(({ label, sublabel, events: evs }) => (
+            {visibleGroups.map(({ label, sublabel, events: evs }) => (
               <div key={label} style={{ marginBottom: '16px' }}>
                 <div className="gf-timeline-group__date" title={sublabel || label}>
                   {label}
