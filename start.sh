@@ -49,22 +49,30 @@ else
   BOLD=''; DIM=''; NC=''
 fi
 
-log()    { echo -e "${GREEN}[go-fish]${NC} $1"; }
-info()   { echo -e "${BLUE}[go-fish]${NC} $1"; }
-warn()   { echo -e "${YELLOW}[go-fish] WARN:${NC} $1"; }
-gen()    { echo -e "${MAGENTA}[go-fish ⚡ GEN]${NC} $1"; }
-db_log() { echo -e "${CYAN}[go-fish  DB]${NC} $1"; }
-die()  {
+# ── Log helpers — every message carries a timestamp ─────────────────────────
+# ts() is a function, not a variable, so it re-evaluates on every call.
+ts()     { date '+%H:%M:%S'; }
+log()    { echo -e "${GREEN}[$(ts) go-fish]${NC} $1"; }
+info()   { echo -e "${BLUE}[$(ts) go-fish]${NC} $1"; }
+warn()   { echo -e "${YELLOW}[$(ts) go-fish] WARN:${NC} $1"; }
+db_log() { echo -e "${CYAN}[$(ts) go-fish  DB]${NC} $1"; }
+step()   { echo -e "\n${BOLD}── $1${NC} ${DIM}[$(ts)]${NC}"; }
+die() {
   set +e
-  echo -e "\n${RED}${BOLD}✖ ERROR:${NC} ${RED}$1${NC}" >&2
+  echo -e "\n${RED}${BOLD}[$(ts)] ✖ ERROR:${NC} ${RED}$1${NC}" >&2
   if [ -n "${2:-}" ] && [ -f "$2" ]; then
     echo -e "${DIM}--- last 15 lines of $2 ---${NC}" >&2
     tail -n 15 "$2" | sed 's/^/  /' >&2
   fi
   exit 1
 }
-step() { echo -e "\n${BOLD}── $1 ──${NC}"; }
-ts()   { date '+%H:%M:%S'; }
+
+# ── Timestamp filter — prepends [HH:MM:SS] to every line written to a file ──
+# Usage: some_cmd 2>&1 | ts_filter > logfile
+# awk strftime is POSIX-compliant on GNU awk (gawk), which ships with Ubuntu.
+ts_filter() {
+  awk '{ printf "[%s] %s\n", strftime("%H:%M:%S"), $0; fflush() }'
+}
 
 # ── Kill a process and all its descendants ──────────────────────────────────
 # Prevents zombie ts-node/vite child processes after Ctrl+C.
@@ -83,12 +91,12 @@ kill_tree() {
 cleanup() {
   [ "$_CLEANED_UP" = true ] && return
   _CLEANED_UP=true
-  set +e  # never let cleanup errors abort the rest of shutdown
+  set +e
   echo ""
   log "Shutting down..."
   rm -f "$SESSION_PID_FILE"
-  [ -n "$TAIL_PID"         ] && kill "$TAIL_PID"         2>/dev/null
-  [ -n "$DB_WATCHDOG_PID"  ] && kill "$DB_WATCHDOG_PID"  2>/dev/null
+  [ -n "$TAIL_PID"        ] && kill "$TAIL_PID"        2>/dev/null
+  [ -n "$DB_WATCHDOG_PID" ] && kill "$DB_WATCHDOG_PID" 2>/dev/null
   kill_tree "$BACKEND_PID"
   kill_tree "$FRONTEND_PID"
   [ -n "$DOCKER_COMPOSE" ] && $DOCKER_COMPOSE stop db >/dev/null 2>&1
@@ -133,7 +141,7 @@ wait_http() {
   local url="$1" pid="$2" timeout="${3:-30}"
   for i in $(seq 1 "$timeout"); do
     curl -sf "$url" >/dev/null 2>&1 && return 0
-    kill -0 "$pid" 2>/dev/null || return 1  # process died
+    kill -0 "$pid" 2>/dev/null || return 1
     sleep 1
   done
   return 1
@@ -143,14 +151,13 @@ wait_log() {
   local pattern="$1" file="$2" pid="$3" timeout="${4:-30}"
   for i in $(seq 1 "$timeout"); do
     grep -q "$pattern" "$file" 2>/dev/null && return 0
-    kill -0 "$pid" 2>/dev/null || return 1  # process died
+    kill -0 "$pid" 2>/dev/null || return 1
     sleep 1
   done
   return 1
 }
 
 # ── DB watchdog — restarts the container if health checks fail ───────────────
-# Runs as a background process for the lifetime of the session.
 DB_WATCHDOG_INTERVAL=10   # seconds between health checks
 DB_WATCHDOG_MAX_WAIT=30   # seconds to wait for DB after restart
 
@@ -165,14 +172,14 @@ db_watchdog() {
     fi
 
     fail_streak=$((fail_streak + 1))
-    warn "[$(ts)] DB health check failed (streak: $fail_streak) — attempting restart..."
+    warn "DB health check failed (streak: $fail_streak) — attempting restart..."
 
     if ! $DOCKER_COMPOSE restart db >/dev/null 2>&1; then
-      warn "[$(ts)] docker compose restart db failed — will retry next cycle"
+      warn "docker compose restart db failed — will retry next cycle"
       continue
     fi
 
-    db_log "[$(ts)] DB container restarting, waiting up to ${DB_WATCHDOG_MAX_WAIT}s..."
+    db_log "DB container restarting, waiting up to ${DB_WATCHDOG_MAX_WAIT}s..."
     local recovered=false
     for i in $(seq 1 "$DB_WATCHDOG_MAX_WAIT"); do
       if $DOCKER_COMPOSE exec -T db pg_isready -U gofish -d gofish -q 2>/dev/null; then
@@ -183,16 +190,18 @@ db_watchdog() {
     done
 
     if [ "$recovered" = true ]; then
-      db_log "[$(ts)] Database recovered after restart — backend will reconnect automatically"
+      db_log "Database recovered — backend will reconnect automatically"
       fail_streak=0
     else
-      warn "[$(ts)] Database did not recover within ${DB_WATCHDOG_MAX_WAIT}s — check: $DOCKER_COMPOSE logs db"
+      warn "Database did not recover within ${DB_WATCHDOG_MAX_WAIT}s — check: $DOCKER_COMPOSE logs db"
     fi
   done
 }
 
-# ── Smart log tailer — colorizes and highlights generation events ─────────────
-# Patterns that indicate AI option generation activity.
+# ── Smart log tailer ─────────────────────────────────────────────────────────
+# Log files already contain [HH:MM:SS] timestamps written by ts_filter.
+# smart_tail reads those files and adds a color/category prefix only —
+# no second timestamp is added.
 GEN_PATTERN="(generat|options_ready|shortlist|finaliz|runPlanning|real.world|fetched.*event|fetched.*venue|fetched.*weather|triggerGeneration|decisionAgent|AGENT|agent.*tool|tool.*call|temperature|recursion)"
 ERR_PATTERN="(error|Error|ERROR|failed|FAILED|crash|ECONNREFUSED|ENOTFOUND|timeout|Timeout|abort|Abort)"
 WARN_PATTERN="(warn|WARN|deprecated|Deprecated)"
@@ -201,17 +210,16 @@ OK_PATTERN="(ready|started|connected|success|Success|listening|healthy|online)"
 smart_tail() {
   tail -f "$LOG_DIR/backend.log" "$LOG_DIR/frontend.log" 2>/dev/null | \
   while IFS= read -r line; do
-    t="[$(ts)]"
     if echo "$line" | grep -qiE "$GEN_PATTERN"; then
-      printf "${MAGENTA}%s ⚡ GEN${NC}  %s\n" "$t" "$line"
+      printf "${MAGENTA}⚡ GEN${NC}  %s\n" "$line"
     elif echo "$line" | grep -qiE "$ERR_PATTERN"; then
-      printf "${RED}%s ✖ ERR${NC}  %s\n" "$t" "$line"
+      printf "${RED}✖ ERR${NC}  %s\n" "$line"
     elif echo "$line" | grep -qiE "$WARN_PATTERN"; then
-      printf "${YELLOW}%s ⚠ WRN${NC}  %s\n" "$t" "$line"
+      printf "${YELLOW}⚠ WRN${NC}  %s\n" "$line"
     elif echo "$line" | grep -qiE "$OK_PATTERN"; then
-      printf "${GREEN}%s ✓ OK ${NC}  %s\n" "$t" "$line"
+      printf "${GREEN}✓ OK ${NC}  %s\n" "$line"
     else
-      printf "${DIM}%s     ${NC}  %s\n" "$t" "$line"
+      printf "${DIM}     ${NC}  %s\n" "$line"
     fi
   done
 }
@@ -226,7 +234,6 @@ if [ "${1:-}" = "stop" ]; then
     if [ -n "$old_pid" ] && kill -0 "$old_pid" 2>/dev/null; then
       log "Stopping session (PID $old_pid)..."
       kill "$old_pid" 2>/dev/null || true
-      # Wait for its EXIT trap to run cleanup (stops Docker + kills children)
       for _ in $(seq 1 6); do
         kill -0 "$old_pid" 2>/dev/null || break
         sleep 1
@@ -235,7 +242,6 @@ if [ "${1:-}" = "stop" ]; then
     rm -f "$SESSION_PID_FILE"
     log "All services stopped."
   else
-    # No tracked session — just stop Docker directly
     if docker compose version >/dev/null 2>&1; then
       docker compose stop db >/dev/null 2>&1 && log "Database stopped."
     fi
@@ -268,6 +274,7 @@ step "Prerequisites"
 command -v node   >/dev/null 2>&1 || die "Node.js not found. Install: https://nodejs.org"
 command -v npm    >/dev/null 2>&1 || die "npm not found. Install: https://nodejs.org"
 command -v docker >/dev/null 2>&1 || die "Docker not found. Install: https://docs.docker.com/get-docker/"
+command -v awk    >/dev/null 2>&1 || die "awk not found (required for log timestamping)"
 
 NODE_MAJOR=$(node -e "process.stdout.write(process.versions.node.split('.')[0])")
 [ "$NODE_MAJOR" -ge 18 ] || die "Node.js 18+ required (you have $(node --version))"
@@ -302,7 +309,6 @@ if [ ! -f .env ]; then
   warn ".env created from .env.example — fill in API keys before using AI/email features."
 fi
 
-# Warn about unset optional keys (not fatal — features degrade gracefully)
 for var in OPENROUTER_API_KEY RESEND_API_KEY; do
   grep -qE "^${var}=.+" .env 2>/dev/null || warn "${var} not set — related features disabled."
 done
@@ -314,7 +320,6 @@ if needs_install "." "package-lock.json"; then
   info "Installing backend dependencies..."
   npm install --ignore-scripts 2>&1 | grep -v "^npm warn" || true
   touch node_modules/.install-stamp
-  # --ignore-scripts skips the prepare hook; set up husky manually
   [ -d .git ] && node node_modules/husky/bin.js 2>/dev/null || true
   [ -d .git ] && chmod +x .husky/pre-commit 2>/dev/null || true
 else
@@ -341,7 +346,6 @@ if [ "$QUICK_START" = false ]; then
       || warn "Lint errors — run: cd client && npm run lint"
   fi
 
-  # Use --noEmit: only checks types, no JS output (much faster than npm run build)
   info "Type checking backend..."
   node node_modules/typescript/bin/tsc --noEmit > "$LOG_DIR/tsc-backend.log" 2>&1 \
     || die "Backend TypeScript errors." "$LOG_DIR/tsc-backend.log"
@@ -374,16 +378,20 @@ for i in $(seq 1 30); do
 done
 log "Postgres ready (container: $($DOCKER_COMPOSE ps -q db))"
 
-# Start DB watchdog in background
 db_watchdog &
 DB_WATCHDOG_PID=$!
-db_log "Watchdog started (PID $DB_WATCHDOG_PID) — checks every ${DB_WATCHDOG_INTERVAL}s, restarts on failure"
+db_log "Watchdog started (PID $DB_WATCHDOG_PID) — checks every ${DB_WATCHDOG_INTERVAL}s, auto-restarts on failure"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 7. Backend
+# ── Output is piped through ts_filter before reaching backend.log so that
+#    every line in the file carries a [HH:MM:SS] timestamp.
+#    The subshell wrapping the pipeline is what we track as BACKEND_PID:
+#    it stays alive as long as npm (and its ts_filter child) is running,
+#    and kill_tree on it terminates the whole process group cleanly.
 # ═══════════════════════════════════════════════════════════════════════════
 info "Backend..."
-npm run dev > "$LOG_DIR/backend.log" 2>&1 &
+( npm run dev 2>&1 | ts_filter ) > "$LOG_DIR/backend.log" &
 BACKEND_PID=$!
 info "Backend starting (PID $BACKEND_PID) — waiting for health check..."
 
@@ -394,13 +402,13 @@ log "Backend ready (PID $BACKEND_PID) → http://localhost:3000"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 8. Frontend
+# ── Same ts_filter approach as the backend.
 # ═══════════════════════════════════════════════════════════════════════════
 info "Frontend..."
-(cd client && npm run dev) > "$LOG_DIR/frontend.log" 2>&1 &
+( cd client && npm run dev 2>&1 | ts_filter ) > "$LOG_DIR/frontend.log" &
 FRONTEND_PID=$!
 info "Frontend starting (PID $FRONTEND_PID) — waiting for Vite..."
 
-# "Local:" appears in Vite's ready output across all versions
 if ! wait_log "Local:" "$LOG_DIR/frontend.log" "$FRONTEND_PID"; then
   die "Frontend crashed on startup." "$LOG_DIR/frontend.log"
 fi
@@ -414,10 +422,11 @@ echo -e "${DIM}─────────────────────�
 echo -e "  Frontend   →  ${BOLD}http://localhost:5173${NC}"
 echo -e "  Backend    →  ${BOLD}http://localhost:3000${NC}"
 echo -e "${DIM}──────────────────────────────────────${NC}"
-echo -e "  Logs: tail -f logs/backend.log logs/frontend.log"
-echo -e "  DB watchdog: every ${DB_WATCHDOG_INTERVAL}s, auto-restarts on failure"
-echo -e "  ${MAGENTA}⚡ GEN${NC}  lines = AI option generation events"
-echo -e "  ${RED}✖ ERR${NC}  lines = errors   ${YELLOW}⚠ WRN${NC}  lines = warnings"
+echo -e "  Log files  →  logs/backend.log  logs/frontend.log"
+echo -e "                (every line timestamped — safe to tail -f directly)"
+echo -e "  DB watchdog:  every ${DB_WATCHDOG_INTERVAL}s, auto-restarts on failure"
+echo -e "  ${MAGENTA}⚡ GEN${NC}  AI generation  ${GREEN}✓ OK${NC}  ready/success"
+echo -e "  ${RED}✖ ERR${NC}  errors         ${YELLOW}⚠ WRN${NC}  warnings"
 echo -e "  Press ${BOLD}Ctrl+C${NC} to stop\n"
 
 smart_tail &

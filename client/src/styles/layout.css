@@ -930,10 +930,6 @@
   color: var(--muted);
 }
 
-.gf-timeline-card__chevron--expanded {
-  transform: rotate(90deg);
-}
-
 .gf-timeline-card__expanded-content {
   animation: gf-accordion-expand 250ms ease;
 }

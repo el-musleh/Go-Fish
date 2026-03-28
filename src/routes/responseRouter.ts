@@ -28,7 +28,41 @@ export function createResponseRouter(pool: Pool): Router {
       try {
         const userId = (req as any).userId as string;
         const eventId = req.params.eventId as string;
-        const { available_dates } = req.body;
+        
+        console.log('[DEBUG] --- New Response Request ---');
+        console.log('[DEBUG] Raw req.body:', JSON.stringify(req.body, null, 2));
+        console.log('[DEBUG] typeof req.body:', typeof req.body);
+
+        let { available_dates } = req.body;
+
+        if (typeof available_dates === 'undefined' && typeof req.body === 'string') {
+          try {
+            const parsedBody = JSON.parse(req.body);
+            available_dates = parsedBody.available_dates;
+            console.log('[DEBUG] Parsed from req.body string.');
+          } catch(e) {
+             console.error('[DEBUG] Failed to parse req.body string', e);
+          }
+        }
+        
+        console.log('[DEBUG] Initial available_dates:', JSON.stringify(available_dates, null, 2));
+        console.log('[DEBUG] Initial typeof available_dates:', typeof available_dates);
+
+        if (typeof available_dates === 'string') {
+          try {
+            available_dates = JSON.parse(available_dates);
+            console.log('[DEBUG] Parsed available_dates from string.');
+          } catch (e) {
+            console.error('[DEBUG] Failed to parse available_dates string', e);
+            return res.status(400).json({
+              error: 'invalid_json',
+              message: 'The "available_dates" field is not valid JSON.',
+            });
+          }
+        }
+
+        console.log('[DEBUG] Final available_dates:', JSON.stringify(available_dates, null, 2));
+        console.log('[DEBUG] Final typeof available_dates:', typeof available_dates);
 
         // Validate dates with time windows
         if (

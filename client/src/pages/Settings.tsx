@@ -1237,6 +1237,16 @@ interface SettingsProps {
   onSignIn: () => void;
 }
 
+const SETTINGS_CACHE_KEY = 'gofish_settings_cache';
+const SETTINGS_CACHE_TTL = 2 * 60 * 1000; // 2 minutes
+
+const writeSettingsCache = (p: UserProfile, s: StorageInfo) => {
+  localStorage.setItem(
+    SETTINGS_CACHE_KEY,
+    JSON.stringify({ profile: p, storageInfo: s, exp: Date.now() + SETTINGS_CACHE_TTL })
+  );
+};
+
 export default function Settings({ theme, onThemeChange, onSignOut }: SettingsProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'profile');
@@ -1247,24 +1257,38 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
   const [errorDetails, setErrorDetails] = useState<string | null>(null);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async (force = false) => {
+    if (!force) {
+      try {
+        const raw = localStorage.getItem(SETTINGS_CACHE_KEY);
+        if (raw) {
+          const { profile: p, storageInfo: s, exp } = JSON.parse(raw);
+          if (exp > Date.now()) {
+            setProfile(p);
+            setStorageInfo(s);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // Ignore malformed cache
+      }
+    }
+
     try {
       setLoading(true);
       setErrorDetails(null);
-      console.log('[Debug] Starting fetchAll...');
       const [p, s] = await Promise.all([
         api.get<UserProfile>('/auth/me').catch((err) => {
-          console.error('[Debug] /auth/me failed:', err);
           throw new Error(`/auth/me: ${err.status || 'Error'}`);
         }),
         api.get<StorageInfo>('/auth/storage-info').catch((err) => {
-          console.error('[Debug] /auth/storage-info failed:', err);
           throw new Error(`/auth/storage-info: ${err.status || 'Error'}`);
         }),
       ]);
-      console.log('[Debug] fetchAll success:', { p, s });
       setProfile(p);
       setStorageInfo(s);
+      writeSettingsCache(p, s);
     } catch (err) {
       console.error('Failed to load settings:', err);
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -1273,7 +1297,7 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     // Load preferences from localStorage
@@ -1286,7 +1310,7 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
       }
     }
     fetchAll();
-  }, []);
+  }, [fetchAll]);
 
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
@@ -1299,6 +1323,7 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
       loading: 'Updating profile...',
       success: (p) => {
         setProfile(p);
+        if (storageInfo) writeSettingsCache(p, storageInfo);
         return 'Profile updated!';
       },
       error: 'Failed to update profile.',
@@ -1320,6 +1345,7 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
       loading: 'Updating infrastructure settings...',
       success: (p) => {
         setProfile(p);
+        if (storageInfo) writeSettingsCache(p, storageInfo);
         return 'Infrastructure updated!';
       },
       error: 'Failed to update infrastructure.',
@@ -1331,7 +1357,7 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
     toast.promise(promise, {
       loading: 'Saving preferences...',
       success: () => {
-        fetchAll();
+        fetchAll(true);
         return 'Preferences updated!';
       },
       error: 'Failed to save preferences.',
@@ -1378,7 +1404,7 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
           )}
           <button
             className="gf-button gf-button--secondary"
-            onClick={fetchAll}
+            onClick={() => fetchAll(true)}
             style={{ marginTop: '16px' }}
           >
             Retry

@@ -325,7 +325,7 @@ describe('event suggestions routes', () => {
       title: 'Dinner',
       description: '',
       location_city: 'Berlin',
-    }, undefined);
+    }, undefined, undefined);
     expect(saveEventSuggestions).toHaveBeenCalledWith(mockPool, 'evt-1', suggestions);
   });
 });

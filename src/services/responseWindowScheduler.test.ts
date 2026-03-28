@@ -24,18 +24,31 @@ vi.mock('../repositories/eventRepository', () => ({
   getEventById: vi.fn(),
   updateEventStatus: vi.fn(),
 }));
+vi.mock('../repositories/userRepository', () => ({
+  getUserById: vi.fn(),
+}));
+vi.mock('../repositories/generationLogRepository', () => ({
+  insertGenerationLog: vi.fn(),
+  finalizeGenerationLog: vi.fn(),
+}));
 vi.mock('./decisionAgent', () => ({
   generateActivityOptions: vi.fn(),
 }));
 vi.mock('./realWorldData', () => ({
   fetchRealWorldContext: vi.fn(),
 }));
+vi.mock('./notificationService', () => ({
+  notifyOptionsReady: vi.fn(),
+}));
 
 import { getResponsesByEventId } from '../repositories/responseRepository';
 import { getTasteBenchmarkByUserId } from '../repositories/tasteBenchmarkRepository';
 import { createActivityOption } from '../repositories/activityOptionRepository';
 import { getEventById, updateEventStatus } from '../repositories/eventRepository';
+import { getUserById } from '../repositories/userRepository';
+import { insertGenerationLog, finalizeGenerationLog } from '../repositories/generationLogRepository';
 import { generateActivityOptions } from './decisionAgent';
+import { notifyOptionsReady } from './notificationService';
 
 const mockPool = {} as any;
 const deps = { pool: mockPool, apiKey: 'test-key' };
@@ -75,6 +88,13 @@ describe('responseWindowScheduler', () => {
     vi.useFakeTimers();
     vi.clearAllMocks();
     clearAllTimers();
+    // Default mock for log entry (needed by triggerGeneration)
+    (insertGenerationLog as any).mockResolvedValue({ id: 'log-1' });
+    (finalizeGenerationLog as any).mockResolvedValue(undefined);
+    // Default inviter with no custom AI settings
+    (getUserById as any).mockResolvedValue({ id: 'inviter-1', email: 'inviter@example.com', ai_api_key: null, ai_model: null, ai_provider: null });
+    // notifyOptionsReady must return a Promise so .catch() can be chained on it
+    vi.mocked(notifyOptionsReady).mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -89,11 +109,6 @@ describe('responseWindowScheduler', () => {
       });
 
       (getEventById as any).mockResolvedValue(event);
-      (getResponsesByEventId as any).mockResolvedValue(mockResponses);
-      (getTasteBenchmarkByUserId as any).mockResolvedValue(mockBenchmarks[0]);
-      (generateActivityOptions as any).mockResolvedValue(mockGeneratedOptions);
-      (updateEventStatus as any).mockResolvedValue(event);
-      (createActivityOption as any).mockResolvedValue({});
 
       scheduleResponseWindow(event, deps);
       expect(getActiveTimerCount()).toBe(1);
@@ -113,11 +128,6 @@ describe('responseWindowScheduler', () => {
       });
 
       (getEventById as any).mockResolvedValue(event);
-      (getResponsesByEventId as any).mockResolvedValue(mockResponses);
-      (getTasteBenchmarkByUserId as any).mockResolvedValue(mockBenchmarks[0]);
-      (generateActivityOptions as any).mockResolvedValue(mockGeneratedOptions);
-      (updateEventStatus as any).mockResolvedValue(event);
-      (createActivityOption as any).mockResolvedValue({});
 
       scheduleResponseWindow(event, deps);
 
@@ -147,45 +157,25 @@ describe('responseWindowScheduler', () => {
   });
 
   describe('handleWindowExpiry', () => {
-    it('should trigger generation when >= 1 responses exist', async () => {
+    it('is a no-op when event is in collecting status (generation is manual)', async () => {
       const event = makeEvent();
       (getEventById as any).mockResolvedValue(event);
-      (getResponsesByEventId as any).mockResolvedValue(mockResponses);
-      (getTasteBenchmarkByUserId as any)
-        .mockResolvedValueOnce(mockBenchmarks[0])
-        .mockResolvedValueOnce(mockBenchmarks[1]);
-      (generateActivityOptions as any).mockResolvedValue(mockGeneratedOptions);
-      (updateEventStatus as any).mockResolvedValue(event);
-      (createActivityOption as any).mockResolvedValue({});
 
       await handleWindowExpiry('event-1', deps);
 
-      expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'generating');
-      expect(generateActivityOptions).toHaveBeenCalled();
-      expect(createActivityOption).toHaveBeenCalledTimes(3);
-      expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'options_ready');
+      expect(getEventById).toHaveBeenCalledWith(mockPool, 'event-1');
+      expect(updateEventStatus).not.toHaveBeenCalled();
+      expect(generateActivityOptions).not.toHaveBeenCalled();
     });
 
-    it('should trigger generation even when 0 responses exist', async () => {
+    it('is a no-op when 0 responses exist (generation is manual)', async () => {
       const event = makeEvent();
       (getEventById as any).mockResolvedValue(event);
-      (getResponsesByEventId as any).mockResolvedValue([]);
-      (generateActivityOptions as any).mockResolvedValue(mockGeneratedOptions);
-      (updateEventStatus as any).mockResolvedValue(event);
-      (createActivityOption as any).mockResolvedValue({});
 
       await handleWindowExpiry('event-1', deps);
 
-      expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'generating');
-      expect(generateActivityOptions).toHaveBeenCalledWith(
-        [],
-        [],
-        'test-key',
-        { title: 'Test Event', description: 'A test event' },
-        undefined
-      );
-      expect(createActivityOption).toHaveBeenCalledTimes(3);
-      expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'options_ready');
+      expect(updateEventStatus).not.toHaveBeenCalled();
+      expect(generateActivityOptions).not.toHaveBeenCalled();
     });
 
     it('should skip if event is not in collecting status', async () => {
@@ -207,7 +197,7 @@ describe('responseWindowScheduler', () => {
   });
 
   describe('triggerEarly', () => {
-    it('should cancel timer and trigger generation', async () => {
+    it('should cancel the scheduled timer without triggering generation', async () => {
       const event = makeEvent({
         response_window_end: new Date(Date.now() + 60000),
       });
@@ -215,21 +205,11 @@ describe('responseWindowScheduler', () => {
       scheduleResponseWindow(event, deps);
       expect(getActiveTimerCount()).toBe(1);
 
-      (getEventById as any).mockResolvedValue(event);
-      (getResponsesByEventId as any).mockResolvedValue(mockResponses);
-      (getTasteBenchmarkByUserId as any)
-        .mockResolvedValueOnce(mockBenchmarks[0])
-        .mockResolvedValueOnce(mockBenchmarks[1]);
-      (generateActivityOptions as any).mockResolvedValue(mockGeneratedOptions);
-      (updateEventStatus as any).mockResolvedValue(event);
-      (createActivityOption as any).mockResolvedValue({});
-
       await triggerEarly(event.id, deps);
 
       expect(getActiveTimerCount()).toBe(0);
-      expect(updateEventStatus).toHaveBeenCalledWith(mockPool, event.id, 'generating');
-      expect(generateActivityOptions).toHaveBeenCalled();
-      expect(updateEventStatus).toHaveBeenCalledWith(mockPool, event.id, 'options_ready');
+      expect(updateEventStatus).not.toHaveBeenCalled();
+      expect(generateActivityOptions).not.toHaveBeenCalled();
     });
   });
 
@@ -250,13 +230,14 @@ describe('responseWindowScheduler', () => {
       expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'generating');
       expect(getTasteBenchmarkByUserId).toHaveBeenCalledWith(mockPool, 'user-1');
       expect(getTasteBenchmarkByUserId).toHaveBeenCalledWith(mockPool, 'user-2');
-      // Now passes per-participant availability, event context, and optional realWorldContext
       expect(generateActivityOptions).toHaveBeenCalledWith(
         [mockBenchmarks[0], mockBenchmarks[1]],
         expect.any(Array),
         'test-key',
         { title: 'Test Event', description: 'A test event' },
-        undefined
+        undefined,  // realWorldContext (no location set)
+        undefined,  // model
+        undefined,  // provider
       );
       expect(createActivityOption).toHaveBeenCalledTimes(3);
       expect(updateEventStatus).toHaveBeenCalledWith(mockPool, 'event-1', 'options_ready');
@@ -281,7 +262,9 @@ describe('responseWindowScheduler', () => {
         expect.any(Array),
         'test-key',
         { title: 'Test Event', description: 'A test event' },
-        undefined
+        undefined,
+        undefined,
+        undefined,
       );
     });
 
@@ -300,7 +283,9 @@ describe('responseWindowScheduler', () => {
         [],
         'test-key',
         { title: 'Test Event', description: 'A test event' },
-        undefined
+        undefined,
+        undefined,
+        undefined,
       );
       expect(result).toEqual(mockGeneratedOptions);
     });

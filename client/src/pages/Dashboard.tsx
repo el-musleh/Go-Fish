@@ -8,7 +8,7 @@ import {
   Search,
   CalendarPlus,
   ChevronDown,
-  ChevronRight,
+  ChevronUp,
   Loader2,
   Plus,
 } from 'lucide-react';
@@ -59,7 +59,7 @@ interface EventItem {
 interface TimelineDetailProps {
   event: EventItem;
   onDelete?: (id: string) => void;
-  onCloseMobile?: () => void;
+  onClose?: () => void;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ function formatRemaining(ms: number) {
 
 // ── State-specific detail components ──────────────────────────────────────────
 
-function TimelineDetailCollecting({ event }: TimelineDetailProps) {
+function TimelineDetailCollecting({ event, onClose }: TimelineDetailProps) {
   const navigate = useNavigate();
   const isOrganizer = event.inviter_id === getCurrentUserId();
 
@@ -139,7 +139,7 @@ function TimelineDetailCollecting({ event }: TimelineDetailProps) {
   return (
     <div className="gf-card gf-timeline-detail-card">
       {/* Header */}
-      <div className="gf-timeline-detail-header">
+      <div className="gf-timeline-detail-header" onClick={onClose} style={{ cursor: 'pointer' }}>
         <div>
           <h3 className="gf-card-title">{event.title}</h3>
           {event.inviter_email && !isOrganizer && (
@@ -148,11 +148,18 @@ function TimelineDetailCollecting({ event }: TimelineDetailProps) {
             </p>
           )}
         </div>
-        <span
-          className={`gf-status-chip ${expired ? 'gf-status-chip--ready' : STATUS_LABELS.collecting.cls}`}
-        >
-          {expired ? 'Ready' : 'Collecting'}
-        </span>
+        <div className="gf-timeline-card__right">
+          <span
+            className={`gf-status-chip ${expired ? 'gf-status-chip--ready' : STATUS_LABELS.collecting.cls}`}
+            style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+          >
+            {expired ? 'Ready' : 'Collecting'}
+          </span>
+          <ChevronUp
+            size={16}
+            className="gf-timeline-card__chevron gf-timeline-card__chevron--expanded"
+          />
+        </div>
       </div>
 
       {/* Countdown */}
@@ -230,14 +237,14 @@ function TimelineDetailCollecting({ event }: TimelineDetailProps) {
   );
 }
 
-function TimelineDetailReady({ event }: TimelineDetailProps) {
+function TimelineDetailReady({ event, onClose }: TimelineDetailProps) {
   const navigate = useNavigate();
   const isOrganizer = event.inviter_id === getCurrentUserId();
 
   return (
     <div className="gf-card gf-timeline-detail-card">
       {/* Header */}
-      <div className="gf-timeline-detail-header">
+      <div className="gf-timeline-detail-header" onClick={onClose} style={{ cursor: 'pointer' }}>
         <div>
           <h3 className="gf-card-title">{event.title}</h3>
           {event.inviter_email && !isOrganizer && (
@@ -246,7 +253,18 @@ function TimelineDetailReady({ event }: TimelineDetailProps) {
             </p>
           )}
         </div>
-        <span className={`gf-status-chip ${STATUS_LABELS.options_ready.cls}`}>Ready</span>
+        <div className="gf-timeline-card__right">
+          <span
+            className={`gf-status-chip ${STATUS_LABELS.options_ready.cls}`}
+            style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+          >
+            Ready
+          </span>
+          <ChevronUp
+            size={16}
+            className="gf-timeline-card__chevron gf-timeline-card__chevron--expanded"
+          />
+        </div>
       </div>
 
       {/* Content */}
@@ -287,7 +305,7 @@ function TimelineDetailReady({ event }: TimelineDetailProps) {
   );
 }
 
-function TimelineDetailConfirmed({ event }: TimelineDetailProps) {
+function TimelineDetailConfirmed({ event, onClose }: TimelineDetailProps) {
   const navigate = useNavigate();
   const isOrganizer = event.inviter_id === getCurrentUserId();
 
@@ -324,7 +342,7 @@ function TimelineDetailConfirmed({ event }: TimelineDetailProps) {
   return (
     <div className="gf-card gf-timeline-detail-card">
       {/* Header */}
-      <div className="gf-timeline-detail-header">
+      <div className="gf-timeline-detail-header" onClick={onClose} style={{ cursor: 'pointer' }}>
         <div>
           <h3 className="gf-card-title">{event.title}</h3>
           {event.inviter_email && !isOrganizer && (
@@ -333,7 +351,18 @@ function TimelineDetailConfirmed({ event }: TimelineDetailProps) {
             </p>
           )}
         </div>
-        <span className={`gf-status-chip ${STATUS_LABELS.finalized.cls}`}>Confirmed</span>
+        <div className="gf-timeline-card__right">
+          <span
+            className={`gf-status-chip ${STATUS_LABELS.finalized.cls}`}
+            style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+          >
+            Confirmed
+          </span>
+          <ChevronUp
+            size={16}
+            className="gf-timeline-card__chevron gf-timeline-card__chevron--expanded"
+          />
+        </div>
       </div>
 
       {/* Selected Activity */}
@@ -426,15 +455,14 @@ function TimelineDetailConfirmed({ event }: TimelineDetailProps) {
   );
 }
 
-function TimelineDetailGenerating({ event, onCloseMobile }: TimelineDetailProps) {
+function TimelineDetailGenerating({ event, onClose }: TimelineDetailProps) {
   const navigate = useNavigate();
   const isOrganizer = event.inviter_id === getCurrentUserId();
-  void onCloseMobile;
 
   return (
     <div className="gf-card gf-timeline-detail-card">
       {/* Header */}
-      <div className="gf-timeline-detail-header">
+      <div className="gf-timeline-detail-header" onClick={onClose} style={{ cursor: 'pointer' }}>
         <div>
           <h3 className="gf-card-title">{event.title}</h3>
           {event.inviter_email && !isOrganizer && (
@@ -443,7 +471,18 @@ function TimelineDetailGenerating({ event, onCloseMobile }: TimelineDetailProps)
             </p>
           )}
         </div>
-        <span className={`gf-status-chip ${STATUS_LABELS.generating.cls}`}>Generating</span>
+        <div className="gf-timeline-card__right">
+          <span
+            className={`gf-status-chip ${STATUS_LABELS.generating.cls}`}
+            style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+          >
+            Generating
+          </span>
+          <ChevronUp
+            size={16}
+            className="gf-timeline-card__chevron gf-timeline-card__chevron--expanded"
+          />
+        </div>
       </div>
 
       <div className="gf-timeline-detail-generating">
@@ -469,20 +508,34 @@ function TimelineDetailGenerating({ event, onCloseMobile }: TimelineDetailProps)
   );
 }
 
-function TimelineDetail({ event, onDelete, onCloseMobile }: TimelineDetailProps) {
+function TimelineDetail({ event, onDelete, onClose }: TimelineDetailProps) {
   switch (event.status) {
     case 'collecting':
-      return <TimelineDetailCollecting event={event} onDelete={onDelete} />;
+      return <TimelineDetailCollecting event={event} onDelete={onDelete} onClose={onClose} />;
     case 'options_ready':
-      return <TimelineDetailReady event={event} onDelete={onDelete} />;
+      return <TimelineDetailReady event={event} onDelete={onDelete} onClose={onClose} />;
     case 'finalized':
-      return <TimelineDetailConfirmed event={event} onDelete={onDelete} />;
+      return <TimelineDetailConfirmed event={event} onDelete={onDelete} onClose={onClose} />;
     case 'generating':
-      return <TimelineDetailGenerating event={event} onCloseMobile={onCloseMobile} />;
+      return <TimelineDetailGenerating event={event} onClose={onClose} />;
     default:
       return (
         <div className="gf-card gf-timeline-detail-card">
-          <p className="gf-muted">Unknown event status: {event.status}</p>
+          <div
+            onClick={onClose}
+            style={{
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%',
+            }}
+          >
+            <p className="gf-muted" style={{ margin: 0 }}>
+              Unknown event status: {event.status}
+            </p>
+            <ChevronUp size={16} className="gf-timeline-card__chevron" />
+          </div>
         </div>
       );
   }
@@ -795,59 +848,66 @@ function TimelineView({
                         key={ev.id}
                         className={`gf-timeline-card-wrapper${isExpanded ? ' gf-timeline-card-wrapper--expanded' : ''}`}
                       >
-                        <button
-                          onClick={() => handleToggle(ev.id)}
-                          className={`gf-timeline-card${isExpanded ? ' gf-timeline-card--selected gf-timeline-card--mobile-expanded' : ''}`}
-                        >
-                          <div
-                            style={{
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'flex-start',
-                              marginBottom: '4px',
-                            }}
+                        {!isExpanded && (
+                          <button
+                            onClick={() => handleToggle(ev.id)}
+                            className={`gf-timeline-card${isExpanded ? ' gf-timeline-card--selected gf-timeline-card--mobile-expanded' : ''}`}
                           >
-                            <p className="gf-timeline-card__title" style={{ margin: 0 }}>
-                              {ev.title}
-                            </p>
-                            <div className="gf-timeline-card__right">
-                              <span
-                                className={`gf-status-chip ${s.cls}`}
-                                style={{ fontSize: '0.7rem', padding: '2px 6px' }}
-                              >
-                                {s.label}
-                              </span>
-                              <ChevronRight
-                                size={16}
-                                className={`gf-timeline-card__chevron${isExpanded ? ' gf-timeline-card__chevron--expanded' : ''}`}
-                              />
-                            </div>
-                          </div>
-                          {ev.inviter_id !== getCurrentUserId() && ev.inviter_email && (
-                            <p
-                              className="gf-muted"
-                              style={{ fontSize: '0.75rem', marginBottom: '4px' }}
+                            <div
+                              style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'flex-start',
+                                marginBottom: '4px',
+                              }}
                             >
-                              by {formatOrganizerName(ev.inviter_email)}
-                            </p>
-                          )}
-                          <div className="gf-timeline-card__meta">
-                            {ev.respondent_count !== undefined && (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <Users size={11} /> {ev.respondent_count}
-                              </span>
+                              <p className="gf-timeline-card__title" style={{ margin: 0 }}>
+                                {ev.title}
+                              </p>
+                              <div className="gf-timeline-card__right">
+                                <span
+                                  className={`gf-status-chip ${s.cls}`}
+                                  style={{ fontSize: '0.7rem', padding: '2px 6px' }}
+                                >
+                                  {s.label}
+                                </span>
+                                {isExpanded ? (
+                                  <ChevronUp size={16} className="gf-timeline-card__chevron" />
+                                ) : (
+                                  <ChevronDown size={16} className="gf-timeline-card__chevron" />
+                                )}
+                              </div>
+                            </div>
+                            {ev.inviter_id !== getCurrentUserId() && ev.inviter_email && (
+                              <p
+                                className="gf-muted"
+                                style={{ fontSize: '0.75rem', marginBottom: '4px' }}
+                              >
+                                by {formatOrganizerName(ev.inviter_email)}
+                              </p>
                             )}
-                            {ev.selected_activity && (
-                              <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                <MapPin size={11} /> {ev.selected_activity.title}
-                              </span>
-                            )}
-                          </div>
-                        </button>
+                            <div className="gf-timeline-card__meta">
+                              {ev.respondent_count !== undefined && (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <Users size={11} /> {ev.respondent_count}
+                                </span>
+                              )}
+                              {ev.selected_activity && (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                  <MapPin size={11} /> {ev.selected_activity.title}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        )}
 
                         {isExpanded && (
                           <div className="gf-timeline-card__expanded-content">
-                            <TimelineDetail event={ev} onDelete={onDelete} />
+                            <TimelineDetail
+                              event={ev}
+                              onDelete={onDelete}
+                              onClose={() => handleToggle(ev.id)}
+                            />
                           </div>
                         )}
                       </div>

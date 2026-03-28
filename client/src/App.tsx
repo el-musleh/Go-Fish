@@ -25,6 +25,7 @@ import InvitationResolver from './pages/InvitationResolver';
 import EventResponseForm from './pages/EventResponseForm';
 import ActivityOptionsView from './pages/ActivityOptionsView';
 import EventConfirmation from './pages/EventConfirmation';
+import EventTimelinePage from './pages/EventTimelinePage';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import TermsOfService from './pages/TermsOfService';
 import NotFound from './pages/NotFound';
@@ -455,6 +456,7 @@ export default function App() {
                 <Route path="/events/:eventId/confirmation" element={<EventConfirmation />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route path="/terms" element={<TermsOfService />} />
+                <Route path="/timeline" element={<EventTimelinePage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
               <Toaster />

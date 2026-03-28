@@ -6,6 +6,7 @@ html {
   min-height: 100%;
   background: var(--page-bg);
   color-scheme: dark;
+  scrollbar-gutter: stable;
 }
 
 html[data-theme='day'] {
