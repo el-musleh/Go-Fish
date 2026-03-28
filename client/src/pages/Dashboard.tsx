@@ -650,6 +650,7 @@ function TimelineView({
   });
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [hidePast, setHidePast] = useState(true);
+  const [showPastInSearch, setShowPastInSearch] = useState(true);
   const [showViewSettings, setShowViewSettings] = useState(false);
   const [lastUpdatedTimestamp, setLastUpdatedTimestamp] = useState(() => Date.now());
   const [now, setNow] = useState(() => Date.now());
@@ -710,10 +711,11 @@ function TimelineView({
 
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
-  const visibleGroups = useMemo(
-    () => (hidePast ? grouped.filter((g) => g.rawDate === null || g.rawDate >= todayStr) : grouped),
-    [grouped, hidePast, todayStr]
-  );
+  const visibleGroups = useMemo(() => {
+    const searchActive = !!searchQuery.trim();
+    if (!hidePast || (searchActive && showPastInSearch)) return grouped;
+    return grouped.filter((g) => g.rawDate === null || g.rawDate >= todayStr);
+  }, [grouped, hidePast, showPastInSearch, searchQuery, todayStr]);
 
   // Flat list in the exact visual order (date-sorted groups, events within each group)
   const orderedEvents = useMemo(() => visibleGroups.flatMap((g) => g.events), [visibleGroups]);
@@ -804,11 +806,33 @@ function TimelineView({
             className="gf-input"
             style={{
               paddingLeft: '38px',
+              paddingRight: searchQuery ? '36px' : undefined,
               borderRadius: '999px',
               fontSize: '0.9rem',
               width: '100%',
             }}
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              aria-label="Clear search"
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '2px',
+                display: 'flex',
+                color: 'var(--muted)',
+              }}
+            >
+              <X size={14} />
+            </button>
+          )}
         </div>
         <div
           className="gf-timeline-filters"
@@ -885,11 +909,30 @@ function TimelineView({
                     </span>
                   </span>
                 </label>
+                <label
+                  className={`gf-toggle${hidePast ? '' : ' gf-toggle--disabled'}`}
+                  style={hidePast ? {} : { opacity: 0.4, pointerEvents: 'none' }}
+                >
+                  <input
+                    type="checkbox"
+                    className="gf-toggle__input"
+                    checked={showPastInSearch}
+                    onChange={() => setShowPastInSearch((p) => !p)}
+                    disabled={!hidePast}
+                  />
+                  <span className="gf-toggle__switch" />
+                  <span className="gf-toggle__label-group">
+                    <span className="gf-toggle__label">Include past events in search</span>
+                    <span className="gf-toggle__description">
+                      When searching, surface past events even if they are hidden from the timeline.
+                    </span>
+                  </span>
+                </label>
               </div>
             </div>
           </>
         )}
-        {filteredEvents.length === 0 ? (
+        {visibleGroups.length === 0 ? (
           <EmptyState
             icon={<CalendarPlus size={48} />}
             title={searchQuery ? 'No matching events' : 'No events yet'}
