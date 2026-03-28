@@ -128,6 +128,25 @@ export default function EventDetail() {
 
   const { remaining, expired } = useCountdown(event?.response_window_end || '');
 
+  const handleCloseWindow = useCallback(async () => {
+    if (!eventId) return;
+    setWorking(true);
+    setError('');
+    try {
+      const updated = await api.post<EventData>(`/events/${eventId}/close-window`);
+      setEvent(updated);
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409) {
+        const current = await api.get<EventData>(`/events/${eventId}`).catch(() => null);
+        if (current) setEvent(current);
+      } else {
+        setError('Failed to mark event as ready. Please try again.');
+      }
+    } finally {
+      setWorking(false);
+    }
+  }, [eventId]);
+
   const handleGenerate = useCallback(async () => {
     if (!eventId) return;
     setWorking(true);
@@ -147,7 +166,7 @@ export default function EventDetail() {
         err.body &&
         typeof err.body === 'object' &&
         'error' in err.body &&
-        err.body.error === 'NEEDS_API_KEY'
+        (err.body as Record<string, unknown>).error === 'NEEDS_API_KEY'
       ) {
         setError(
           <span>
@@ -403,13 +422,15 @@ export default function EventDetail() {
           type="button"
           className="gf-button gf-button--primary"
           disabled={working}
-          onClick={handleGenerate}
+          onClick={expired ? handleGenerate : handleCloseWindow}
         >
           {working
-            ? 'Generating...'
+            ? expired
+              ? 'Generating...'
+              : 'Marking as ready...'
             : expired
-              ? 'Generate now'
-              : `End window & generate${respondents.length > 0 ? ` (${respondents.length} responded)` : ''}`}
+              ? 'Generate suggestions'
+              : 'Mark as Ready'}
         </button>
       )}
 

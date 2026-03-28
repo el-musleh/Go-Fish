@@ -315,6 +315,38 @@ export function createEventRouter(pool: Pool): Router {
   });
 
   /**
+   * POST /api/events/:eventId/close-window
+   * Organizer manually closes the response window and marks the event as ready
+   * without triggering AI suggestion generation.
+   */
+  router.post('/:eventId/close-window', async (req: Request, res: Response) => {
+    try {
+      const userId = (req as any).userId as string;
+      const event = await getEventById(pool, req.params.eventId as string);
+
+      if (!event) {
+        res.status(404).json({ error: 'not_found', message: 'Event not found.' });
+        return;
+      }
+      if (event.inviter_id !== userId) {
+        res.status(403).json({ error: 'forbidden', message: 'Only the organizer can close the response window.' });
+        return;
+      }
+      if (event.status !== 'collecting') {
+        res.status(409).json({ error: 'invalid_status', message: `Event is not in collecting status.` });
+        return;
+      }
+
+      await closeResponseWindow(pool, event.id);
+      const updated = await transitionEventStatus(pool, event.id, 'collecting', 'options_ready');
+      res.json(updated ?? event);
+    } catch (error) {
+      console.error('Error closing response window:', error);
+      res.status(500).json({ error: 'internal_error', message: 'Failed to close response window.' });
+    }
+  });
+
+  /**
    * POST /api/events/:eventId/link
    * Generate a unique invitation link for the event.
    */

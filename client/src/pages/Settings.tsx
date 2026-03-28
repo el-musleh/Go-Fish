@@ -42,7 +42,6 @@ import {
   Settings2,
   LogOut,
   Keyboard,
-  Sparkles,
   Info,
   Bug,
   ExternalLink,
@@ -997,6 +996,12 @@ function RegionalSection({
     { value: 'YYYY-MM-DD', label: 'YYYY-MM-DD' },
   ];
 
+  const dateDisplayStyles = [
+    { value: 'friendly', label: 'Friendly', description: 'Today, Tomorrow, Friday, Mar 27' },
+    { value: 'numeric', label: 'Numeric', description: 'Uses your date format above' },
+    { value: 'long', label: 'Full Date', description: 'Friday, March 27, 2026' },
+  ];
+
   const timezones = [
     { value: 'America/New_York', label: 'Eastern Time (ET)' },
     { value: 'America/Chicago', label: 'Central Time (CT)' },
@@ -1056,6 +1061,54 @@ function RegionalSection({
                   >
                     {format.label}
                   </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="gf-field">
+              <label
+                className="gf-field__label"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Clock size={16} /> Timeline Date Display
+              </label>
+              <p className="gf-muted" style={{ fontSize: '0.8rem', marginBottom: '8px' }}>
+                How dates appear in the event timeline headers.
+              </p>
+              <div className="gf-stack gf-stack--sm">
+                {dateDisplayStyles.map((style) => (
+                  <label
+                    key={style.value}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      cursor: 'pointer',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: `1px solid ${(local.date_display_style ?? 'friendly') === style.value ? 'var(--accent)' : 'var(--line)'}`,
+                      background:
+                        (local.date_display_style ?? 'friendly') === style.value
+                          ? 'rgba(var(--accent-rgb), 0.06)'
+                          : 'transparent',
+                      transition: 'all 150ms ease',
+                    }}
+                  >
+                    <input
+                      type="radio"
+                      name="date_display_style"
+                      value={style.value}
+                      checked={(local.date_display_style ?? 'friendly') === style.value}
+                      onChange={() => handleOptionChange('date_display_style', style.value)}
+                      style={{ accentColor: 'var(--accent)' }}
+                    />
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{style.label}</div>
+                      <div style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>
+                        {style.description}
+                      </div>
+                    </div>
+                  </label>
                 ))}
               </div>
             </div>
@@ -1125,7 +1178,7 @@ function PrivacySection({
   );
 }
 
-function ShortcutsSection({ onShowOnboarding }: { onShowOnboarding: () => void }) {
+function ShortcutsSection() {
   const shortcuts = [
     { key: 'C', description: 'Create new event' },
     { key: 'T', description: 'Go to dashboard' },
@@ -1170,18 +1223,6 @@ function ShortcutsSection({ onShowOnboarding }: { onShowOnboarding: () => void }
             ))}
           </div>
         </div>
-      </section>
-      <section className="gf-stack">
-        <h2 className="gf-card-title">Quick Start Guide</h2>
-        <p className="gf-muted">Not sure how to get started? View our quick tour.</p>
-        <button
-          type="button"
-          className="gf-button gf-button--secondary"
-          onClick={onShowOnboarding}
-          style={{ alignSelf: 'flex-start', marginTop: '8px' }}
-        >
-          <Sparkles size={16} /> View Quick Tour
-        </button>
       </section>
     </div>
   );
@@ -1511,9 +1552,7 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
               onSave={handleSaveAccessibility}
             />
           )}
-          {activeTab === 'shortcuts' && (
-            <ShortcutsSection onShowOnboarding={() => setShowOnboarding(true)} />
-          )}
+          {activeTab === 'shortcuts' && <ShortcutsSection />}
           {activeTab === 'regional' && (
             <RegionalSection preferences={preferences.regional} onSave={handleSaveRegional} />
           )}

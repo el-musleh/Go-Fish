@@ -171,6 +171,7 @@ export interface UserPreferences {
   regional: {
     timezone: string;
     date_format: string;
+    date_display_style: 'friendly' | 'numeric' | 'long';
   };
   privacy: {
     profile_visible: boolean;
@@ -195,6 +196,7 @@ export const defaultPreferences: UserPreferences = {
   regional: {
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     date_format: 'MM/DD/YYYY',
+    date_display_style: 'friendly' as const,
   },
   privacy: {
     profile_visible: true,

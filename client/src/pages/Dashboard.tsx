@@ -494,8 +494,26 @@ function getEventDate(event: EventItem): string | null {
   return event.selected_activity?.suggested_date ?? event.preferred_date ?? null;
 }
 
-function getFriendlyDateLabel(dateStr: string): { label: string; sublabel: string } {
+function getFriendlyDateLabel(
+  dateStr: string,
+  style: 'friendly' | 'numeric' | 'long' = 'friendly',
+  dateFormat: string = 'MM/DD/YYYY'
+): { label: string; sublabel: string } {
   const d = new Date(dateStr + 'T00:00:00');
+  const fullLabel = prettyDateFull(dateStr);
+
+  if (style === 'long') {
+    return { label: fullLabel, sublabel: '' };
+  }
+
+  if (style === 'numeric') {
+    const parts = dateStr.split('-');
+    const [y, m, day] = parts;
+    const numericLabel = dateFormat.replace('YYYY', y).replace('MM', m).replace('DD', day);
+    return { label: numericLabel, sublabel: fullLabel };
+  }
+
+  // friendly (default)
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const tomorrow = new Date(today);
@@ -503,18 +521,17 @@ function getFriendlyDateLabel(dateStr: string): { label: string; sublabel: strin
   const nextWeek = new Date(today);
   nextWeek.setDate(nextWeek.getDate() + 7);
 
-  if (d < today) return { label: 'Past', sublabel: prettyDateFull(dateStr) };
-  if (d.getTime() === today.getTime()) return { label: 'Today', sublabel: prettyDateFull(dateStr) };
-  if (d.getTime() === tomorrow.getTime())
-    return { label: 'Tomorrow', sublabel: prettyDateFull(dateStr) };
+  if (d < today) return { label: 'Past', sublabel: fullLabel };
+  if (d.getTime() === today.getTime()) return { label: 'Today', sublabel: fullLabel };
+  if (d.getTime() === tomorrow.getTime()) return { label: 'Tomorrow', sublabel: fullLabel };
   if (d < nextWeek)
     return {
       label: d.toLocaleDateString('en-US', { weekday: 'long' }),
-      sublabel: prettyDateFull(dateStr),
+      sublabel: fullLabel,
     };
   return {
     label: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
-    sublabel: prettyDateFull(dateStr),
+    sublabel: fullLabel,
   };
 }
 
@@ -525,13 +542,20 @@ interface DateGroup {
   events: EventItem[];
 }
 
-function groupByDate(events: EventItem[]): DateGroup[] {
+function groupByDate(
+  events: EventItem[],
+  style: 'friendly' | 'numeric' | 'long' = 'friendly',
+  dateFormat: string = 'MM/DD/YYYY'
+): DateGroup[] {
   const map = new Map<string, DateGroup>();
   for (const ev of events) {
     const d = getEventDate(ev);
     const key = d ? d.split('T')[0] : 'unscheduled';
     if (!map.has(key)) {
-      const friendly = d ? getFriendlyDateLabel(d) : { label: 'Unscheduled', sublabel: '' };
+      const friendly =
+        key !== 'unscheduled'
+          ? getFriendlyDateLabel(key, style, dateFormat)
+          : { label: 'Unscheduled', sublabel: '' };
       map.set(key, {
         label: friendly.label,
         sublabel: friendly.sublabel,
@@ -565,23 +589,28 @@ function TimelineView({
   searchQuery: string;
   setSearchQuery: (q: string) => void;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(() => {
+  const [expandedId, setExpandedId] = useState<string | null>(() => {
     if (initialEventId && events.find((e) => e.id === initialEventId)) return initialEventId;
-    return events[0]?.id ?? null;
+    return null;
   });
-  const [expandedMobileId, setExpandedMobileId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-  const [animating, setAnimating] = useState(false);
   const [lastUpdatedTimestamp, setLastUpdatedTimestamp] = useState(() => Date.now());
-  const [isMobile, setIsMobile] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const listRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth <= 720);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+  const { dateDisplayStyle, dateFormat } = useMemo(() => {
+    try {
+      const prefs = JSON.parse(localStorage.getItem('gofish_preferences') ?? '{}');
+      return {
+        dateDisplayStyle: (prefs?.regional?.date_display_style ?? 'friendly') as
+          | 'friendly'
+          | 'numeric'
+          | 'long',
+        dateFormat: (prefs?.regional?.date_format ?? 'MM/DD/YYYY') as string,
+      };
+    } catch {
+      return { dateDisplayStyle: 'friendly' as const, dateFormat: 'MM/DD/YYYY' };
+    }
   }, []);
 
   useEffect(() => {
@@ -605,7 +634,9 @@ function TimelineView({
   const filteredEvents = useMemo(() => {
     if (statusFilter === 'all') return events;
     if (statusFilter === 'options_ready')
-      return events.filter((e) => e.status === 'options_ready' || isExpiredCollecting(e));
+      return events.filter(
+        (e) => e.status === 'options_ready' || e.status === 'generating' || isExpiredCollecting(e)
+      );
     if (statusFilter === 'collecting')
       return events.filter(
         (e) =>
@@ -615,45 +646,33 @@ function TimelineView({
     return events.filter((e) => e.status === statusFilter);
   }, [events, statusFilter, now, isExpiredCollecting]);
 
-  const grouped = useMemo(() => groupByDate(filteredEvents), [filteredEvents]);
-  const selected = events.find((e) => e.id === selectedId) ?? filteredEvents[0] ?? null;
-
-  const handleSelect = useCallback(
-    (id: string) => {
-      setAnimating(true);
-      setSelectedId(id);
-      if (isMobile) setExpandedMobileId(id);
-      setTimeout(() => setAnimating(false), 150);
-    },
-    [isMobile]
+  const grouped = useMemo(
+    () => groupByDate(filteredEvents, dateDisplayStyle, dateFormat),
+    [filteredEvents, dateDisplayStyle, dateFormat]
   );
 
-  const handleToggleMobile = (id: string) => {
-    if (expandedMobileId === id) {
-      setExpandedMobileId(null);
-    } else {
-      setExpandedMobileId(id);
-      setSelectedId(id);
-    }
-  };
+  // Flat list in the exact visual order (date-sorted groups, events within each group)
+  const orderedEvents = useMemo(() => grouped.flatMap((g) => g.events), [grouped]);
 
-  const handleCloseMobile = () => setExpandedMobileId(null);
+  const handleToggle = useCallback((id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (!filteredEvents.length) return;
-      const currentIndex = filteredEvents.findIndex((ev) => ev.id === selectedId);
-      if (e.key === 'ArrowDown' && currentIndex < filteredEvents.length - 1) {
+      if (!orderedEvents.length) return;
+      const currentIndex = orderedEvents.findIndex((ev) => ev.id === expandedId);
+      if (e.key === 'ArrowDown' && currentIndex < orderedEvents.length - 1) {
         e.preventDefault();
-        handleSelect(filteredEvents[currentIndex + 1].id);
+        setExpandedId(orderedEvents[currentIndex + 1].id);
       } else if (e.key === 'ArrowUp' && currentIndex > 0) {
         e.preventDefault();
-        handleSelect(filteredEvents[currentIndex - 1].id);
+        setExpandedId(orderedEvents[currentIndex - 1].id);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [filteredEvents, selectedId, handleSelect]);
+  }, [orderedEvents, expandedId]);
 
   const filterButtons: { value: StatusFilter; label: string }[] = [
     { value: 'all', label: 'All' },
@@ -663,7 +682,7 @@ function TimelineView({
   ];
 
   return (
-    <div className="gf-timeline-layout">
+    <div className="gf-timeline-layout gf-timeline-layout--single">
       <div className="gf-timeline-list">
         <div
           style={{
@@ -680,9 +699,28 @@ function TimelineView({
             <Plus size={16} /> New event
           </Link>
         </div>
-        <p className="gf-muted" style={{ fontSize: '0.85rem', marginBottom: '16px' }}>
-          View and manage your events at a glance
-        </p>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '16px',
+          }}
+        >
+          <p className="gf-muted" style={{ fontSize: '0.85rem', margin: 0 }}>
+            View and manage your events at a glance
+          </p>
+          <p
+            className="gf-timeline-updated"
+            style={{ margin: 0, paddingTop: 0, borderTop: 'none' }}
+          >
+            Updated{' '}
+            {new Date(lastUpdatedTimestamp).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </p>
+        </div>
         <div style={{ position: 'relative', marginBottom: '12px' }}>
           <Search
             size={16}
@@ -741,16 +779,16 @@ function TimelineView({
           <div ref={listRef}>
             {grouped.map(({ label, sublabel, events: evs }) => (
               <div key={label} style={{ marginBottom: '16px' }}>
-                <div className="gf-timeline-group__date" title={sublabel}>
+                <div className="gf-timeline-group__date" title={sublabel || label}>
                   {label}
-                  <span className="gf-timeline-group__sublabel">{sublabel}</span>
+                  {sublabel && <span className="gf-timeline-group__sublabel">{sublabel}</span>}
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                   {evs.map((ev) => {
                     const s = isExpiredCollecting(ev)
                       ? { label: 'Ready', cls: 'gf-status-chip--ready' }
                       : STATUS_LABELS[ev.status] || { label: ev.status, cls: '' };
-                    const isExpanded = expandedMobileId === ev.id;
+                    const isExpanded = expandedId === ev.id;
 
                     return (
                       <div
@@ -758,10 +796,8 @@ function TimelineView({
                         className={`gf-timeline-card-wrapper${isExpanded ? ' gf-timeline-card-wrapper--expanded' : ''}`}
                       >
                         <button
-                          onClick={() =>
-                            isMobile ? handleToggleMobile(ev.id) : handleSelect(ev.id)
-                          }
-                          className={`gf-timeline-card${!isMobile && selected?.id === ev.id ? ' gf-timeline-card--selected' : ''}${isMobile && isExpanded ? ' gf-timeline-card--mobile-expanded' : ''}`}
+                          onClick={() => handleToggle(ev.id)}
+                          className={`gf-timeline-card${isExpanded ? ' gf-timeline-card--selected gf-timeline-card--mobile-expanded' : ''}`}
                         >
                           <div
                             style={{
@@ -781,12 +817,10 @@ function TimelineView({
                               >
                                 {s.label}
                               </span>
-                              {isMobile && (
-                                <ChevronRight
-                                  size={16}
-                                  className={`gf-timeline-card__chevron${isExpanded ? ' gf-timeline-card__chevron--expanded' : ''}`}
-                                />
-                              )}
+                              <ChevronRight
+                                size={16}
+                                className={`gf-timeline-card__chevron${isExpanded ? ' gf-timeline-card__chevron--expanded' : ''}`}
+                              />
                             </div>
                           </div>
                           {ev.inviter_id !== getCurrentUserId() && ev.inviter_email && (
@@ -811,13 +845,9 @@ function TimelineView({
                           </div>
                         </button>
 
-                        {isMobile && isExpanded && (
+                        {isExpanded && (
                           <div className="gf-timeline-card__expanded-content">
-                            <TimelineDetail
-                              event={ev}
-                              onDelete={onDelete}
-                              onCloseMobile={handleCloseMobile}
-                            />
+                            <TimelineDetail event={ev} onDelete={onDelete} />
                           </div>
                         )}
                       </div>
@@ -828,26 +858,7 @@ function TimelineView({
             ))}
           </div>
         )}
-        <p className="gf-timeline-updated">
-          Updated{' '}
-          {new Date(lastUpdatedTimestamp).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </p>
       </div>
-
-      {!isMobile && (
-        <div className={animating ? 'gf-timeline-detail--animating' : ''}>
-          {selected ? (
-            <TimelineDetail key={selected.id} event={selected} onDelete={onDelete} />
-          ) : (
-            <div className="gf-card">
-              <p className="gf-muted">Select an event to view details.</p>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }
@@ -970,7 +981,7 @@ export default function Dashboard() {
   const timelineEvents = [...created, ...joined].filter((e) => !e.archived && matchesSearch(e));
 
   return (
-    <div className="gf-stack gf-stack--xl">
+    <>
       {toast && <p className="gf-feedback gf-feedback--success">✓ {toast}</p>}
       {error && <p className="gf-feedback gf-feedback--error">{error}</p>}
 
@@ -981,6 +992,6 @@ export default function Dashboard() {
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
       />
-    </div>
+    </>
   );
 }

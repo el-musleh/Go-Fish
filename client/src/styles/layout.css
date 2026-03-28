@@ -52,6 +52,10 @@
   align-items: start;
 }
 
+.gf-timeline-layout--single {
+  grid-template-columns: 1fr;
+}
+
 .gf-panel-layout {
   display: grid;
   grid-template-columns: 220px 260px 1fr;
@@ -840,9 +844,9 @@
     gap: 16px;
   }
 
-  .gf-timeline-list {
-    max-height: 50vh;
-    overflow-y: auto;
+  .gf-timeline-layout--single .gf-timeline-list {
+    max-height: none;
+    overflow-y: visible;
   }
 
   .gf-timeline-detail {
