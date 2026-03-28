@@ -1597,6 +1597,28 @@ export default function Settings({ theme, onThemeChange, onSignOut }: SettingsPr
                   </a>
                 </div>
               </section>
+
+              {/* Legal Links Section */}
+              <section className="gf-stack">
+                <h2 className="gf-card-title">Legal</h2>
+                <p className="gf-muted">Read our policies and terms.</p>
+                <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
+                  <a
+                    href="/privacy"
+                    className="gf-button gf-button--secondary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    Privacy Policy
+                  </a>
+                  <a
+                    href="/terms"
+                    className="gf-button gf-button--secondary"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                  >
+                    Terms of Service
+                  </a>
+                </div>
+              </section>
             </div>
           )}
         </main>
