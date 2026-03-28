@@ -72,17 +72,27 @@ export async function generateActivityOptions(
   );
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    console.log(`[GEN] Attempt ${attempt + 1}/${MAX_RETRIES} — model: ${activeModel}, provider: ${provider ?? 'openrouter'}`);
     try {
-      return await runPlanningAgent(runtime, resolvedApiKey, activeModel, provider);
+      const result = await runPlanningAgent(runtime, resolvedApiKey, activeModel, provider);
+      console.log(`[GEN] Attempt ${attempt + 1} succeeded — ${result.length} option(s) generated`);
+      return result;
     } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+
       if (shouldUseFallbackModel(error, activeModel)) {
+        console.warn(`[GEN] Model "${activeModel}" unavailable — switching to fallback: ${FALLBACK_MODEL}`);
         activeModel = FALLBACK_MODEL;
         continue;
       }
 
-      lastError = error instanceof Error ? error : new Error(String(error));
+      lastError = error instanceof Error ? error : new Error(msg);
+      console.warn(`[GEN] Attempt ${attempt + 1} failed: ${msg}`);
+
       if (attempt < MAX_RETRIES - 1) {
-        await sleep(BASE_DELAY_MS * Math.pow(2, attempt));
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        console.log(`[GEN] Retrying in ${delay}ms…`);
+        await sleep(delay);
       }
     }
   }

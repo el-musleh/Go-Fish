@@ -11,6 +11,7 @@ import { getActivityOptionsByEventId, markActivityOptionSelected } from '../repo
 import { fetchRealWorldContext } from './realWorldData';
 import { GeoLocation } from './realWorldData/types';
 import { notifyOptionsReady } from './notificationService';
+import { insertGenerationLog, finalizeGenerationLog } from '../repositories/generationLogRepository';
 
 // Track active timers so they can be cancelled
 const activeTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -125,8 +126,21 @@ export async function triggerGeneration(
   // Transition to generating
   await updateEventStatus(pool, eventId, 'generating');
 
+  const wallStart = Date.now();
+  const logEntry = await insertGenerationLog(pool, {
+    event_id: eventId,
+    model_used: effectiveModel ?? null,
+    provider_used: effectiveProvider ?? null,
+    attempt_number: 1,
+  });
+  console.log(`[GEN] Generation started — event: ${eventId}, model: ${effectiveModel ?? 'default'}, provider: ${effectiveProvider ?? 'openrouter'}, log: ${logEntry.id}`);
+
+  let realWorldMs: number | null = null;
+  let agentMs: number | null = null;
+
   try {
     const responses = await getResponsesByEventId(pool, eventId);
+    console.log(`[GEN] Loaded ${responses.length} response(s) for event ${eventId}`);
 
     // Fetch all benchmarks in parallel instead of sequentially
     const benchmarkResults = await Promise.all(
@@ -135,6 +149,7 @@ export async function triggerGeneration(
     const benchmarks = benchmarkResults.filter(
       (b): b is NonNullable<typeof b> => b !== null && b !== undefined
     );
+    console.log(`[GEN] ${benchmarks.length}/${responses.length} participant(s) have taste benchmarks`);
 
     // Build per-participant availability with time windows
     const participantAvailability: ParticipantAvailability[] = responses.map((r, i) => ({
@@ -172,24 +187,30 @@ export async function triggerGeneration(
         endDate = twoWeeks.toISOString().split('T')[0];
       }
 
-      {
-        try {
-          realWorldContext = await fetchRealWorldContext(
-            location,
-            startDate,
-            endDate,
-            benchmarks
-          );
-          console.log(
-            `Event ${eventId}: fetched ${realWorldContext.events.length} events, ${realWorldContext.venues.length} venues, ${realWorldContext.weather.length} weather days`
-          );
-        } catch (err) {
-          console.warn(`Event ${eventId}: real-world data fetch failed, proceeding without:`, err);
-        }
+      console.log(`[GEN] Fetching real-world data for ${event.location_city} (${startDate} → ${endDate})…`);
+      const rwStart = Date.now();
+      try {
+        realWorldContext = await fetchRealWorldContext(
+          location,
+          startDate,
+          endDate,
+          benchmarks
+        );
+        realWorldMs = Date.now() - rwStart;
+        console.log(
+          `[GEN] Real-world data fetched in ${realWorldMs}ms — ${realWorldContext.events.length} event(s), ${realWorldContext.venues.length} venue(s), ${realWorldContext.weather.length} weather day(s)`
+        );
+      } catch (err) {
+        realWorldMs = Date.now() - rwStart;
+        console.warn(`[GEN] Real-world data fetch failed after ${realWorldMs}ms, proceeding without:`, err);
       }
+    } else {
+      console.log(`[GEN] No location set — skipping real-world data fetch`);
     }
 
     // Generate activity options using the user's configured AI provider
+    console.log(`[GEN] Invoking planning agent…`);
+    const agentStart = Date.now();
     const options = await generateActivityOptions(
       benchmarks,
       participantAvailability,
@@ -199,6 +220,8 @@ export async function triggerGeneration(
       effectiveModel,
       effectiveProvider ?? undefined
     );
+    agentMs = Date.now() - agentStart;
+    console.log(`[GEN] Agent produced ${options.length} option(s) in ${agentMs}ms`);
 
     // Store generated options in parallel
     await Promise.all(
@@ -219,8 +242,19 @@ export async function triggerGeneration(
       )
     );
 
+    const durationMs = Date.now() - wallStart;
+    console.log(`[GEN] Options saved — transitioning to options_ready (total: ${durationMs}ms)`);
+
     // Transition to options_ready
     await updateEventStatus(pool, eventId, 'options_ready');
+
+    await finalizeGenerationLog(pool, logEntry.id, {
+      status: 'success',
+      real_world_ms: realWorldMs,
+      agent_ms: agentMs,
+      duration_ms: durationMs,
+      error_message: null,
+    });
 
     // Notify organizer that options are ready
     notifyOptionsReady(pool, eventId, event.inviter_id, event.title).catch((err) =>
@@ -229,6 +263,18 @@ export async function triggerGeneration(
 
     return options;
   } catch (err) {
+    const durationMs = Date.now() - wallStart;
+    const errMsg = err instanceof Error ? err.message : String(err);
+    console.error(`[GEN] Generation failed after ${durationMs}ms — reverting to collecting:`, errMsg);
+
+    await finalizeGenerationLog(pool, logEntry.id, {
+      status: 'failed',
+      real_world_ms: realWorldMs,
+      agent_ms: agentMs,
+      duration_ms: durationMs,
+      error_message: errMsg,
+    }).catch(() => {/* don't mask the original error */});
+
     // Revert to collecting on failure so it can be retried
     await updateEventStatus(pool, eventId, 'collecting');
     throw err;

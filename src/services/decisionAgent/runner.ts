@@ -1,9 +1,58 @@
 import { BaseMessage, HumanMessage } from '@langchain/core/messages';
 import { createReactAgent } from '@langchain/langgraph/prebuilt';
+import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
+import type { Serialized } from '@langchain/core/load/serializable';
+import type { LLMResult } from '@langchain/core/outputs';
 import { CandidateRef, OverlapSlot, AgentRuntimeState, createAgentTools } from './tools';
 import { createChatOpenRouterModel, extractJson } from './model';
 import { FinalizedOptions, finalizedOptionsSchema } from './schemas';
 import { createAgentPrompt, buildAgentUserPrompt, buildFinalizerPrompt } from './prompt';
+
+/**
+ * LangChain callback handler that logs every agent step to stdout.
+ * These lines are picked up by the ⚡ GEN highlight in start.sh.
+ */
+class GenerationLogger extends BaseCallbackHandler {
+  name = 'GenerationLogger';
+  private stepCount = 0;
+
+  handleChatModelStart(
+    _llm: Serialized,
+    messages: BaseMessage[][],
+    _runId: string
+  ): void {
+    this.stepCount++;
+    const msgCount = messages.reduce((n, m) => n + m.length, 0);
+    console.log(`[AGENT step ${this.stepCount}] LLM call — ${msgCount} message(s) in context`);
+  }
+
+  handleLLMEnd(output: LLMResult, _runId: string): void {
+    const gen = output.generations[0]?.[0];
+    const text = (gen as unknown as { text?: string })?.text ?? '';
+    const usage = (output.llmOutput as Record<string, unknown> | undefined)?.tokenUsage as
+      | { promptTokens?: number; completionTokens?: number }
+      | undefined;
+    const tokenInfo = usage
+      ? ` | in: ${usage.promptTokens ?? '?'} out: ${usage.completionTokens ?? '?'} tokens`
+      : '';
+    console.log(`[AGENT] LLM done — ${text.length} chars${tokenInfo}`);
+  }
+
+  handleToolStart(tool: Serialized, input: string, _runId: string): void {
+    const name =
+      (tool as unknown as { name?: string }).name ??
+      (Array.isArray(tool.id) ? tool.id.slice(-1)[0] : undefined) ??
+      'unknown';
+    const preview = input.length > 160 ? input.slice(0, 160) + '…' : input;
+    console.log(`[AGENT] → tool: ${name} | ${preview}`);
+  }
+
+  handleToolEnd(output: unknown, _runId: string): void {
+    const text = String(output);
+    const preview = text.length > 160 ? text.slice(0, 160) + '…' : text;
+    console.log(`[AGENT] ← result: ${preview}`);
+  }
+}
 
 export interface GeneratedOption {
   title: string;
@@ -165,6 +214,10 @@ export async function runPlanningAgent(
   }
 
   const AGENT_TIMEOUT_MS = 60_000;
+  const logger = new GenerationLogger();
+
+  console.log(`[GEN] Planning agent starting — model: ${modelName ?? 'default'}, provider: ${provider ?? 'openrouter'}`);
+  console.log(`[GEN] Runtime: ${runtime.overlaps.length} overlap slot(s), ${runtime.eventCandidates.length} event candidate(s), ${runtime.venueCandidates.length} venue candidate(s)`);
 
   const agentApp = createReactAgent({
     llm: createChatOpenRouterModel({ apiKey, model: modelName, temperature: 0.2, provider }),
@@ -175,15 +228,17 @@ export async function runPlanningAgent(
   // Abort the agent if it runs longer than AGENT_TIMEOUT_MS
   const agentController = new AbortController();
   const agentTimer = setTimeout(() => agentController.abort(), AGENT_TIMEOUT_MS);
+  const agentStart = Date.now();
   let shortlistResult;
   try {
     shortlistResult = await agentApp.invoke(
       { messages: [new HumanMessage(buildAgentUserPrompt(runtime))] },
-      { recursionLimit: 10, signal: agentController.signal }
+      { recursionLimit: 25, signal: agentController.signal, callbacks: [logger] }
     );
   } finally {
     clearTimeout(agentTimer);
   }
+  console.log(`[GEN] Agent shortlisting done in ${Date.now() - agentStart}ms`);
 
   const shortlist = extractAgentShortlist(shortlistResult.messages);
 
@@ -193,17 +248,20 @@ export async function runPlanningAgent(
 
   const finalizerController = new AbortController();
   const finalizerTimer = setTimeout(() => finalizerController.abort(), AGENT_TIMEOUT_MS);
+  const finalizerStart = Date.now();
   let finalizerResult;
   try {
     finalizerResult = await finalizer.invoke(
       [new HumanMessage({
         content: buildFinalizerPrompt(runtime, shortlist) + '\n\nIMPORTANT: Return ONLY a raw JSON object — no markdown fences, no commentary.',
       })],
-      { signal: finalizerController.signal }
+      { signal: finalizerController.signal, callbacks: [logger] }
     );
   } finally {
     clearTimeout(finalizerTimer);
   }
+  console.log(`[GEN] Finalizer done in ${Date.now() - finalizerStart}ms`);
+
   const finalizerText = formatMessageContent(finalizerResult.content);
   const finalized = finalizedOptionsSchema.parse(JSON.parse(extractJson(finalizerText)));
   return validateAndHydrateOptions(finalized, runtime);

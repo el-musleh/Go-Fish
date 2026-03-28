@@ -24,6 +24,25 @@ interface EventData {
   status: string;
 }
 
+const GENERATION_STEPS = [
+  {
+    label: 'Fetching real-world events and venues…',
+    detail: 'Scanning local listings and weather for your dates.',
+  },
+  {
+    label: 'Analyzing group preferences…',
+    detail: "Comparing everyone's taste benchmarks and availability.",
+  },
+  {
+    label: 'Running AI planning agent…',
+    detail: 'The agent is exploring options and calling research tools.',
+  },
+  {
+    label: 'Finalizing your shortlist…',
+    detail: 'Ranking the top combinations and structuring the picks.',
+  },
+];
+
 const RANK_CLASS: Record<number, string> = {
   1: 'gf-option-card--rank-1',
   2: 'gf-option-card--rank-2',
@@ -46,6 +65,8 @@ export default function ActivityOptionsView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selecting, setSelecting] = useState<string | null>(null);
+  const [eventStatus, setEventStatus] = useState<string>('');
+  const [stepIndex, setStepIndex] = useState(0);
   const isSelectingRef = useRef(false);
 
   const loadOptions = useCallback(async () => {
@@ -56,9 +77,12 @@ export default function ActivityOptionsView() {
       api.get<{ options: ActivityOption[] }>(`/events/${eventId}/options`),
     ]);
 
-    if (eventResult.status === 'fulfilled' && eventResult.value.status === 'finalized') {
-      navigate(`/events/${eventId}/confirmation`, { replace: true });
-      return true;
+    if (eventResult.status === 'fulfilled') {
+      setEventStatus(eventResult.value.status);
+      if (eventResult.value.status === 'finalized') {
+        navigate(`/events/${eventId}/confirmation`, { replace: true });
+        return true;
+      }
     }
 
     if (optionsResult.status === 'rejected') {
@@ -126,6 +150,13 @@ export default function ActivityOptionsView() {
       isSelectingRef.current = false;
     }
   }
+
+  // Cycle through generation steps every 4 s while the agent is running
+  useEffect(() => {
+    if (eventStatus !== 'generating') return;
+    const id = setInterval(() => setStepIndex((i) => (i + 1) % GENERATION_STEPS.length), 4000);
+    return () => clearInterval(id);
+  }, [eventStatus]);
 
   if (loading) return <p className="gf-muted">Loading…</p>;
 
@@ -222,6 +253,12 @@ export default function ActivityOptionsView() {
             </div>
           ))}
         </div>
+      ) : eventStatus === 'generating' ? (
+        <OptionGenerationState
+          title={GENERATION_STEPS[stepIndex].label}
+          description={GENERATION_STEPS[stepIndex].detail}
+          detail="This page refreshes automatically — picks will appear as soon as the agent finishes."
+        />
       ) : (
         <OptionGenerationState
           title="Curating your shortlist"

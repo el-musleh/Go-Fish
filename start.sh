@@ -21,6 +21,7 @@ SESSION_PID_FILE="$LOG_DIR/start.pid"
 BACKEND_PID=""
 FRONTEND_PID=""
 TAIL_PID=""
+DB_WATCHDOG_PID=""
 DOCKER_COMPOSE="docker compose"
 _CLEANED_UP=false
 
@@ -41,14 +42,18 @@ done
 # ── Colors ──────────────────────────────────────────────────────────────────
 if [ -t 1 ] && [ "${TERM:-dumb}" != "dumb" ]; then
   GREEN='\033[0;32m'; YELLOW='\033[1;33m'; RED='\033[0;31m'; BLUE='\033[0;34m'
+  CYAN='\033[0;36m'; MAGENTA='\033[0;35m'
   BOLD='\033[1m'; DIM='\033[2m'; NC='\033[0m'
 else
-  GREEN=''; YELLOW=''; RED=''; BLUE=''; BOLD=''; DIM=''; NC=''
+  GREEN=''; YELLOW=''; RED=''; BLUE=''; CYAN=''; MAGENTA=''
+  BOLD=''; DIM=''; NC=''
 fi
 
-log()  { echo -e "${GREEN}[go-fish]${NC} $1"; }
-info() { echo -e "${BLUE}[go-fish]${NC} $1"; }
-warn() { echo -e "${YELLOW}[go-fish] WARN:${NC} $1"; }
+log()    { echo -e "${GREEN}[go-fish]${NC} $1"; }
+info()   { echo -e "${BLUE}[go-fish]${NC} $1"; }
+warn()   { echo -e "${YELLOW}[go-fish] WARN:${NC} $1"; }
+gen()    { echo -e "${MAGENTA}[go-fish ⚡ GEN]${NC} $1"; }
+db_log() { echo -e "${CYAN}[go-fish  DB]${NC} $1"; }
 die()  {
   set +e
   echo -e "\n${RED}${BOLD}✖ ERROR:${NC} ${RED}$1${NC}" >&2
@@ -59,6 +64,7 @@ die()  {
   exit 1
 }
 step() { echo -e "\n${BOLD}── $1 ──${NC}"; }
+ts()   { date '+%H:%M:%S'; }
 
 # ── Kill a process and all its descendants ──────────────────────────────────
 # Prevents zombie ts-node/vite child processes after Ctrl+C.
@@ -81,7 +87,8 @@ cleanup() {
   echo ""
   log "Shutting down..."
   rm -f "$SESSION_PID_FILE"
-  [ -n "$TAIL_PID"     ] && kill "$TAIL_PID"     2>/dev/null
+  [ -n "$TAIL_PID"         ] && kill "$TAIL_PID"         2>/dev/null
+  [ -n "$DB_WATCHDOG_PID"  ] && kill "$DB_WATCHDOG_PID"  2>/dev/null
   kill_tree "$BACKEND_PID"
   kill_tree "$FRONTEND_PID"
   [ -n "$DOCKER_COMPOSE" ] && $DOCKER_COMPOSE stop db >/dev/null 2>&1
@@ -140,6 +147,73 @@ wait_log() {
     sleep 1
   done
   return 1
+}
+
+# ── DB watchdog — restarts the container if health checks fail ───────────────
+# Runs as a background process for the lifetime of the session.
+DB_WATCHDOG_INTERVAL=10   # seconds between health checks
+DB_WATCHDOG_MAX_WAIT=30   # seconds to wait for DB after restart
+
+db_watchdog() {
+  local fail_streak=0
+  while true; do
+    sleep "$DB_WATCHDOG_INTERVAL"
+
+    if $DOCKER_COMPOSE exec -T db pg_isready -U gofish -d gofish -q 2>/dev/null; then
+      fail_streak=0
+      continue
+    fi
+
+    fail_streak=$((fail_streak + 1))
+    warn "[$(ts)] DB health check failed (streak: $fail_streak) — attempting restart..."
+
+    if ! $DOCKER_COMPOSE restart db >/dev/null 2>&1; then
+      warn "[$(ts)] docker compose restart db failed — will retry next cycle"
+      continue
+    fi
+
+    db_log "[$(ts)] DB container restarting, waiting up to ${DB_WATCHDOG_MAX_WAIT}s..."
+    local recovered=false
+    for i in $(seq 1 "$DB_WATCHDOG_MAX_WAIT"); do
+      if $DOCKER_COMPOSE exec -T db pg_isready -U gofish -d gofish -q 2>/dev/null; then
+        recovered=true
+        break
+      fi
+      sleep 1
+    done
+
+    if [ "$recovered" = true ]; then
+      db_log "[$(ts)] Database recovered after restart — backend will reconnect automatically"
+      fail_streak=0
+    else
+      warn "[$(ts)] Database did not recover within ${DB_WATCHDOG_MAX_WAIT}s — check: $DOCKER_COMPOSE logs db"
+    fi
+  done
+}
+
+# ── Smart log tailer — colorizes and highlights generation events ─────────────
+# Patterns that indicate AI option generation activity.
+GEN_PATTERN="(generat|options_ready|shortlist|finaliz|runPlanning|real.world|fetched.*event|fetched.*venue|fetched.*weather|triggerGeneration|decisionAgent|AGENT|agent.*tool|tool.*call|temperature|recursion)"
+ERR_PATTERN="(error|Error|ERROR|failed|FAILED|crash|ECONNREFUSED|ENOTFOUND|timeout|Timeout|abort|Abort)"
+WARN_PATTERN="(warn|WARN|deprecated|Deprecated)"
+OK_PATTERN="(ready|started|connected|success|Success|listening|healthy|online)"
+
+smart_tail() {
+  tail -f "$LOG_DIR/backend.log" "$LOG_DIR/frontend.log" 2>/dev/null | \
+  while IFS= read -r line; do
+    t="[$(ts)]"
+    if echo "$line" | grep -qiE "$GEN_PATTERN"; then
+      printf "${MAGENTA}%s ⚡ GEN${NC}  %s\n" "$t" "$line"
+    elif echo "$line" | grep -qiE "$ERR_PATTERN"; then
+      printf "${RED}%s ✖ ERR${NC}  %s\n" "$t" "$line"
+    elif echo "$line" | grep -qiE "$WARN_PATTERN"; then
+      printf "${YELLOW}%s ⚠ WRN${NC}  %s\n" "$t" "$line"
+    elif echo "$line" | grep -qiE "$OK_PATTERN"; then
+      printf "${GREEN}%s ✓ OK ${NC}  %s\n" "$t" "$line"
+    else
+      printf "${DIM}%s     ${NC}  %s\n" "$t" "$line"
+    fi
+  done
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -298,7 +372,12 @@ for i in $(seq 1 30); do
   [ "$i" -eq 30 ] && die "Postgres did not become ready.\n  Check: $DOCKER_COMPOSE logs db"
   sleep 1
 done
-log "Postgres ready"
+log "Postgres ready (container: $($DOCKER_COMPOSE ps -q db))"
+
+# Start DB watchdog in background
+db_watchdog &
+DB_WATCHDOG_PID=$!
+db_log "Watchdog started (PID $DB_WATCHDOG_PID) — checks every ${DB_WATCHDOG_INTERVAL}s, restarts on failure"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 7. Backend
@@ -306,30 +385,12 @@ log "Postgres ready"
 info "Backend..."
 npm run dev > "$LOG_DIR/backend.log" 2>&1 &
 BACKEND_PID=$!
+info "Backend starting (PID $BACKEND_PID) — waiting for health check..."
 
 if ! wait_http "http://localhost:3000/health" "$BACKEND_PID"; then
   die "Backend crashed on startup." "$LOG_DIR/backend.log"
 fi
-log "Backend ready"
-
-# Test AI endpoints
-info "Testing AI endpoints..."
-AI_HEALTH=$(curl -sf "http://localhost:3000/api/ai/health" 2>&1 || echo '{"error":"failed"}')
-if echo "$AI_HEALTH" | grep -q '"status":"ok"'; then
-  log "AI health: OK"
-else
-  warn "AI health: FAILED"
-fi
-
-# Test AI test endpoint
-AI_TEST=$(curl -sf -X POST "http://localhost:3000/api/ai/test" \
-  -H "Content-Type: application/json" \
-  -d '{"provider":"test","model":"test","apiKey":"test"}' 2>&1 || echo '{"error":"failed"}')
-if echo "$AI_TEST" | grep -q '"success":true'; then
-  log "AI test endpoint: OK"
-else
-  warn "AI test endpoint: FAILED"
-fi
+log "Backend ready (PID $BACKEND_PID) → http://localhost:3000"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # 8. Frontend
@@ -337,25 +398,29 @@ fi
 info "Frontend..."
 (cd client && npm run dev) > "$LOG_DIR/frontend.log" 2>&1 &
 FRONTEND_PID=$!
+info "Frontend starting (PID $FRONTEND_PID) — waiting for Vite..."
 
 # "Local:" appears in Vite's ready output across all versions
 if ! wait_log "Local:" "$LOG_DIR/frontend.log" "$FRONTEND_PID"; then
   die "Frontend crashed on startup." "$LOG_DIR/frontend.log"
 fi
-log "Frontend ready"
+log "Frontend ready (PID $FRONTEND_PID) → http://localhost:5173"
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Ready
 # ═══════════════════════════════════════════════════════════════════════════
 echo -e "\n${GREEN}${BOLD}✨ Go Fish is ready!${NC}"
 echo -e "${DIM}──────────────────────────────────────${NC}"
-echo -e "  Frontend  →  ${BOLD}http://localhost:5173${NC}"
-echo -e "  Backend   →  ${BOLD}http://localhost:3000${NC}"
+echo -e "  Frontend   →  ${BOLD}http://localhost:5173${NC}"
+echo -e "  Backend    →  ${BOLD}http://localhost:3000${NC}"
 echo -e "${DIM}──────────────────────────────────────${NC}"
 echo -e "  Logs: tail -f logs/backend.log logs/frontend.log"
+echo -e "  DB watchdog: every ${DB_WATCHDOG_INTERVAL}s, auto-restarts on failure"
+echo -e "  ${MAGENTA}⚡ GEN${NC}  lines = AI option generation events"
+echo -e "  ${RED}✖ ERR${NC}  lines = errors   ${YELLOW}⚠ WRN${NC}  lines = warnings"
 echo -e "  Press ${BOLD}Ctrl+C${NC} to stop\n"
 
-tail -f "$LOG_DIR/backend.log" "$LOG_DIR/frontend.log" &
+smart_tail &
 TAIL_PID=$!
 
 wait "$BACKEND_PID" "$FRONTEND_PID"
