@@ -273,6 +273,132 @@
   color: var(--accent-warm);
 }
 
+/* Landing page nav */
+.gf-landing__nav {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+}
+
+.gf-landing__nav-link {
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--muted);
+  text-decoration: none;
+  background: var(--bg-panel);
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+
+.gf-landing__nav-link:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(255, 157, 73, 0.07);
+}
+
+/* Features grid */
+.gf-landing__features {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.gf-landing__feature {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gf-landing__feature-icon {
+  font-size: 1.8rem;
+}
+
+/* Pricing plans */
+.gf-landing__plans {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 360px));
+  gap: 20px;
+  justify-content: center;
+}
+
+.gf-landing__plan {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.gf-landing__plan--featured {
+  border-color: var(--line-strong);
+  background: linear-gradient(160deg, rgba(255, 157, 73, 0.08), transparent 60%);
+}
+
+.gf-landing__plan-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.gf-landing__plan-name {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.82rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.gf-landing__plan-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 2px 10px;
+  opacity: 0.7;
+}
+
+.gf-landing__plan-price {
+  margin: 0;
+  font-family: var(--font-serif);
+  font-size: 2.6rem;
+  letter-spacing: -0.04em;
+  line-height: 1;
+  color: var(--accent-warm);
+}
+
+.gf-landing__plan-period {
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  color: var(--muted);
+  letter-spacing: 0;
+}
+
+.gf-landing__plan-perks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.gf-landing__plan-perks li::before {
+  content: '✓ ';
+  color: var(--accent);
+}
+
 @media (max-width: 1080px) {
   .gf-topbar {
     grid-template-columns: 1fr;
@@ -332,6 +458,12 @@
     height: 136px;
   }
   .gf-landing__steps {
+    grid-template-columns: 1fr;
+  }
+  .gf-landing__features {
+    grid-template-columns: 1fr;
+  }
+  .gf-landing__plans {
     grid-template-columns: 1fr;
   }
   .gf-landing__hero {
