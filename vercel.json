@@ -8,5 +8,8 @@
       "destination": "https://moiajtcnyimeqllextxn.supabase.co/functions/v1/api/:path*"
     },
     { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  ],
+  "github": {
+    "silent": true
+  }
 }
