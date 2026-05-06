@@ -1,0 +1,27 @@
+name: Supabase Keepalive
+
+on:
+  schedule:
+    # Every 5 days at 08:00 UTC — Supabase free tier pauses after 7 days of inactivity
+    - cron: '0 8 */5 * *'
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    name: Ping Supabase to prevent project pause
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://moiajtcnyimeqllextxn.supabase.co/rest/v1/" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            --max-time 30 || echo "000")
+          echo "Supabase HTTP response: $STATUS"
+          if [ "$STATUS" = "000" ]; then
+            echo "::warning::Supabase did not respond — project may be paused or deleted. Restore it at https://supabase.com/dashboard/project/moiajtcnyimeqllextxn"
+          elif [ "$STATUS" -ge 500 ]; then
+            echo "::warning::Supabase returned $STATUS — project may be paused. Restore it at https://supabase.com/dashboard/project/moiajtcnyimeqllextxn"
+          else
+            echo "Supabase is alive (HTTP $STATUS)"
+          fi
